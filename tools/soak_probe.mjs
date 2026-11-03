@@ -177,7 +177,10 @@ await page.evaluate(() => {
       tap = 'pending';
       const src = `class SoakTap extends AudioWorkletProcessor {
         constructor(){ super(); this.run = 0; this.n = 0; this.armed = false; this.min = 1;
-          this.port.onmessage = e => { this.armed = !!e.data; if (!this.armed) this.run = 0; }; }
+          // a silence still running when the tap is told to stop listening is reported, never dropped
+          this.port.onmessage = e => { const on = !!e.data;
+            if (!on && this.armed && this.run >= 2) this.port.postMessage({ end: currentTime, blocks: this.run });
+            this.armed = on; if (!on) this.run = 0; }; }
         process(inputs){
           const ch = inputs[0] && inputs[0][0];
           let s = 0; if (ch) for (let i = 0; i < ch.length; i++) s += ch[i] * ch[i];
@@ -212,7 +215,9 @@ await page.evaluate(() => {
         const t = now();
         S.ev.push({ t, deck: i, onAir: i === AE.active, type, ct: +d.a.currentTime.toFixed(2),
           playing: !!player.playing, paused: d.a.paused, healing: !!d._healing,
-          seam: MIXER.phase === 'running' || MIXER.phase === 'manual' || t - (S.seamSeen || -9) < 3 });
+          seam: MIXER.phase === 'running' || MIXER.phase === 'manual' || t - (S.seamSeen || -9) < 3,
+          // where the incoming record enters on this seam (a runway fixture enters bars in, not at 0)
+          entry: MIXER.plan && isFinite(MIXER.plan.startB) ? +MIXER.plan.startB.toFixed(2) : null });
       });
     });
   };
@@ -229,7 +234,10 @@ await page.evaluate(() => {
       || (typeof DECKS !== 'undefined' && DECKS.fader && DECKS.fader.hand);
     const live = !!(d && player.playing && !d.a.paused && !d._healing && AE.ctx && AE.ctx.state === 'running');
     if (live && !S.heard && d.a.currentTime > 0.5) S.heard = true;
-    const want = live && S.heard && !handBusy && !S.stopArm;
+    // the TAP listens on the transport, not the element: a record paused under a transport that
+    // says it plays is dead air at the speaker — exactly what it is here to catch
+    const rolling = !!(d && player.playing && !d._healing && AE.ctx && AE.ctx.state === 'running');
+    const want = rolling && S.heard && !handBusy && !S.stopArm;
     if (tap && tap !== 'pending' && want !== S.armed){ tap.port.postMessage(want); }
     S.armed = want;
     if (!live || handBusy){ last = null; return; }
@@ -237,7 +245,7 @@ await page.evaluate(() => {
     if (last && last.d === d){
       const dt = t - last.t, dc = ct - last.ct;
       if (dc < 0.002 && dt > 0){
-        last.still = (last.still || 0) + dt;
+        last.still = dt;                               // dt is already the whole time since the anchor
         return;                                        // keep the original anchor while frozen
       }
       if (last.still > 0.25){
@@ -350,7 +358,9 @@ const S = await page.evaluate(() => {
   const s = window.__soak;
   return { ev: s.ev, sil: s.sil, frz: s.frz, jumps: s.jumps, heals: s.heals, loads: s.loads, hands: s.hands.map(h => ({ ...h, to: h.to === Infinity ? 1e9 : h.to })),
     lt: s.lt, ticks: s.ticks, heard: s.heard, tapErr: s.tapErr || null, minRms: s.minRms,
-    mixes: window.__mixCompleted || 0, cur: player.tracks[player.cur] && player.tracks[player.cur].title };
+    mixes: window.__mixCompleted || 0, cur: player.tracks[player.cur] && player.tracks[player.cur].title,
+    // seams that fired on a pre-rolled cue (MIXER._cueRoll) — none where the entries have no runway
+    cued: window.__mixCued || 0, uncued: window.__mixUncued || null };
 });
 await page.evaluate(() => { player.pause && player.pause(); });
 await browser.close();
@@ -359,11 +369,14 @@ server.close();
 /* THE VERDICT. A hand's window (plus a beat of slack either side) explains a
  * silence; nothing else does. */
 const inHand = t => S.hands.some(h => t >= h.from - 0.5 && t <= h.to + 0.5);
-const drops = S.sil.filter(s => !inHand(s.from) && !inHand(s.to));
+// a hand excuses only a silence that lies INSIDE its window: one that starts there and runs on is dead air
+const explained = s => S.hands.some(h => s.from >= h.from - 0.5 && s.to <= h.to + 0.5);
+const drops = S.sil.filter(s => !explained(s));
 const freezes = S.frz.filter(f => !inHand(f.t) && !f.seam && !f.start);
 const entryFreezes = S.frz.filter(f => !inHand(f.t) && f.seam);
-// a record's first moments inside its own seam are the ENTRY (judged below), not the middle of a record
-const atEntry = e => e.seam && e.ct < 0.6;
+// a record's first moments inside its own seam — at 0, or at the plan's entry point when it enters
+// bars in (a runway) — are the ENTRY (judged below), not the middle of a record
+const atEntry = e => e.seam && (e.ct < 0.6 || (e.entry != null && Math.abs(e.ct - e.entry) < 0.6));
 const onAirBad = S.ev.filter(e => e.onAir && e.playing && !e.healing && /waiting|stalled|emptied|abort|error/.test(e.type) && !(e.type === 'waiting' && atEntry(e)));
 const entryWaits = S.ev.filter(e => e.onAir && e.playing && e.type === 'waiting' && atEntry(e));
 const blinks = S.ev.filter(e => e.onAir && e.playing && e.type === 'loadstart' && e.ct > 1);
@@ -371,14 +384,14 @@ const healsOnAir = S.loads.filter(l => /_judge|check/.test(l.by));
 const byUrl = {};
 for (const l of net){ const k = l.path; (byUrl[k] = byUrl[k] || { size: l.size, bytes: 0, reqs: 0, aborted: 0 }); byUrl[k].bytes += l.bytes; byUrl[k].reqs++; if (l.aborted) byUrl[k].aborted++; }
 
-console.log(`\nsession: ${S.mixes} seams completed · ended on ${S.cur} · ${S.ticks} tap ticks · quietest heard block ${S.minRms < 1 ? (20 * Math.log10(S.minRms)).toFixed(1) + ' dBFS' : '-'}`);
+console.log(`\nsession: ${S.mixes} seams completed (${S.cued} on a pre-rolled cue${S.uncued ? ', last cue let go: ' + S.uncued : ''}) · ended on ${S.cur} · ${S.ticks} tap ticks · quietest heard block ${S.minRms < 1 ? (20 * Math.log10(S.minRms)).toFixed(1) + ' dBFS' : '-'}`);
 console.log('network:');
 for (const [k, v] of Object.entries(byUrl))
   console.log(`  ${k}  ${(v.bytes / 1e6).toFixed(2)} MB of ${(v.size / 1e6).toFixed(2)} MB (${(v.bytes / v.size).toFixed(2)}×) in ${v.reqs} request(s), ${v.aborted} aborted`);
 console.log('requests:');
 for (const l of net) console.log(`  +${((l.at - T0) / 1000).toFixed(1).padStart(6)}s ${l.kind.padEnd(5)} ${l.path.replace(/^\/audio\//, '').padEnd(26)} from ${(l.from / 1e6).toFixed(2)} MB · ${(l.bytes / 1e6).toFixed(2)} MB${l.aborted ? ' · aborted' : l.done ? ' · done' : ' · open'}${l.end ? ' after ' + ((l.end - l.at) / 1000).toFixed(1) + 's' : ''}`);
 console.log(`hands: ${S.hands.map(h => h.what + ' ' + h.from.toFixed(1) + '–' + h.to.toFixed(1) + 's').join(' · ')}`);
-if (S.sil.length) console.log('silences: ' + S.sil.map(s => `${s.from.toFixed(2)}s ${s.ms}ms${inHand(s.from) ? ' (hand)' : ''}`).join(' · '));
+if (S.sil.length) console.log('silences: ' + S.sil.map(s => `${s.from.toFixed(2)}s ${s.ms}ms${explained(s) ? ' (hand)' : ''}`).join(' · '));
 if (S.frz.length) console.log('freezes: ' + S.frz.map(f => `${f.t.toFixed(2)}s ${f.ms}ms deck ${'AB'[f.deck]} @${f.ct}`).join(' · '));
 if (S.jumps.length) console.log('jumps: ' + S.jumps.map(j => `${j.t.toFixed(2)}s ${j.from}→${j.to} (exp +${j.exp})`).join(' · '));
 if (S.ev.length) console.log('media events: ' + S.ev.map(e => `${e.t.toFixed(1)}s ${'AB'[e.deck]}${e.onAir ? '*' : ''} ${e.type}@${e.ct}`).join(' · '));

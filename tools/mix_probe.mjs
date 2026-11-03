@@ -40,6 +40,13 @@
  * the deck is rolling and the grids are latched before the fader moves. Neither
  * depends on the frame rate, which is why the lock now holds under load.
  *
+ * AND THEN THE CUE. The lead-in covered B's resume most of the time and not
+ * always: 210-680 ms against a lead capped by however much of B comes before
+ * its downbeat. The second seam measured here is the fixture's runway pair
+ * (alpha→tau), where B is pre-rolled silently through the armed window and
+ * the seam is called on a deck already moving — measured, not assumed, along
+ * with the two ways a cue is let go of (a cancel, a hand on the handle).
+ *
  *   python3 tools/make_mix_fixture.py /tmp/mb8-mix
  *   node tools/mix_probe.mjs /tmp/mb8-mix                 # measurement conditions
  *   MB8_PROBE_RENDER=1 node tools/mix_probe.mjs /tmp/mb8-mix   # real-session conditions
@@ -184,7 +191,16 @@ await page.evaluate(() => {
    * was already rolling when the blend began, which is the whole point. */
   const fire = MIXER.fire.bind(MIXER);
   MIXER.fire = function (now){
+    // (the fallback check below makes a rolling cue read as STALLED the
+    // instant the seam is called — no movement since its last read — once, so
+    // fire() must let it go and take the placement path; B's bytes untouched)
+    if (window.__knockCue && MIXER.cueing()){
+      const c = MIXER._cue;
+      c.lastB = c.d.a.currentTime; c.movedAt = 0;
+      window.__knockCue = 0; window.__knocked = true;
+    }
     fire(now);
+    window.__seam.fired = { phase: MIXER.phase, type: MIXER.plan && MIXER.plan.type, deferred: MIXER.plan && MIXER.plan.deferred || 0, why: MIXER.plan && MIXER.plan.why };
     if (MIXER.phase !== 'running') return;
     const nd = AE.decks[AE.active];
     const seam = MIXER.audioT0 != null ? MIXER.audioT0 : AE.ctx.currentTime;
@@ -206,137 +222,180 @@ await page.evaluate(() => {
   };
 });
 
-// alpha→beta is the pair the fixture engineers into a beatmix; find it by name
-// rather than by queue position, which the shuffle bag is free to reorder
-const started = await page.evaluate(() => {
-  const i = player.tracks.findIndex(t => t.title === 'alpha');
-  const j = player.tracks.findIndex(t => t.title === 'beta');
-  if (i < 0 || j < 0) return null;
-  player.repeat = 'off'; player.shuffle = false;
-  player._committedNext = j;
-  player.playIndex(i);
-  return { i, j };
-});
-if (!started){ console.log('fixture is missing alpha/beta — rebuild it'); await browser.close(); server.close(); process.exit(1); }
-await page.waitForFunction('MIXER.phase === "armed"', null, { timeout: 40000 });
-let plan = await page.evaluate(() => ({ ...MIXER.plan, next: player.tracks[MIXER.next] && player.tracks[MIXER.next].title }));
-if (plan.next !== 'beta'){
-  // the draw picked another track; re-arm explicitly onto beta so the probe
-  // measures the engineered beatmix pair rather than whatever came up
-  await page.evaluate(() => {
-    MIXER.cancel('probe');
-    const j = player.tracks.findIndex(t => t.title === 'beta');
-    player._committedNext = j;
-    player.pickNext = () => j;
-    MIXER.arm();
-  });
-  await page.waitForFunction('MIXER.phase === "armed"', null, { timeout: 20000 });
-  plan = await page.evaluate(() => ({ ...MIXER.plan, next: player.tracks[MIXER.next] && player.tracks[MIXER.next].title }));
-}
-console.log(`\nplan: ${plan.type} -> ${plan.next} · ${plan.beats} beats · ${plan.keys}`
-  + ` · ${plan.seconds}s · ${plan.bpmA}->${plan.bpmB} bpm`
-  + ` · startA ${plan.startA && plan.startA.toFixed(2)}s startB ${plan.startB && plan.startB.toFixed(2)}s`);
-// jump to just before the seam so the probe does not sit through a whole track
+/* THE CUE'S OWN WATCH. While a pre-rolled cue rolls (MIXER.cueing()), deck B
+ * is an unpaused element under an armed plan, and the one promise that makes
+ * that acceptable is that nobody can hear it and nothing takes it for the air:
+ * both of its nodes — the mixer's gain and the crossfader's fader — at zero,
+ * and AE.active never pointing at it. Sampled on a timer of its own, like
+ * everything here, for the whole of every pre-roll. */
 await page.evaluate(() => {
-  const d = AE.decks[AE.active];
-  try { d.a.currentTime = Math.max(0, MIXER.plan.startA - 3); } catch (e){}
+  window.__cueWatch = { n: 0, maxGain: 0, maxFader: 0, onAir: 0 };
+  setInterval(() => {
+    if (typeof MIXER === 'undefined' || !MIXER.cueing() || !AE.decks) return;
+    const w = window.__cueWatch, d = MIXER._cue.d;
+    w.n++;
+    w.maxGain = Math.max(w.maxGain, d.gain.gain.value);
+    w.maxFader = Math.max(w.maxFader, d.fader.gain.value);
+    if (AE.decks.indexOf(d) === AE.active) w.onAir++;
+    // what it rolled on: the record seated from memory (MIXER._seat), or the stream warm
+    w.seated = !!(d.a._warmSrc && d.a.src === d.a._warmSrc);
+  }, 10);
 });
-await page.waitForFunction('MIXER.phase === "running"', null, { timeout: 60000 });
-const preRms = await page.evaluate(() => {
-  const a = window.__seam.rms.filter(s => s.t < window.__seam.seamAt && s.t > window.__seam.seamAt - 1.2);
-  return a.length ? a.reduce((x, s) => x + s.r, 0) / a.length : 0;
-});
-await page.waitForFunction('window.__mixCompleted >= 1', null, { timeout: 90000 });
-await page.waitForTimeout(1800);      // let B play on alone, so it can be measured alone
 
-const m = await page.evaluate(dur => {
-  const s = window.__seam, t0 = s.seamAt;
-  const win = s.rms.filter(x => x.t >= t0 - 0.02 && x.t <= t0 + dur);
-  // five buckets across the overlap: the shape of the blend
-  const bins = [0, 0, 0, 0, 0].map(() => ({ n: 0, sum: 0 }));
-  let zero = 0;
-  for (const x of win){
-    const f = Math.min(0.999, Math.max(0, (x.t - t0) / dur));
-    const k = Math.floor(f * 5);
-    bins[k].n++; bins[k].sum += x.r;
-    if (x.r < 1e-4) zero++;
+/* THE TRANSPORT'S WORD, watched. Through a seam the player must never say it
+ * is paused, and nothing may log a pause the system did not make — a deck
+ * paused and started again in one task hears its 'pause' late (see the deck
+ * wiring), which is exactly what a cue let go at fire() does. */
+await page.evaluate(() => {
+  window.__flips = 0; window.__sysPauses = 0;
+  setInterval(() => { if ((MIXER.phase === 'running' || MIXER.phase === 'armed') && !player.playing) window.__flips++; }, 5);
+  if (typeof ACTIVITY !== 'undefined'){
+    const log = ACTIVITY.log.bind(ACTIVITY);
+    ACTIVITY.log = (kind, ...rest) => { if (kind === 'system') window.__sysPauses++; return log(kind, ...rest); };
   }
-  return { bins: bins.map(b => b.n ? b.sum / b.n : null), zero, n: win.length,
-    bMoved: s.bMoved, bLate: s.bLate, phase: window.__mixPhaseErrMs };
-}, plan.seconds);
+});
 
-/* A DECLINING ENVELOPE IS NOT AUTOMATICALLY A HOLE. If the incoming track is
- * simply quieter than the outgoing one, a correct equal-power crossfade lands
- * lower than it started and there is nothing wrong. So measure B ALONE, after
- * the seam has fully settled, and judge the blend against where it was always
- * going to end up rather than against where it began. */
-const postRms = await page.evaluate(dur => {
-  // strictly AFTER the blend, so this is B on its own and not part of the mix
-  const t = window.__seam.seamAt + dur + 0.3;
-  const a = window.__seam.rms.filter(s => s.t > t);
-  return a.length ? a.reduce((x, s) => x + s.r, 0) / a.length : 0;
-}, plan.seconds);
-const rel = m.bins.map(v => v == null || !preRms ? null : v / preRms);
-const endLevel = preRms > 0 ? postRms / preRms : null;
+/* ONE SEAM, MEASURED. alpha into `title`, found by name rather than by queue
+ * position (the shuffle bag is free to reorder), with A jumped to `before`
+ * seconds short of its bar line so the probe does not sit through a whole
+ * track. Returns everything the gates below read. */
+async function measureSeam(title, before, warmFirst){
+  const base = await page.evaluate(() => {
+    Object.assign(window.__seam, { seamAt: null, bAtSeam: null, bMoved: null, bLate: null });
+    Object.assign(window.__cueWatch, { n: 0, maxGain: 0, maxFader: 0, onAir: 0 });
+    return { done: window.__mixCompleted || 0, cued: window.__mixCued || 0, flips: window.__flips, sys: window.__sysPauses };
+  });
+  const started = await page.evaluate(t => {
+    const i = player.tracks.findIndex(x => x.title === 'alpha');
+    const j = player.tracks.findIndex(x => x.title === t);
+    if (i < 0 || j < 0) return null;
+    player.repeat = 'off'; player.shuffle = false;
+    player._committedNext = j;
+    player.playIndex(i);
+    return { i, j };
+  }, title);
+  if (!started) return null;
+  await page.waitForFunction('MIXER.phase === "armed"', null, { timeout: 40000 });
+  const readPlan = () => page.evaluate(() => ({ ...MIXER.plan, next: player.tracks[MIXER.next] && player.tracks[MIXER.next].title }));
+  let plan = await readPlan();
+  if (plan.next !== title){
+    // the draw picked another track; re-arm explicitly onto the pair under test
+    await page.evaluate(t => {
+      MIXER.cancel('probe');
+      const j = player.tracks.findIndex(x => x.title === t);
+      player._committedNext = j;
+      player.pickNext = () => j;
+      MIXER.arm();
+    }, title);
+    await page.waitForFunction('MIXER.phase === "armed"', null, { timeout: 20000 });
+    plan = await readPlan();
+  }
+  console.log(`\nplan: ${plan.type} -> ${plan.next} · ${plan.beats} beats · ${plan.keys}`
+    + ` · ${plan.seconds}s · ${plan.bpmA}->${plan.bpmB} bpm`
+    + ` · startA ${plan.startA && plan.startA.toFixed(2)}s startB ${plan.startB && plan.startB.toFixed(2)}s`);
+  /* warmFirst: let the warm land before A is jumped to the seam, as it does in
+   * a set (the arm comes ninety seconds early, A finishes buffering, B's record
+   * is fetched into memory and seated) — jumped at once, the warm's first look
+   * is already inside the exit backstop and it streams instead. Both are real;
+   * the cued seam takes the first, the fallback and the let-go checks the second. */
+  if (warmFirst) await page.waitForFunction('AE.decks[1 - AE.active]._warmed && !AE.decks[1 - AE.active]._preloadOnce', null, { timeout: 20000 }).catch(() => {});
+  // where the arm parked the incoming deck: a cue's park, or the old lead-in park
+  const park = await page.evaluate(() => { const nd = AE.decks[1 - AE.active]; return { cueAt: nd._cueAt, seekTo: nd._seekTo }; });
+  await page.evaluate(b => {
+    const d = AE.decks[AE.active];
+    try { d.a.currentTime = Math.max(0, MIXER.plan.startA - b); } catch (e){}
+  }, before);
+  await page.waitForFunction('MIXER.phase === "running"', null, { timeout: 60000 });
+  const preRms = await page.evaluate(() => {
+    const a = window.__seam.rms.filter(s => s.t < window.__seam.seamAt && s.t > window.__seam.seamAt - 1.2);
+    return a.length ? a.reduce((x, s) => x + s.r, 0) / a.length : 0;
+  });
+  await page.waitForFunction(n => (window.__mixCompleted || 0) > n, base.done, { timeout: 90000 });
+  await page.waitForTimeout(1800);      // let B play on alone, so it can be measured alone
+  const m = await page.evaluate(dur => {
+    const s = window.__seam, t0 = s.seamAt;
+    const win = s.rms.filter(x => x.t >= t0 - 0.02 && x.t <= t0 + dur);
+    // five buckets across the overlap: the shape of the blend
+    const bins = [0, 0, 0, 0, 0].map(() => ({ n: 0, sum: 0 }));
+    let zero = 0;
+    for (const x of win){
+      const f = Math.min(0.999, Math.max(0, (x.t - t0) / dur));
+      const k = Math.floor(f * 5);
+      bins[k].n++; bins[k].sum += x.r;
+      if (x.r < 1e-4) zero++;
+    }
+    return { bins: bins.map(b => b.n ? b.sum / b.n : null), zero, n: win.length,
+      bMoved: s.bMoved, bLate: s.bLate, phase: window.__mixPhaseErrMs, fired: s.fired };
+  }, plan.seconds);
+  /* A DECLINING ENVELOPE IS NOT AUTOMATICALLY A HOLE. If the incoming track is
+   * simply quieter than the outgoing one, a correct equal-power crossfade lands
+   * lower than it started and there is nothing wrong. So measure B ALONE, after
+   * the seam has fully settled, and judge the blend against where it was always
+   * going to end up rather than against where it began. */
+  const postRms = await page.evaluate(dur => {
+    // strictly AFTER the blend, so this is B on its own and not part of the mix
+    const t = window.__seam.seamAt + dur + 0.3;
+    const a = window.__seam.rms.filter(s => s.t > t);
+    return a.length ? a.reduce((x, s) => x + s.r, 0) / a.length : 0;
+  }, plan.seconds);
+  const cue = await page.evaluate(b => ({ cued: (window.__mixCued || 0) - b.cued, fired: MIXER._cueFired || null,
+    watch: Object.assign({}, window.__cueWatch), lat: MIXER._cueLat, uncued: window.__mixUncued || null,
+    flips: window.__flips - b.flips, sys: window.__sysPauses - b.sys }), base);
+  const rel = m.bins.map(v => v == null || !preRms ? null : v / preRms);
+  const endLevel = preRms > 0 ? postRms / preRms : null;
+  console.log(`seam measured over ${m.n} frames · overlap ${plan.seconds}s` + (m.fired ? ` · fired as ${m.fired.type}${m.fired.deferred ? ' after ' + m.fired.deferred + ' deferred bar(s)' : ''}${m.fired.why ? ' (' + m.fired.why + ')' : ''}` : ''));
+  console.log('  master level by fifth of the blend: ' + rel.map(pct).join(' ') + '   (100% = A alone)');
+  console.log('  B alone, after the seam settles: ' + pct(endLevel));
+  /* THE HONEST DEADLINE is the moment B could be HEARD, not the moment the fader
+   * starts moving. The equal-power curve holds the incoming deck below -24 dB
+   * (equalPowerXfade().b < 0.06, the same threshold the engine's own phase lock
+   * treats as inaudible) for the first ~3.8 % of the blend, and the seam is
+   * scheduled a lead-in ahead of the call on top of that. A deck that starts
+   * rolling inside that window contributes silence to nothing a listener can
+   * hear; one that starts after it is a soft entry — the defect. */
+  const audibleMs = (Math.asin(0.06) * 2 / Math.PI) * plan.seconds * 1000;
+  return { plan, park, m, rel, endLevel, cue, audibleMs };
+}
 const pct = v => v == null ? ' --' : (v * 100).toFixed(0).padStart(3) + '%';
-console.log(`\nseam measured over ${m.n} frames · overlap ${plan.seconds}s`);
-console.log('  master level by fifth of the blend: ' + rel.map(pct).join(' ') + '   (100% = A alone)');
-console.log('  B alone, after the seam settles: ' + pct(endLevel));
+const rollWord = (s, cued) => s.m.bMoved == null ? 'not observed' : (s.m.bMoved < 0 ? 'playhead never advanced'
+  : 'rolling ' + Math.abs(s.m.bLate).toFixed(0) + ' ms ' + (s.m.bLate <= 0 ? 'before' : 'after') + ' the fader, '
+    + (s.audibleMs - s.m.bLate).toFixed(0) + ' ms of margin on the -24 dB deadline'
+    + (cued ? ' · already rolling at the call, pre-rolled ' + s.cue.fired.rolledMs + ' ms before it'
+            : ' · started ' + s.m.bMoved.toFixed(0) + ' ms after the call'));
+const rolledInTime = s => s.m.bLate != null && s.m.bMoved >= 0 && s.m.bLate <= s.audibleMs;
+// the blend's shape: no hole in the first half, never under the quieter track, never silent
+function blendGates(s, tag){
+  R(tag + 'the blend has no hole in its first half',
+    s.rel[0] != null && s.rel[1] != null && s.rel[0] > 0.55 && s.rel[1] > 0.55,
+    'first fifth ' + pct(s.rel[0]) + ', second ' + pct(s.rel[1]));
+  // the floor each fifth is judged against: whichever of the two tracks is
+  // quieter is where a correct blend is allowed to sit, less a little headroom
+  const floor = Math.min(1, s.endLevel == null ? 1 : s.endLevel) * 0.75;
+  R(tag + 'the master level never falls below both tracks',
+    s.rel.every(v => v != null && v >= floor),
+    'floor ' + pct(floor) + ' · B alone reads ' + pct(s.endLevel));
+  R(tag + 'the output never drops to silence mid-seam', s.m.zero === 0, s.m.zero + ' silent frames');
+}
 
-/* THE HONEST DEADLINE is the moment B could be HEARD, not the moment the fader
- * starts moving. The equal-power curve holds the incoming deck below -24 dB
- * (equalPowerXfade().b < 0.06, the same threshold the engine's own phase lock
- * treats as inaudible) for the first ~3.8 % of the blend, and the seam is
- * scheduled a lead-in ahead of the call on top of that. A deck that starts
- * rolling inside that window contributes silence to nothing a listener can
- * hear; one that starts after it is a soft entry — the defect.
- *
- * STILL OPEN, and honestly variable: the element's resume runs 210-680 ms under
- * a saturated main thread, so the 450 ms lead covers it most of the time and not
- * always. Note what this does NOT cost: the beat lock converges regardless,
- * because the latch measures the grids once B is genuinely rolling rather than
- * trusting where it was placed. The worst observed case is therefore an onset at
- * about -20 dB a half-beat into the fade — a soft entry, not a hole, which is why
- * the level envelope above cannot see it. Closing it properly means rolling B
- * SILENTLY during the armed window so the seam never calls play() at all; that
- * needs its own cancel/replan bookkeeping and a phase servo willing to trim a
- * residual instead of seeking it, so it is named here rather than guessed at. */
-const audibleMs = (Math.asin(0.06) * 2 / Math.PI) * plan.seconds * 1000;
-/* WHY A PRE-ROLLED CUE IS NOT HERE, having been designed properly and measured.
- *
- * The remaining latency is the incoming element's resume: 210-680 ms, against a
- * 450 ms lead-in, so the tail arrives as a soft entry around -24 dB rather than a
- * hole. The fix is a DJ's cued deck — roll it early from a point that carries it to
- * its entry exactly as the seam fires, so fire() has no placement seek to make.
- * seamCuePoint() works that out from A's position and rate, and the alignment is
- * time-invariant: notice the moment late and both decks have advanced together.
- *
- * It cannot be measured here. This fixture's incoming track mixes in at 0.00 s, so
- * it has NEGATIVE runway before its entry and the cue correctly declines every
- * time. Shipping runtime state (cue, uncue, re-cue on a deferred bar, and a branch
- * in fire() that skips placement) which no test can drive end to end is how a path
- * rots — so it was reverted rather than merged unexercised.
- *
- * What would make it measurable: a fixture pair whose incoming track has several
- * seconds of material before its mix-in point. That also means updating the two
- * mix_acceptance assertions that count the crate's six rows. */
-O('the incoming deck is rolling before the blend can be heard',
-  m.bLate != null && m.bMoved >= 0 && m.bLate <= audibleMs,
-  m.bMoved == null ? 'not observed' : (m.bMoved < 0 ? 'playhead never advanced'
-    : 'rolling ' + Math.abs(m.bLate).toFixed(0) + ' ms '
-      + (m.bLate <= 0 ? 'before' : 'after') + ' the fader, '
-      + (audibleMs - m.bLate).toFixed(0) + ' ms of margin on the -24 dB deadline'
-      + ' · started ' + m.bMoved.toFixed(0) + ' ms after the call'));
-R('the blend has no hole in its first half',
-  rel[0] != null && rel[1] != null && rel[0] > 0.55 && rel[1] > 0.55,
-  'first fifth ' + pct(rel[0]) + ', second ' + pct(rel[1]));
-// the floor each fifth is judged against: whichever of the two tracks is
-// quieter is where a correct blend is allowed to sit, less a little headroom
-const floor = Math.min(1, endLevel == null ? 1 : endLevel) * 0.75;
-R('the master level never falls below both tracks',
-  rel.every(v => v != null && v >= floor),
-  'floor ' + pct(floor) + ' · B alone reads ' + pct(endLevel));
-R('the output never drops to silence mid-seam', m.zero === 0, m.zero + ' silent frames');
+// ---- SEAM 1 · alpha → beta: the pair with NO runway (beta enters 0.50 s in)
+const s1 = await measureSeam('beta', 3);
+if (!s1){ console.log('fixture is missing alpha/beta — rebuild it'); await browser.close(); server.close(); process.exit(1); }
+
+/* WITH NO RUNWAY THE OLD PATH STANDS, and it is still honestly variable. The
+ * element's resume runs 210-680 ms under a saturated main thread, and beta's
+ * lead-in is capped at the half second it has before its downbeat, so the
+ * lead covers it most of the time and not always. Note what this does NOT
+ * cost: the beat lock converges regardless, because the latch measures the
+ * grids once B is genuinely rolling rather than trusting where it was placed.
+ * The worst observed case is an onset at about -20 dB a half-beat into the
+ * fade — a soft entry, not a hole, which is why the level envelope cannot see
+ * it. The cued deck below closes it wherever the incoming record has material
+ * before its entry; a record that enters on its first downbeat has nothing to
+ * pre-roll from, so this stays a number with a name. */
+R('no runway, no cue: beta enters at its first downbeat and keeps the old park',
+  s1.park.cueAt == null && s1.cue.cued === 0, 'park ' + (s1.park.seekTo != null ? s1.park.seekTo.toFixed(2) : '--') + ' s · cued ' + s1.cue.cued);
+O('with no runway, the incoming deck is rolling before the blend can be heard', rolledInTime(s1), rollWord(s1, false));
+blendGates(s1, '');
 /* THE GATE THIS TOOL WAS BUILT TO EARN. This read 114-119 ms with the renderer
  * running — a quarter beat at 124 bpm, the audible flam behind the "glitch in
  * the auto mix" — because the seam was PLACED by the animation loop: B was
@@ -346,12 +405,12 @@ R('the output never drops to silence mid-seam', m.zero === 0, m.zero + ' silent 
  * moment B rolls rather than a beat later, which makes the lock a fact about the
  * two grids instead of a fact about the frame rate. It holds single digits under
  * a saturated main thread, so it is a regression gate from here on. */
-R('the beat lock holds inside its 40 ms contract', m.phase != null && m.phase < 40,
-  m.phase == null ? 'not measured' : m.phase.toFixed(1) + ' ms');
+R('the beat lock holds inside its 40 ms contract', s1.m.phase != null && s1.m.phase < 40,
+  s1.m.phase == null ? 'not measured' : s1.m.phase.toFixed(1) + ' ms');
 
 /* SETTLE — a mix engine rots by leaving state behind. Every deck must be back
  * to unity after a seam, or the next one starts from a lie. */
-const settle = await page.evaluate(() => {
+const readSettle = () => page.evaluate(() => {
   const out = [];
   AE.decks.forEach((d, i) => {
     out.push({ i, active: i === AE.active,
@@ -364,24 +423,27 @@ const settle = await page.evaluate(() => {
   return { decks: out, phase: MIXER.phase, trim: MIXER.trim, audioT0: MIXER.audioT0,
     trimI: MIXER.trimI, latched: !!MIXER._latched, aligns: MIXER._aligns };
 });
-const act = settle.decks.find(d => d.active), idle = settle.decks.find(d => !d.active);
-// arming the NEXT transition straight after a seam is correct behaviour, so the
-// phase is free to be 'armed' here; what must be clean is the seam's own state —
-// its audio-clock origin, both halves of the phase servo, and the latch, since a
-// latch left set would let the NEXT seam skip the align it needs.
-R('the finished seam leaves no scheduling state behind',
-  settle.audioT0 === null && settle.trim === 0 && settle.trimI === 0
-    && !settle.latched && settle.aligns === 0,
-  JSON.stringify({ phase: settle.phase, trim: settle.trim, trimI: settle.trimI,
-    latched: settle.latched, aligns: settle.aligns }));
-R('the surviving deck is at unity gain and unity rate',
-  Math.abs(act.gain - 1) < 0.06 && Math.abs(act.rate - 1) < 0.002,
-  'gain ' + act.gain + ' rate ' + act.rate);
-R('the retired deck is silent and paused', idle.gain < 0.02 && idle.paused,
-  'gain ' + idle.gain + ' paused ' + idle.paused);
-R('both decks leave the bass shelf flat and the filter open',
-  settle.decks.every(d => Math.abs(d.shelf) < 0.01 && d.filter > 15000),
-  settle.decks.map(d => 'shelf ' + d.shelf + '/f ' + d.filter).join(' · '));
+function settleGates(settle, tag){
+  const act = settle.decks.find(d => d.active), idle = settle.decks.find(d => !d.active);
+  // arming the NEXT transition straight after a seam is correct behaviour, so the
+  // phase is free to be 'armed' here; what must be clean is the seam's own state —
+  // its audio-clock origin, both halves of the phase servo, and the latch, since a
+  // latch left set would let the NEXT seam skip the align it needs.
+  R(tag + 'the finished seam leaves no scheduling state behind',
+    settle.audioT0 === null && settle.trim === 0 && settle.trimI === 0
+      && !settle.latched && settle.aligns === 0,
+    JSON.stringify({ phase: settle.phase, trim: settle.trim, trimI: settle.trimI,
+      latched: settle.latched, aligns: settle.aligns }));
+  R(tag + 'the surviving deck is at unity gain and unity rate',
+    Math.abs(act.gain - 1) < 0.06 && Math.abs(act.rate - 1) < 0.002,
+    'gain ' + act.gain + ' rate ' + act.rate);
+  R(tag + 'the retired deck is silent and paused', idle.gain < 0.02 && idle.paused,
+    'gain ' + idle.gain + ' paused ' + idle.paused);
+  R(tag + 'both decks leave the bass shelf flat and the filter open',
+    settle.decks.every(d => Math.abs(d.shelf) < 0.01 && d.filter > 15000),
+    settle.decks.map(d => 'shelf ' + d.shelf + '/f ' + d.filter).join(' · '));
+}
+settleGates(await readSettle(), '');
 
 /* THE ROOM CHANGED HANDS WITH THE MUSIC. The seam cues the visual director on
    the audio clock (seamSceneCue); with the director automatic, exactly one
@@ -395,6 +457,124 @@ R('the room changed hands with the music — the seam cued one scene change', ro
 // renderer that can be seconds, and is reported rather than failed
 R('…and it landed on the cue, not on the dwell clock', room.late != null && room.late >= 0 && (room.late < 0.25 || room.waited),
   room.late == null ? 'no cue landed' : `${(room.late * 1000).toFixed(0)} ms past the cue` + (room.waited ? ' (a crossfade was still running at the cue)' : ''));
+
+// ---- SEAM 2 · alpha → tau: the pair WITH runway — the cued deck
+/* THE PRE-ROLLED CUE, measured end to end. tau has a DJ's intro and the
+ * fixture's canon pair fix enters it on its first kick, sixteen beats in, so B
+ * has seconds of material before its entry (make_mix_fixture). The arm parks
+ * B a pre-roll short of where the seam will need it; the cue lets it go
+ * silently while the seam is armed, steers it onto the grid by tempo, and
+ * fire() finds it rolling: no placement seek, no play(). A is jumped far
+ * enough back that the cue rolls on its own clock, as it would in a set.
+ *
+ * WHAT IT FOUND. Before the cue this item read, renderer running, "rolling 89
+ * ms after the fader · started 580 ms after the call" on the zero-runway pair
+ * — the resume landing inside the blend. With a cue the deck is already moving
+ * when the seam is called, the call has nothing to start, and the margin is
+ * the whole lead-in plus the -24 dB window, on every run, under either renderer
+ * condition. That is why it is a gate now rather than a number with a name. */
+const cueConst = await page.evaluate(() => ({ win: SEAM_CUE_S, tol: SEAM_CUE_TOL }));
+const lead2 = await page.evaluate(() => {
+  const i = player.tracks.findIndex(x => x.title === 'tau');
+  return i >= 0 ? BEATMIX_LEAD : null;
+});
+if (lead2 == null){ console.log('fixture is missing tau (the cued deck\'s runway pair) — rebuild it'); await browser.close(); server.close(); process.exit(1); }
+const s2 = await measureSeam('tau', lead2 + cueConst.win + 3, true);
+const f2 = s2.cue.fired;
+R('the runway pair parks B a pre-roll short of its entry (seamCuePoint)',
+  s2.plan.type === 'beatmix' && s2.plan.startB > 5 && s2.park.cueAt != null && Math.abs(s2.park.seekTo - s2.park.cueAt) < 1e-9
+    && s2.park.cueAt < s2.plan.startB - lead2,
+  'startB ' + (s2.plan.startB || 0).toFixed(2) + ' s · parked at ' + (s2.park.cueAt != null ? s2.park.cueAt.toFixed(2) : '--') + ' s');
+// (a handful of samples is enough to be honest about: under the renderer the
+// probe's own timers land a dozen times in three seconds, not three hundred)
+R('…rolled it SILENT: both of B\'s nodes at zero, never on air, for the whole pre-roll',
+  s2.cue.watch.n >= 5 && s2.cue.watch.maxGain < 1e-3 && s2.cue.watch.maxFader < 1e-3 && s2.cue.watch.onAir === 0,
+  `${s2.cue.watch.n} samples · max gain ${s2.cue.watch.maxGain.toExponential(1)} · max fader ${s2.cue.watch.maxFader.toExponential(1)} · on air ${s2.cue.watch.onAir}`);
+R('…and the seam fired ON the cue: no placement seek, no play(), B on the grid',
+  s2.cue.cued === 1 && f2 && isFinite(f2.err) && Math.abs(f2.err) <= cueConst.tol,
+  f2 ? `${(f2.err * 1000).toFixed(1)} ms off the grid at fire · pre-rolled ${f2.rolledMs} ms · ${f2.seeks} seeks · play() latency learned ${(s2.cue.lat * 1000).toFixed(0)} ms · rolled on ${s2.cue.watch.seated ? 'the copy seated from memory' : 'the stream warm'}`
+     : 'the seam took the placement path' + (s2.cue.uncued ? ' (last let go: ' + s2.cue.uncued + ')' : ''));
+R('the incoming deck is rolling before the blend can be heard', rolledInTime(s2) && s2.cue.cued === 1, rollWord(s2, !!f2));
+blendGates(s2, 'cued: ');
+R('cued: the beat lock holds inside its 40 ms contract', s2.m.phase != null && s2.m.phase < 40,
+  s2.m.phase == null ? 'not measured' : s2.m.phase.toFixed(1) + ' ms');
+settleGates(await readSettle(), 'cued: ');
+const left2 = await page.evaluate(() => ({ cue: !!MIXER._cue, poll: !!MIXER._cueT }));
+R('cued: nothing of the cue outlives the seam', !left2.cue && !left2.poll, JSON.stringify(left2));
+
+/* A CUE THAT DOES NOT HOLD IS NOT A SECOND WAY FOR A SEAM TO GO WRONG. The
+ * rolling cue is made to read as stalled the instant fire() looks at it, so
+ * the seam must let it go and place B exactly as it always has: paused,
+ * seeked, play(). The transport must not blink on the way (the deck's late
+ * 'pause' is stale by then), and the lock must hold. */
+await page.evaluate(() => { window.__knockCue = true; window.__knocked = false; MIXER._cueFired = null; });
+const s3 = await measureSeam('tau', lead2 + cueConst.win + 3);
+const knocked = await page.evaluate(() => { const k = window.__knocked; window.__knockCue = false; return k; });
+// (under a saturated renderer the stream-warmed cue can miss its own window and
+// never roll; then the seam was placed the old way with nothing to let go of,
+// which is the same path, and is said so rather than scored as a cue)
+R('a cue that reads as stalled at fire: let go, and the seam placed B the old way',
+  s3.cue.cued === 0 && (!knocked || s3.cue.uncued === 'missed at fire') && s3.m.fired && s3.m.fired.type === 'beatmix' && s3.m.bMoved != null && s3.m.bMoved >= 0,
+  (knocked ? 'let go: ' + s3.cue.uncued : 'no cue rolled in time under this load: placed the old way') + ' · ' + rollWord(s3, false));
+R('…the transport never blinked: no paused frame, no pause the system did not make',
+  s1.cue.flips + s2.cue.flips + s3.cue.flips === 0 && s1.cue.sys + s2.cue.sys + s3.cue.sys === 0,
+  `paused frames ${s1.cue.flips}/${s2.cue.flips}/${s3.cue.flips} · system pauses logged ${s1.cue.sys}/${s2.cue.sys}/${s3.cue.sys} (seams 1/2/3)`);
+R('fallback: the beat lock holds inside its 40 ms contract', s3.m.phase != null && s3.m.phase < 40,
+  s3.m.phase == null ? 'not measured' : s3.m.phase.toFixed(1) + ' ms');
+// silence is only "none" over a blend that was actually heard: every fifth must hold samples
+R('fallback: the blend never drops to silence mid-seam',
+  s3.m.n > 0 && s3.rel.every(v => v != null) && s3.m.zero === 0,
+  s3.m.zero + ' silent frames over ' + s3.m.n + ' · fifths ' + s3.rel.map(pct).join(' ')
+    + (s3.rel.some(v => v == null) ? ' — not measured: a fifth has no samples' : ''));
+
+/* THE CUE LET GO OF. A cue is an optimisation; the deck under it must come
+ * back exactly as the paused, parked deck everything else has always met —
+ * when the plan is dropped (MIX switched off: one of cancel()'s reasons, all of
+ * which take the same road) and when a hand lands on the handle. Each is done
+ * while the cue is genuinely rolling, and read in the same task. */
+async function whileCued(action){
+  // under a saturated renderer a cue can be let go before the probe catches it
+  // rolling (the reason is in the result); the scenario is tried up to three times
+  let r;
+  for (let k = 0; k < 3; k++){ r = await whileCuedOnce(action); if (r.rolled) return Object.assign(r, { tries: k + 1 }); }
+  return r;
+}
+async function whileCuedOnce(action){
+  await page.evaluate(() => {
+    const i = player.tracks.findIndex(x => x.title === 'alpha'), j = player.tracks.findIndex(x => x.title === 'tau');
+    MIXER.setOn(true);
+    player._committedNext = j; player.pickNext = () => j;
+    player.playIndex(i);
+  });
+  await page.waitForFunction('MIXER.phase === "armed" && player.tracks[MIXER.next] && player.tracks[MIXER.next].title === "tau"', null, { timeout: 40000 });
+  // the warm let land first, as the cued seam did, so the scenario is about the let-go and not the warm's timing
+  await page.waitForFunction('AE.decks[1 - AE.active]._warmed && !AE.decks[1 - AE.active]._preloadOnce', null, { timeout: 20000 }).catch(() => {});
+  await page.evaluate(b => { const d = AE.decks[AE.active]; try { d.a.currentTime = Math.max(0, MIXER.plan.startA - b); } catch (e){} },
+    lead2 + cueConst.win + 3);
+  // polled on a timer, not the frame: under the renderer a frame can be most of a second
+  const rolled = await page.waitForFunction('MIXER.cueing() && MIXER._cue.moved', null, { timeout: 20000, polling: 15 }).then(() => true, () => false);
+  if (!rolled) return Object.assign({ rolled }, await page.evaluate(() => ({ phase: MIXER.phase, done: MIXER._cueDone, rolls: MIXER._cueRolls,
+    uncued: window.__mixUncued || null, cuedSeams: window.__mixCued || 0, toBar: MIXER.plan ? +(MIXER.plan.startA - activeDeck().a.currentTime).toFixed(2) : null })));
+  return Object.assign({ rolled }, await page.evaluate(act => {
+    const nd = MIXER._cue.d, i = AE.decks.indexOf(nd), od = AE.decks[AE.active];
+    if (act === 'off') MIXER.setOn(false); else DECKS.faderGrab(DECKS.fader.x);
+    const r = { cueing: MIXER.cueing(), paused: nd.a.paused, at: nd.a.currentTime, park: nd._seekTo,
+      rate: nd.a.playbackRate, want: SPEED.rate * DECKS.pitch(i), gain: nd.gain.gain.value, fader: nd.fader.gain.value,
+      phase: MIXER.phase, aPlaying: !od.a.paused && player.playing, active: AE.decks[AE.active] === od };
+    if (act !== 'off') DECKS.faderRelease();                // the hand lets go at home: nothing decided
+    return r;
+  }, action));
+}
+const off = await whileCued('off');
+R('a cancel while the cue rolls: B stopped, parked again where the warm left it, at its own rate, silent — the air untouched',
+  off.rolled && !off.cueing && off.paused && Math.abs(off.at - off.park) < 0.06 && Math.abs(off.rate - off.want) < 1e-6
+    && off.gain < 1e-3 && off.fader < 0.02 && off.phase === 'idle' && off.aPlaying && off.active,
+  JSON.stringify(off));
+const hand = await whileCued('hand');
+R('a hand on the handle while the cue rolls: parked on the instant, exactly the deck a hand always met',
+  hand.rolled && !hand.cueing && hand.paused && Math.abs(hand.at - hand.park) < 0.06 && Math.abs(hand.rate - hand.want) < 1e-6
+    && hand.gain < 1e-3 && hand.aPlaying && hand.active,
+  JSON.stringify(hand));
 
 console.log(`\n${pass} passed, ${fail} failed, ${open} tracked as open`);
 if (fail) console.log('a FAIL here is a regression in an invariant that was holding.');
