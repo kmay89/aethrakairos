@@ -20073,6 +20073,8 @@ const DECKROUTE = {
   },
   take(why){
     if (this.phase !== 'direct' || !this.can()){ if (typeof BOOTH !== 'undefined') BOOTH.draw(); return false; }
+    // a booth restored open at boot is not a gesture: nothing is built for it until a touch wakes it
+    if (!AE.ctx && !this._gestureLive()){ this.wantTake = true; BOOTH.draw(); return false; }
     ensureCtx();                       // a booth opened before any play builds the decks here (direct)
     if (!AE.decks || !AE.ctx) return false;
     const ai = AE.active, A = AE.decks[ai], bi = 1 - ai, B = AE.decks[bi];
