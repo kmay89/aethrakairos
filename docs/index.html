@@ -10000,16 +10000,66 @@ const NBINS = FFT / 2;
 const XFADE = 4.0;                 // auto-mix crossfade seconds
 
 /* The hostile-realities contract (§ everywhere-audio):
-   PLAYBACK NEVER DEPENDS ON THE GRAPH. On iOS the <audio> elements stay
-   direct-to-output — createMediaElementSource is a one-way door, and a
-   suspended/interrupted AudioContext would silence anything routed through
-   it the moment the screen locks. The visualizer is allowed to go dark in
-   the pocket; the music is not allowed to stop. Everywhere else the graph
+   ON iOS, PLAYBACK DEPENDS ON THE GRAPH ONLY WHILE THE BOOTH HOLDS IT. The
+   <audio> elements boot direct-to-output and stay that way for every
+   listener who never opens the booth — createMediaElementSource is a one-way
+   door, and a suspended/interrupted AudioContext silences anything routed
+   through it. On a device the route allows (IOS_GRAPH, below) the open booth
+   takes the decks into the graph so two of them, the crossfader and both
+   platters work as they do on a desktop — and always with pre-blessed direct
+   "twin" elements standing by, onto which the music is handed back when the
+   booth closes, when the page is hidden, or when the context is lost
+   (DECKROUTE, after the AirPlay module). The visualizer is allowed to go dark
+   in the pocket; the music is not allowed to stop. Everywhere else the graph
    carries the signal (analyser + gain crossfades) exactly as before, with
    context.resume() re-armed on every gesture, play event and
    visibilitychange. */
 const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+/* THE ROUTE'S GATE AND ITS DIALS. IS_IOS keeps ONE meaning — the iOS rules
+   for gestures, locking and volume — and AE.graphLive is the only test for
+   where the music is flowing. IOS_GRAPH says whether the booth may take the
+   decks into the graph on this device at all (iosGraphAllowed). It ships OFF
+   (IOS_GRAPH_DEFAULT) until the device checklist has been run on real
+   iPhones and iPads: '?decks=graph' opts a device in, '?decks=direct' out,
+   '?decks=auto' back to the default, and the choice is remembered. Three
+   more dials exist for that device run, each remembered the same way:
+     ?rates=1      let captured elements leave 1× (a WebKit with bug 240405
+                   fixed); off, they are held at 1 (iosRatesOk)
+     ?worklets=0   no per-deck platter worklet under the graph, to A/B the
+                   dropouts a worklet can cost (WebKit moves the whole render
+                   onto a non-real-time thread once one is loaded)
+     ?taplag= / ?mutelag=   milliseconds: how far the graph's output trails an
+                   element's direct output (the tap), and how long a mute
+                   takes to be heard. Measured by ear on the device, never
+                   "learned": nothing in JS can hear the direct output. */
+const IOS_GRAPH_DEFAULT = false;
+const IOS_TAP_LAG_S = 0.050, IOS_MUTE_LAG_S = 0.015;
+const IOS_ROUTE = (() => {
+  let q = null, st = {};
+  try { q = new URLSearchParams(location.search); } catch (e){}
+  const get = k => (q && q.has(k)) ? q.get(k) : null;
+  const load = k => { try { return localStorage.getItem('mb8_' + k); } catch (e){ return null; } };
+  const keep = (k, v) => { try { if (v === '') localStorage.removeItem('mb8_' + k); else localStorage.setItem('mb8_' + k, v); } catch (e){} };
+  for (const [k, allowed] of [['decks', ['graph', 'direct']], ['rates', ['1', '0']], ['worklets', ['1', '0']]]){
+    const o = pickOverride(get(k), load(k), allowed);
+    if (o.save != null) keep(k, o.save);
+    st[k] = o.v;
+  }
+  for (const k of ['taplag', 'mutelag']){ const v = get(k); if (v != null) keep(k, v === 'auto' ? '' : v); }
+  st.tapLag = lagOverride(get('taplag'), load('taplag'), 200, IOS_TAP_LAG_S);
+  st.muteLag = lagOverride(get('mutelag'), load('mutelag'), 100, IOS_MUTE_LAG_S);
+  return st;
+})();
+const IOS_GRAPH = iosGraphAllowed({
+  ios: IS_IOS, major: iosMajor(navigator.userAgent, navigator.platform, navigator.maxTouchPoints),
+  hasAudioSession: !!navigator.audioSession,
+  hasWorklet: typeof AudioWorkletNode === 'function' && !!(window.AudioContext || window.webkitAudioContext),
+  override: IOS_ROUTE.decks, defaultOn: IOS_GRAPH_DEFAULT,
+});
+const IOS_GRAPH_RATES = IOS_ROUTE.rates === '1';
+const IOS_WORKLETS = IOS_ROUTE.worklets !== '0';
+const IOS_TAP_LAG = IOS_ROUTE.tapLag, IOS_MUTE_LAG = IOS_ROUTE.muteLag;
 
 // @media-start
 /* LOAD, AND LAND AT A POSITION BEFORE ANYTHING IS AUDIBLE.
@@ -10767,11 +10817,22 @@ function setMasterGain(v, secs){
 }
 
 function ensureCtx(){
-  if (AE.ctx){ if (AE.ctx.state === 'suspended') AE.ctx.resume(); return; }
+  /* any state but running or closed is argued with — Safari's 'interrupted'
+     included, which the old test for 'suspended' let sit — except behind a
+     lock with the decks in the graph, where resume() never resolves (WebKit
+     281566) and DECKROUTE hands the music to a direct twin instead */
+  if (AE.ctx){
+    const st = AE.ctx.state;
+    if (st !== 'running' && st !== 'closed' && !(IS_IOS && AE.graphLive && document.hidden)) AE.ctx.resume().catch(() => {});
+    return;
+  }
   const Ctx = window.AudioContext || window.webkitAudioContext;
   AE.ctx = new Ctx();
-  /* THE CONTEXT KEEPER. On iOS a suspended context costs visuals and nothing
-     else — the decks play direct. Everywhere ELSE the graph IS the signal
+  /* THE CONTEXT KEEPER. On iOS with the decks direct a suspended context
+     costs visuals and nothing else; with the booth holding them in the graph
+     it is silence, and DECKROUTE is told first (onCtxLost: hand the music to
+     a direct twin, never resume() behind a lock — WebKit 281566 never
+     resolves it there). Everywhere ELSE the graph IS the signal
      path: every sample flows deck → gain → master → destination, so a context
      the browser suspends mid-set (a Bluetooth headset reconnecting, the OS
      switching output devices, a power-saving heuristic) is SILENCE wearing a
@@ -10795,8 +10856,10 @@ function ensureCtx(){
     }
     if (st === 'closed') return;
     AE._wasSuspended = true;
-    // 'suspended' — or Safari's non-standard 'interrupted'
-    try { AE.ctx.resume().catch(() => {}); } catch (e){}
+    // the route hears it first: on iOS with the decks in the graph this is the music
+    if (IS_IOS && AE.graphLive && typeof DECKROUTE !== 'undefined') DECKROUTE.onCtxLost(st);
+    // 'suspended' — or Safari's non-standard 'interrupted' (never argued with behind a lock: see ensureCtx)
+    if (!(IS_IOS && AE.graphLive && document.hidden)) try { AE.ctx.resume().catch(() => {}); } catch (e){}
     if (!AE.graphLive || !player.playing || AE._ctxKeepT) return;
     if (typeof ACTIVITY !== 'undefined')
       ACTIVITY.log('system', T('The audio engine was suspended mid-play (route change or power saving) — arguing it back'));
@@ -11021,18 +11084,22 @@ function ensureCtx(){
     a.preload = 'auto';
     a.setAttribute('playsinline', '');
     a.setAttribute('x-webkit-airplay', 'allow');
-    /* CORS MODE IS FOR THE ANALYSER, AND ONLY THE ANALYSER — so ask for it
-       exactly where something reads the samples. An AnalyserNode may only see
-       a cross-origin stream the server has opted in to, hence this; but the
-       samples are only ever read through the Web Audio graph, and iOS never
-       builds one. ROUTE.setDirect refuses outright there ("Never on iOS: it
-       is already direct, permanently"), the decks go straight to the speaker,
-       and the visuals run off the precomputed score instead.
-       So on iOS the header dance buys nothing and costs a whole class of
-       failure: in CORS mode EVERY ranged request must come back with a valid
-       Access-Control-Allow-Origin, across redirects too, and one response
-       that does not — a redirect hop, a revalidation, an edge cache miss —
-       fails the load outright as MEDIA_ERR_SRC_NOT_SUPPORTED. Mid-track. */
+    /* CORS MODE IS FOR THE GRAPH, AND ONLY THE GRAPH — so ask for it
+       exactly where something reads the samples. A MediaElementAudioSourceNode
+       on a cross-origin stream the server has not opted in to outputs pure
+       zeros (silently, on Safari), hence this. On iOS the decks are built
+       direct: AIRPLAY.setDirect refuses there, the decks go straight to the
+       speaker, and the visuals run off the precomputed score. The one way an
+       iOS element reaches the graph is DECKROUTE, which sets the attribute
+       itself — on an empty element, or right before a src — and builds its
+       direct twins without it.
+       So for an element that stays direct the header dance buys nothing and
+       costs a whole class of failure: in CORS mode EVERY ranged request must
+       come back with a valid Access-Control-Allow-Origin, across redirects
+       too, and one response that does not — a redirect hop, a revalidation,
+       an edge cache miss — fails the load outright as
+       MEDIA_ERR_SRC_NOT_SUPPORTED. Mid-track. The iOS default (no CORS)
+       stays right for every direct build. */
     if (cors === undefined ? !IS_IOS : cors) a.crossOrigin = 'anonymous';
     return a;
   };
@@ -11156,6 +11223,12 @@ function ensureCtx(){
       // Access-Control-Allow-Origin all arrive as
       const reachable = code !== NET && code !== UNSUPPORTED;
       const streaming = t && !t.local && !t.demo;
+      /* A CORS REFUSAL MID-TRACK, with an iPhone's decks in the graph: a CORS-
+         mode element fails outright when any one ranged response comes back
+         without the header. Rebuffering would ask the same way and be refused
+         the same way — so the record goes back direct, from where it was. */
+      if (IS_IOS && AE.graphLive && code === UNSUPPORTED && a.crossOrigin && typeof DECKROUTE !== 'undefined'
+          && DECKROUTE.onCorsError(t)) return;
       /* A 404 IS NOT A WEAK SIGNAL, AND HOLDING IT FOUR TIMES HELPS NOBODY.
          The rebuffer loop exists for a stream that DROPS — a real blip on a
          real connection, where trying again in a moment genuinely works. A
@@ -11301,7 +11374,12 @@ function ensureCtx(){
 /* one volume authority for both routings */
 function applyVolume(){
   const v = AE.muted ? 0 : parseInt(el.vol.value, 10) / 100;
-  if (AE.master) setMasterGain(v, 0.03);
+  /* ON AN iPHONE THE BUTTONS OWN THE LEVEL. Element volume is read-only there,
+     so the slider never touched a direct deck — and a master that followed it
+     would make the music jump the moment the booth took the decks into the
+     graph, and jump back when it gave them up. Where the route can run, the
+     master sits at unity and the hardware is the volume, in both routings. */
+  if (AE.master) setMasterGain(IS_IOS && IOS_GRAPH ? 1 : v, 0.03);
   if (typeof VINYL !== 'undefined') VINYL.songVolume();   // the song tape (iOS) answers the slider and the mute as the element does
   if (AE.decks && !AE.graphLive){
     if (typeof MIXER !== 'undefined' && MIXER.phase === 'running'){
@@ -11312,9 +11390,10 @@ function applyVolume(){
   }
 }
 
-/* resume the context on every plausible occasion — a suspended context only
-   costs visuals here (playback never routes through it on iOS), but the
-   analyser should come back the moment it can */
+/* resume the context on every plausible occasion. Where the decks play
+   direct (iOS, booth closed) a suspended context only costs visuals; under
+   the graph it is the music, and this is one of the many hands that bring it
+   back (the keeper, below, is the one that never stops asking) */
 function ensureResume(){
   if (AE.ctx && AE.ctx.state !== 'running'){ AE.ctx.resume().catch(() => {}); }
 }
@@ -11406,7 +11485,10 @@ function primeDecks(){
   }
 }
 ['pointerdown', 'keydown', 'touchend'].forEach(evName =>
-  window.addEventListener(evName, () => { ensureResume(); primeDecks(); }, { passive: true }));
+  window.addEventListener(evName, ev => {
+    ensureResume(); primeDecks();
+    if (typeof DECKROUTE !== 'undefined') DECKROUTE.onGesture(ev);   // the twins are blessed, a sleeping booth woken
+  }, { passive: true }));
 
 /* Returning from a backgrounded tab: rAF was frozen the whole time, so the
    beat clock's sample window is stale and the transport state may have
@@ -11477,6 +11559,15 @@ function rampGain(gain, to, dur, shape){
 }
 
 function activeDeck(){ return AE.decks ? AE.decks[AE.active] : null; }
+/* THE RATE A DECK'S ELEMENT IS GIVEN, through one door. Everything that moves
+   a deck's tempo — SPEED, SYNC's pitch, a seam's glide and its phase lock, the
+   pre-rolled cue's steering, the element-rate brake — writes it through here,
+   and here asks the one decider (iosRatesOk): on an iPhone with the decks in
+   the graph a captured element plays choppy at any rate but 1 (WebKit
+   240405), so there the answer is 1 whatever was asked. Everywhere else it is
+   exactly what was asked, so nothing off iOS can tell this exists. */
+function ratesHeld(){ return !iosRatesOk({ ios: IS_IOS, graph: !!AE.graphLive, override: IOS_GRAPH_RATES }); }
+function deckRate(r){ return ratesHeld() ? 1 : r; }
 
 /* ================================================================
    DECKS — two decks, one handle, and who owns what.
@@ -11647,7 +11738,7 @@ const DECKS = {
       d.a._warmOf = track.url; d.a._warmSrc = d.a.src;
       PREFETCH.spend();
     }
-    try { d.a.playbackRate = SPEED.rate; } catch (e){}
+    try { d.a.playbackRate = deckRate(SPEED.rate); } catch (e){}
     setPitchLock(d.a, SPEED.keyLock);
     this.applyFaderGains();
     PERSIST.poke();
@@ -11782,6 +11873,10 @@ const DECKS = {
     this.hand();
     if (typeof MIXER !== 'undefined' && MIXER.cueing(d)) MIXER._uncue('hand on sync', { veto: true });   // SYNC on the cued deck: the hand has it (see cue())
     if (s.synced){ s.synced = false; s.pitch = 1; SPEED.apply(); return false; }
+    /* SYNC IS A RATE, and an iPhone's captured decks hold 1× (deckRate: WebKit
+       240405 plays them choppy anywhere else). There it does nothing at all —
+       the booth says why — rather than marking a match the speaker never got. */
+    if (ratesHeld()) return false;
     if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return false;
     if (this.retiring(slot)) return false;              // its phase take would seek a record still fading out
     const mixS = mixOf(this.track(slot)), mixM = mixOf(this.track(m));
@@ -12079,7 +12174,7 @@ const DECKS = {
        the start, where the deck is still silent (its gain or its fader is
        only beginning to ramp in). Equality-guarded: a rate written to a
        playing element re-seats its resampler even when unchanged. */
-    try { if (d.a.playbackRate !== SPEED.rate) d.a.playbackRate = SPEED.rate; } catch (e){}
+    { const r = deckRate(SPEED.rate); try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){} }
     setPitchLock(d.a, SPEED.keyLock);
     if (!AE.graphLive || !AE.ctx) return;
     if (!d.fader) return;
@@ -12197,6 +12292,8 @@ const DECKS = {
 
   /* ---- what survives a reload ----------------------------------------- */
   snapshot(){
+    // a hand's record waiting for the decks to wake (an iPhone's booth, asleep) is still the hand's
+    if (this._pendingIdle) return { fader: { curve: this.fader.curve }, idle: this._pendingIdle.idle || null };
     const i = this.idle(), s = this.slots[i];
     const t = AE.decks && s.owner === 'hand' ? this.track(i) : null;
     return { fader: { curve: this.fader.curve },
@@ -12213,6 +12310,10 @@ const DECKS = {
     if (!o) return;
     if (o.fader && o.fader.curve) this.setCurve(o.fader.curve);
     const r = o.idle;
+    /* where the route takes the decks into the graph only when the booth wakes
+       them (an iPhone), a hand's record is kept for that moment rather than
+       dropped: DECKROUTE replays it once both decks are live */
+    if (r && !AE.graphLive && IOS_GRAPH){ this._pendingIdle = { idle: r }; return; }
     if (!r || !AE.graphLive || !AE.decks) return;
     const t = player.tracks.find(x => trackKey(x) === r.key);
     if (!t) return;
@@ -12400,6 +12501,8 @@ async function toggleMic(){
     if (AE.mic.stream){ AE.mic.stream.getTracks().forEach(tr => tr.stop()); AE.mic.stream = null; }
     el.btnMic.classList.remove('on');
     el.btnMic.setAttribute('aria-pressed', 'false');
+    // the capture argued the session to play-and-record; where the route can hold the music it is playback again
+    if (IOS_GRAPH) try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e){}
     player.refreshTitle();
     toast(T('Microphone off'));
     return;
@@ -12800,6 +12903,7 @@ const player = {
     ensureCtx();
     const d = AE.decks[AE.active];
     d.norm = normLin(track);
+    d._landAt = pos;                    // where it is going, while it gets there (DECKROUTE reloads a tainted one here)
     /* RESUMING IS NOT THE SAME AS STARTING, AND THE DIFFERENCE IS AUDIBLE.
        Waiting for loadedmetadata gets the seek issued; it does not get it
        LANDED. A seek into a remote file needs a fresh ranged request, and
@@ -12937,6 +13041,8 @@ const player = {
       if (el.btnTap) el.btnTap.classList.remove('on');
       if (typeof TAP !== 'undefined') TAP.m = [];
     }
+    // an iPhone's route settles first: a take or a hand-back in flight, or a take waiting for this very boundary
+    if (typeof DECKROUTE !== 'undefined') DECKROUTE.onTrack(i);
     if (typeof MIXER !== 'undefined') MIXER.cancel('manual');
     if (typeof FX !== 'undefined') FX.release();   // no track inherits the last one's booth
     if (AE.mic.on) toggleMic();
@@ -12974,8 +13080,13 @@ const player = {
     const other = 1 - oldIdx;
     const cued = AE.graphLive && typeof DECKS !== 'undefined' && DECKS.slots[other].owner === 'hand'
       && DECKS.slots[other].trackIdx === i && AE.decks[other].a.paused
-      && (typeof MIXER !== 'undefined') && MIXER._sameSrc(AE.decks[other].a, track.url);
-    const stayPut = IS_IOS && !xfade && this.playing && !cued;
+      && (typeof MIXER !== 'undefined') && MIXER._sameSrc(AE.decks[other].a, track.url)
+      && !(IS_IOS && document.hidden);   // (behind a lock no other element may start: the record comes to the one on air)
+    /* …and the same-element advance, which is the whole iOS contract on the
+       direct path, and under the graph only where a cross-deck start is not
+       allowed — hidden, or a deck no gesture has blessed (stayPutRule). */
+    const stayPut = stayPutRule({ ios: IS_IOS, xfade, playing: this.playing, cued, graph: AE.graphLive,
+      hidden: document.hidden, otherPrimed: !!AE.decks[other].primed });
     const newIdx = stayPut ? oldIdx : cued ? other : (!this.playing && !xfade) ? oldIdx : other;
     const nd = AE.decks[newIdx], od = AE.decks[oldIdx];
 
@@ -13027,6 +13138,21 @@ const player = {
        player that plays a waveform in silence is the worst bug on this list —
        everything looks right. Cheap to clear unconditionally, so it is. */
     AE.decks.forEach(dk => { dk._seekPending = false; clearTimeout(dk._seekT); dk.a.muted = false; });
+    /* A RECORD THAT HAS A PLACE TO START FROM — a hand's cue, carried over
+       when an iPhone's booth gave its decks back with that record waiting
+       (DECKROUTE._resolveOne), or a caller's `opts.at` — lands there before
+       it is heard: muted until the seek has landed, as a restored deck is. */
+    const landAt = cued ? 0 : ((opts && opts.at > 0.2) ? opts.at : this._takeCue(track));
+    if (landAt > 0.2){
+      const a = nd.a;
+      a.muted = true;
+      let ut = 0;
+      const un = () => { a.removeEventListener('seeked', un); clearTimeout(ut); if (nd.a === a) a.muted = false; };
+      ut = setTimeout(un, 6000);
+      a.addEventListener('seeked', un);
+      AE._loadAt(a, '', landAt, ok => { if (!ok) un(); });
+    }
+    if (AE.graphLive && IS_IOS && typeof DECKROUTE !== 'undefined') DECKROUTE.armSentinel();   // a new record in the graph: listened to
     this._armStall(track, newIdx);    // the backstop: a silent stall must never freeze the queue
     nd.a.play().catch(err => {
       // A decode/network failure fires the element's 'error' event (handled
@@ -13091,6 +13217,13 @@ const player = {
     updatePlayIcon();
     updateMediaSession();
     PERSIST.poke();
+  },
+
+  // the cue a record was left waiting at (DECKROUTE's hand-back), spent by the start it was waiting for
+  _takeCue(track){
+    const m = this._nextCue, c = (m && track) ? m[track.id] : null;
+    if (c != null) delete m[track.id];
+    return +c || 0;
   },
 
   /* A TRACK CHANGE CALLS OFF WHAT IS NO LONGER WANTED: the booth's detail
@@ -13185,11 +13318,17 @@ const player = {
     }
     updatePlayIcon(); this.renderList();
     mediaSessionPlaybackState(); PERSIST.poke();
+    if (typeof DECKROUTE !== 'undefined') DECKROUTE.onPause();   // a take in flight starts again on the paused decks
   },
   resume(){
     const d = activeDeck(); if (!d) return;
     ensureCtx();
     if (AE.mic.on) toggleMic();
+    // an iPhone's decks in a context that let go: this press is the gesture that brings the music back direct
+    if (IS_IOS && AE.graphLive && typeof DECKROUTE !== 'undefined'){
+      if (DECKROUTE.resumeHook(d)) return;
+      DECKROUTE.armSentinel();
+    }
     /* A restored deck whose seek has not landed plays MUTED for the moment it
        takes to land, rather than not playing at all. play() has to be called
        inside this gesture — that call is what unlocks audio on iOS, and
@@ -13948,7 +14087,10 @@ const PREFETCH = {
      never outgrows the two decks. */
   _inUse(u){
     if (!u || typeof AE === 'undefined' || !AE.decks) return false;
-    return AE.decks.some(d => d && d.a && (d.a.src === u || d.a.currentSrc === u));
+    const reads = a => !!(a && (a.src === u || a.currentSrc === u));
+    // …and the route's twins: an element on its way to becoming a deck reads it too
+    if (typeof DECKROUTE !== 'undefined' && DECKROUTE.twins.some(t => reads(t.a))) return true;
+    return AE.decks.some(d => d && reads(d.a));
   },
   _sweep(){
     this._spent = this._spent.filter(u => {
@@ -14066,7 +14208,8 @@ const PREFETCH = {
     // a finished track's copy goes once its deck moves on — on every path:
     // where the graph is live the mixer seats copies on the idle deck too
     if (this._spent.length) this._sweep();
-    if (AE.graphLive) return;
+    // (an iPhone hidden with the decks in the graph advances on one element like a direct one: it needs the warm too)
+    if (AE.graphLive && !(IS_IOS && document.hidden)) return;
     if (typeof player === 'undefined' || !player.playing) return;
     const d = typeof activeDeck === 'function' ? activeDeck() : null;
     if (!d || !isFinite(d.a.duration) || d.a.duration <= 0) return;
@@ -15046,6 +15189,8 @@ const SPEED = {
     toast(this.keyLock ? T('Key lock <b>on</b> — pitch held through any tempo') : T('Key lock <b>off</b> — pitch rides the tempo, like vinyl'));
   },
   cycle(){
+    // an iPhone's captured decks hold 1× (deckRate): the speed waits for the booth to give them back
+    if (ratesHeld()){ toast(T('Speed stays at 1× while both decks are live on this iPhone — close the booth to change it')); return; }
     this.idx = (this.idx + 1) % this.STEPS.length;
     this.apply();
     DB.kvSet('speed', String(this.idx)).catch(() => {});
@@ -15063,7 +15208,7 @@ const SPEED = {
         // and a synced deck rides vinyl: the stretcher's smear is what SYNC
         // cannot afford (see DECKS.sync)
         const s = (typeof DECKS !== 'undefined') ? DECKS.slots[i] : null;
-        const r = this.rate * (s && s.pitch > 0 ? s.pitch : 1);
+        const r = deckRate(this.rate * (s && s.pitch > 0 ? s.pitch : 1));
         if (d.a.playbackRate !== r) d.a.playbackRate = r;
         setPitchLock(d.a, this.keyLock && !(s && s.synced));
       } catch (e){}
@@ -19299,6 +19444,7 @@ function startNowPlayingHeartbeat(){
     mediaSessionPlaybackState();                     // keep iOS certain we're playing
     mediaSessionPosition();                          // keep the scrubber on the real position
     WATCHDOG.check();                                // never stay wedged
+    if (typeof DECKROUTE !== 'undefined') DECKROUTE.watch();   // …nor silent in a context that let go
   }, 1000);
 }
 function stopNowPlayingHeartbeat(){
@@ -19541,6 +19687,14 @@ const AIRPLAY = {
     if (this.out === !!on) return;
     this.out = !!on;
     syncAirplayButton();
+    /* an iPhone: a route picked from Control Center while the decks are in
+       the graph sends them back to direct (a twin, no gesture needed); coming
+       home, the booth waits for a touch to take them again */
+    if (IS_IOS && typeof DECKROUTE !== 'undefined' && IOS_GRAPH){
+      if (this.out && DECKROUTE.phase === 'graph') DECKROUTE.give('airplay');
+      else if (!this.out && typeof BOOTH !== 'undefined' && BOOTH.open && DECKROUTE.phase === 'direct') DECKROUTE.wantTake = true;
+      if (typeof BOOTH !== 'undefined') BOOTH.draw();
+    }
     if (!this.out && this.tookGraph && !this.busy){
       // it came home: give the mixer, the rack and the analyser back
       this.setDirect(false).then(() => { this.tookGraph = false; });
@@ -19556,6 +19710,13 @@ const AIRPLAY = {
   async route(){
     const d = activeDeck();
     if (!d || this.busy) return;
+    /* AN iPHONE'S DECKS IN THE GRAPH go back to direct onto a twin, and the
+       picker opens on that twin, in this click (DECKROUTE.give). A take in
+       flight is called off first, and the picker opens on the record on air. */
+    if (IS_IOS && typeof DECKROUTE !== 'undefined'){
+      if (DECKROUTE.phase === 'graph'){ DECKROUTE.give('airplay', { picker: true }); return; }
+      if (DECKROUTE.phase === 'taking') DECKROUTE.abortTake('airplay');
+    }
     if (AE.graphLive){
       toast(T('Sending to AirPlay — the mixer stands down while the music is out there'));
       const ok = await this.setDirect(true);
@@ -19670,6 +19831,872 @@ const AIRPLAY = {
     } finally { this.busy = false; }
   },
 };
+
+/* ================================================================
+   DECKROUTE — TWO DECKS ON AN iPHONE, FOR AS LONG AS THE BOOTH HOLDS THEM
+   ================================================================
+   iOS plays the decks element-direct, and for good reasons (the contract at
+   the top of §4): createMediaElementSource is a one-way door, and the
+   context it opens onto is the thing a locked screen takes away. So deck B,
+   the crossfader, a second platter and the rack have never existed on an
+   iPhone. This is how they do, on a device the gate allows (IOS_GRAPH):
+
+   TAKE. Opening the booth takes the decks into the graph, in the gesture
+   that opened it. The record on air is usually a no-CORS stream from the
+   media host, and capturing THAT element would be silence (a tainted
+   source outputs zeros), so it is never captured in place while it plays:
+   deck B starts the same record, muted, in CORS mode (or from the blob
+   already in hand), is captured, lined up with A by ear's arithmetic (the
+   graph's output trails an element's direct output by IOS_TAP_LAG), and at
+   one instant A is muted and B's gain opens — the CROSSOVER. A, now silent
+   and empty, is captured as the idle deck. A paused or empty deck is simply
+   captured in place (reloaded in CORS mode first if it is tainted: nobody
+   is listening). A record with under ten seconds left waits for the track
+   boundary (pendingTake).
+
+   GIVE. Leaving is the reverse, onto TWINS: two direct elements created and
+   blessed inside booth gestures and kept empty (they cost no decoder), so a
+   give never needs a gesture of its own. Two decks are resolved to one
+   record (giveWinner), the twin starts that record muted, is lined up with
+   the captured deck, and swaps in; the captured elements are let go. The
+   booth closing gives; so does the page hiding (onHide) — while the screen
+   is fresh off, the session certain and the captured deck still sounding,
+   so a pocketed phone runs on the path that has always survived a lock.
+
+   SUPERVISED. While the graph holds the music: a context that stops is
+   answered by a twin from the spot (emergency) — or, with no twin to start,
+   an honest pause at the spot; a capture that turns out silent (the
+   sentinel) or a CORS failure mid-track hands that record back direct and
+   never puts it through the decks again this session.
+
+   Rates: a captured element plays choppy at any rate but 1 on every
+   shipping iOS (WebKit 240405), so while the decks are in the graph they
+   hold 1× (deckRate): SPEED must be 1× to take them, SYNC stands down, and a
+   seam between two tempi is the filtered fade (iosSeamPlan).
+
+   The invariants every path below keeps:
+   I1 crossOrigin is set only on an empty element or right before a src, so
+      the attribute's presence means the current resource came in CORS mode;
+   I2 a capture happens only with the context running, through
+      AE._deckGraph(d, gain0) with an explicit gain;
+   I3 a captured element that is the only audible path is never paused or
+      unloaded before its replacement has been seen advancing;
+   I4 at most two deck decoders: twins are empty until used, and the deck
+      that is neither on air nor incoming is unloaded first;
+   I5 listeners speak only for the element they were wired to (_wireDeck);
+   I6 an un-gestured start of another element happens only while a captured
+      element is still sounding (an overlap), or once the context is lost. */
+const DECKROUTE = {
+  phase: 'direct',              // direct | taking | graph | giving
+  twins: [],                    // [{ a, primed, priming }] — pre-blessed direct elements, empty until used
+  wantTake: false,              // the booth wants the decks: the next touch in it wakes them
+  pendingTake: false,           // the decks join at the next track boundary
+  giveRetry: 0,                 // hand-backs refused so far; retried on a gesture, or by the hidden tick
+  _seq: 0,                      // the abort token: every async step checks it is still the step in charge
+  _xo: null,                    // the crossover in flight (take)
+  _gv: null,                    // the hand-back in flight (give / emergency)
+  _lost: null,                  // { pos, at, asleep } — where the music was when the context let go
+  _lostT: 0, _noGraph: new Set(), _hiddenAt: 0, _tryAt: -1e9,
+  _last: '',                    // the last thing that did not go to plan, for the probes and a device report
+  _loadAt: 0, _sentT: 0, _quiet: 0, _sLastT: -1,
+
+  /* ---- the gate ------------------------------------------------------ */
+  // why the decks cannot be taken right now ('' when they can)
+  why(){
+    if (!IOS_GRAPH) return 'gated';
+    if (typeof AIRPLAY !== 'undefined' && AIRPLAY.out) return T('Deck B rests while the music is on AirPlay');
+    if (AE.mic && AE.mic.on) return T('Not on the microphone');
+    if (SPEED.rate !== 1 && !IOS_GRAPH_RATES) return T('Two decks need 1× speed on this iPhone — set SPEED back to 1×');
+    if (!(window.AudioContext || window.webkitAudioContext) || typeof AudioWorkletNode !== 'function') return 'gated';
+    return '';
+  },
+  can(){ return this.why() === ''; },
+  /* WHAT THE BOOTH SAYS where it used to say "direct-to-output" — '' keeps
+     today's words. A device the gate leaves out says exactly what it always
+     did (unless an override put it there, or the default is on and the iOS
+     is too old, when it says that); a device the route serves says where
+     its decks are on their way to or from the graph. */
+  boothText(){
+    if (!IS_IOS) return '';
+    if (!IOS_GRAPH){
+      if (IOS_ROUTE.decks === 'direct') return T('Two decks are off on this device (decks=direct)');
+      if (IOS_GRAPH_DEFAULT && iosMajor(navigator.userAgent, navigator.platform, navigator.maxTouchPoints) < 18)
+        return T('This iOS keeps the music direct — iOS 18 or later gives you two decks');
+      return '';
+    }
+    if (AE.graphLive) return '';
+    if (this.phase === 'taking') return T('Deck B is joining — matching the record on air…');
+    const w = this.why();
+    if (w && w !== 'gated') return w;
+    if (this.pendingTake) return T('Deck B joins at the next track');
+    return T('Deck B is asleep — touch the booth to wake it');
+  },
+  _gestureLive(){ const u = navigator.userActivation; return u ? !!u.isActive : true; },
+
+  /* ---- the twins ----------------------------------------------------- */
+  /* A DIRECT ELEMENT, blessed in a gesture and kept empty. Built without the
+     CORS attribute (it plays direct, and direct needs none: see _deckEl). Its
+     AirPlay availability is the room's, so it reports it — while it is still
+     in the pool; once it is a deck, the deck's own watcher speaks for it. */
+  _twin(){
+    const a = AE._deckEl(false);
+    a.addEventListener('webkitplaybacktargetavailabilitychanged', e => {
+      if (!this.twins.some(t => t.a === a)) return;
+      AIRPLAY.told = true; AIRPLAY.avail = e.availability === 'available'; syncAirplayButton();
+    });
+    return a;
+  },
+  // primeDecks' blessing, for a twin: a silent WAV played muted and let go — only ever its own src stripped
+  _primeTwin(t){
+    if (t.primed || t.priming || t.a.src) return;
+    const a = t.a;
+    t.priming = true;
+    a.src = PRIME_SRC; a.muted = true;
+    const done = ok => {
+      if (a.src === PRIME_SRC){
+        try { a.pause(); } catch (e){}
+        a.muted = false;
+        a.removeAttribute('src'); try { a.load(); } catch (e){}
+      }
+      t.primed = ok; t.priming = false;
+    };
+    try { a.play().then(() => done(true), () => done(false)); } catch (e){ done(false); }
+  },
+  // in a gesture: two twins, both being blessed
+  fillTwins(){
+    if (!IOS_GRAPH) return;
+    while (this.twins.length < 2) this.twins.push({ a: this._twin(), primed: false, priming: false });
+    for (const t of this.twins) this._primeTwin(t);
+  },
+  _ready(){ return this.twins.filter(t => t.primed && !t.priming && !t.a.src).length; },
+  // a ready twin out of the pool (null: none)
+  _takeTwin(){
+    const i = this.twins.findIndex(t => t.primed && !t.priming && !t.a.src);
+    return i < 0 ? null : this.twins.splice(i, 1)[0];
+  },
+
+  /* ---- small waits ---------------------------------------------------- */
+  _ctxRunning(ms){
+    return new Promise(res => {
+      const t0 = performance.now();
+      const look = () => {
+        if (AE.ctx && AE.ctx.state === 'running') return res(true);
+        if (performance.now() - t0 > ms) return res(false);
+        setTimeout(look, 30);
+      };
+      look();
+    });
+  },
+  // the first of `evs` on `a`, or 'timeout'
+  _once(a, evs, ms){
+    return new Promise(res => {
+      let done = false;
+      const h = {};
+      const fin = v => {
+        if (done) return; done = true; clearTimeout(t);
+        for (const e of evs) a.removeEventListener(e, h[e]);
+        res(v);
+      };
+      for (const e of evs){ h[e] = () => fin(e); a.addEventListener(e, h[e]); }
+      const t = setTimeout(() => fin('timeout'), ms);
+    });
+  },
+  /* SEEN ADVANCING: two reads at least 100 ms apart, the clock 80 ms on. Not
+     'playing', which an element fires before it has produced a sample, and
+     not one read, which a seek can fake. (I3) */
+  _advancing(a, ms){
+    return new Promise(res => {
+      const w0 = performance.now();
+      let bt = a.currentTime, bw = w0;
+      const iv = setInterval(() => {
+        const now = performance.now(), t = a.currentTime;
+        if (!a.paused && !a.seeking && t - bt >= 0.08 && now - bw >= 100){ clearInterval(iv); res(true); return; }
+        if (t < bt || a.paused || a.seeking){ bt = t; bw = now; }
+        if (now - w0 > ms){ clearInterval(iv); res(false); }
+      }, 40);
+    });
+  },
+  /* LINED UP. `F` (the incoming) against `L` (the one the listener hears),
+     both read in one task: Δ = (F − L) − sign × tap lag × rate, where sign
+     is +1 when F will be heard through the graph (it must run AHEAD by the
+     tap's lag) and −1 when F is the direct one (it must run behind). Seeks
+     are budgeted by crossoverAligned. A 3 ms poller in the foreground; a
+     hidden page has no fast timers, so there the element's own timeupdate
+     drives it. Resolves 'ok', 'fail' or 'abort'. */
+  _align(L, F, sign, tok){
+    return new Promise(res => {
+      const s = { seeks: 0 };
+      /* A SEEK IS NOT FREE, AND ITS COST IS LEARNED. The element stops to
+         refill at the new spot while the record on air rolls on, so a seek
+         aimed exactly at the target lands behind it by the refill — every
+         time. The residual after each seek is folded into the next aim
+         (`comp`), the way the mixer learns its start latency, and a reading
+         is only taken once the element is rolling again from where it was
+         sent (`sentTo`). */
+      let lastL = L.currentTime, settle = 0, iv = 0, done = false, comp = 0, sentTo = -1, justSeeked = false;
+      const fin = v => { if (done) return; done = true; clearInterval(iv); clearTimeout(cap); F.removeEventListener('timeupdate', step); res(v); };
+      const step = () => {
+        if (tok !== this._seq) return fin('abort');
+        const now = performance.now();
+        if (F.seeking || now < settle || F.paused || F.readyState < 2) return;
+        if (sentTo >= 0 && F.currentTime < sentTo + 0.04) return;          // not rolling from the new spot yet
+        const tl = L.currentTime, tf = F.currentTime, rate = L.playbackRate || 1;
+        const jump = Math.abs(tl - lastL) > (document.hidden ? 1.0 : 0.5);   // a hand moved the record on air
+        lastL = tl;
+        const d = (tf - tl) - sign * IOS_TAP_LAG * rate;
+        if (justSeeked){ justSeeked = false; if (!jump) comp = Math.max(-0.5, Math.min(1.5, comp - d)); }
+        const v = crossoverAligned(s, { delta: d, jump });
+        if (v === 'ok' || v === 'fail') return fin(v);
+        if (v === 'seek'){
+          sentTo = Math.max(0, tf - d + comp);
+          try { F.currentTime = sentTo; } catch (e){}
+          justSeeked = true; settle = now + 60;
+        }
+      };
+      const cap = setTimeout(() => fin('fail'), 8000);
+      if (document.hidden) F.addEventListener('timeupdate', step);
+      else iv = setInterval(step, 3);
+    });
+  },
+
+  /* ---- taking the decks ------------------------------------------------ */
+  // AE._deckGraph, stamped for the sentinel (I2: the caller has seen the context running)
+  /* …and at full element volume. A direct deck's volume is the direct path's
+     level (applyElementVolumes parks the idle one at 0), and an element's
+     volume scales what its MediaElementAudioSourceNode hands the graph —
+     measured in Chromium, and true wherever element volume is settable (an
+     iPad from iPadOS 26). Under the graph the level is the gain nodes'. */
+  _capture(d, g0){
+    try { d.a.volume = 1; } catch (e){}
+    AE._deckGraph(d, g0);
+    d._capAt = performance.now();
+  },
+  take(why){
+    if (this.phase !== 'direct' || !this.can()){ if (typeof BOOTH !== 'undefined') BOOTH.draw(); return false; }
+    ensureCtx();                       // a booth opened before any play builds the decks here (direct)
+    if (!AE.decks || !AE.ctx) return false;
+    const ai = AE.active, A = AE.decks[ai], bi = 1 - ai, B = AE.decks[bi];
+    const playingA = !!(player.playing && A.a.src && !A.a.paused && !A.a.ended);
+    const left = isFinite(A.a.duration) ? A.a.duration - A.a.currentTime : Infinity;
+    // THE GESTURE IS SPENT ON WHAT NEEDS ONE: a context to start, twins to bless, deck B to start
+    const needGesture = AE.ctx.state !== 'running' || this._ready() < 2 || (playingA && !B.primed);
+    if (needGesture && !this._gestureLive()){ this.wantTake = true; BOOTH.draw(); return false; }
+    // A3: the session says "playback" BEFORE anything is captured — the ringer switch, and the lock
+    try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e){}
+    AE.ctx.resume().catch(() => {});
+    this.fillTwins();
+    if (playingA && left < 10){ this.pendingTake = true; this.wantTake = false; BOOTH.draw(); return false; }
+    const tok = ++this._seq;
+    this.phase = 'taking'; this.wantTake = false; this.pendingTake = false;
+    VINYL.ejectSong();                 // the song tape lets go of A's mute before anything flips
+    this._xo = null;
+    if (playingA){
+      /* THE CROSSOVER'S GESTURE HALF. B starts the record on air, muted, in
+         this task — the play() is what spends the gesture on B — from the
+         cleanest copy there is (crossoverSource). Nothing is heard: B is
+         muted and not yet captured. */
+      const t = player.tracks[player.cur];
+      const kind = crossoverSource({ onAirSrc: A.a.currentSrc, peek: t && BYTES.peek(t.url), trackUrl: t && t.url });
+      let src = kind === 'onair' ? A.a.currentSrc : (t ? t.url : A.a.currentSrc);
+      if (kind === 'bytes'){ try { src = URL.createObjectURL(BYTES.peek(t.url)); PREFETCH._spent.push(src); } catch (e){ src = t.url; } }
+      B._joining = true;
+      try { B.a.pause(); } catch (e){}
+      B.a.removeAttribute('src'); try { B.a.load(); } catch (e){}
+      B.a.crossOrigin = 'anonymous';    // I1: empty, and a src follows
+      B.a.muted = true;
+      try { B.a.playbackRate = A.a.playbackRate || 1; } catch (e){}
+      setPitchLock(B.a, A.a.preservesPitch !== false);
+      B.a.src = src;
+      this._xo = { tok, ai, bi, A, B, kind, captured: false, swapped: false, tailT: 0, tail: null };
+      B.a.play().catch(err => {
+        if (err && err.name === 'AbortError') return;
+        if (tok === this._seq && this.phase === 'taking' && this._xo && !this._xo.swapped) this._xoFail(tok, 'refused');
+      });
+    }
+    BOOTH.draw();
+    this._takeAsync(tok, playingA);
+    return true;
+  },
+  async _takeAsync(tok, crossover){
+    const ok = await this._ctxRunning(1500);
+    if (tok !== this._seq) return;
+    if (!ok){
+      this.abortTake('engine'); this.wantTake = BOOTH.open;
+      toast(T("The audio engine didn't start — touch the booth to try again"));
+      return;
+    }
+    if (crossover && this._xo) return this._crossover(tok);
+    this._inPlace();
+  },
+  /* NOBODY IS LISTENING: capture both decks where they stand. A paused A
+     holding a tainted stream is reloaded in CORS mode at its spot first (no
+     gap anyone hears); B is emptied. Both born at zero: whoever starts the
+     music next (resume, playIndex) opens the gain. */
+  _inPlace(){
+    const ai = AE.active, A = AE.decks[ai], B = AE.decks[1 - ai];
+    const t = player.tracks[player.cur];
+    const srcA = A.a.currentSrc || A.a.src;
+    if (srcA && !srcClean(srcA, location.origin, A.a.crossOrigin)){
+      const at = A._seekPending && isFinite(A._landAt) ? A._landAt : A.a.currentTime;
+      A.a.crossOrigin = 'anonymous';    // I1: right before the src is loaded again
+      AE._loadAt(A.a, t ? t.url : srcA, at);
+    } else A.a.crossOrigin = 'anonymous';   // empty, or clean (a blob): every later load is CORS-mode
+    try { B.a.pause(); } catch (e){}
+    B.a.removeAttribute('src'); try { B.a.load(); } catch (e){}
+    B.a.crossOrigin = 'anonymous';
+    try { this._capture(A, 0); this._capture(B, 0); }
+    catch (e){ this.phase = 'direct'; this.wantTake = BOOTH.open; BOOTH.draw(); return; }
+    this._finishTake();
+  },
+  async _crossover(tok){
+    const xo = this._xo, A = xo.A, B = xo.B;
+    try { this._capture(B, 0); xo.captured = true; } catch (e){ return this._xoFail(tok, 'capture'); }
+    B.a.muted = false;                  // captured at gain zero: still silent
+    if (B.a.readyState < 1){
+      const r = await this._once(B.a, ['loadedmetadata', 'error'], 8000);
+      if (tok !== this._seq) return;
+      if (r !== 'loadedmetadata') return this._xoFail(tok, r);
+    }
+    try { B.a.currentTime = A.a.currentTime + IOS_TAP_LAG * (A.a.playbackRate || 1); } catch (e){}
+    if (B.a.paused) B.a.play().catch(() => {});
+    if (!(await this._advancing(B.a, 6000))){ if (tok === this._seq) this._xoFail(tok, 'stalled'); return; }
+    if (tok !== this._seq) return;
+    const v = await this._align(A.a, B.a, +1, tok);
+    if (tok !== this._seq) return;
+    if (v !== 'ok') return this._xoFail(tok, 'align');
+    this._swapIn(xo);
+  },
+  /* THE COMMIT POINT. A goes quiet and B's gain opens, at the same audio
+     instant give or take the mute's own lag; the air, the slots and the
+     handle move to B. A is let go only after B has been heard for a beat
+     of a moment (I3), and becomes the empty, blessed idle deck. */
+  _swapIn(xo){
+    const { A, B, ai, bi } = xo;
+    xo.swapped = true;
+    A._swapping = true; A.a.muted = true;
+    try {
+      const g = B.gain.gain, t0 = AE.ctx.currentTime + IOS_MUTE_LAG;
+      g.cancelScheduledValues(0); g.setValueAtTime(0, t0); g.linearRampToValueAtTime(1, t0 + 0.005);
+    } catch (e){ try { B.gain.gain.value = 1; } catch (e2){} }
+    const t = player.tracks[player.cur];
+    B.norm = normLin(t); B.primed = true;
+    AE.active = bi;
+    const sb = DECKS.slots[bi], sa = DECKS.slots[ai];
+    const cue = sa.cue || 0;
+    sa.trackIdx = -1; sa.owner = 'free'; sa.cueHeld = false; sa.silentFor = 0;
+    sb.trackIdx = player.cur; sb.owner = 'free'; sb.cue = cue; sb.pitch = 1; sb.synced = false;
+    DECKS.fader.hand = false; DECKS.fader.x = bi; DECKS.fader.mode = 'rest';
+    B._joining = false;
+    mediaSessionPosition(); syncLoopFlag();
+    // the graph's own loudness trim comes in under the music, too slowly to hear (hardware level → the record's trim)
+    setTimeout(() => { if (B.gain && AE.decks && AE.decks[AE.active] === B) DECKS.gainWrite(B.gain.gain, B.norm || 1, 0.5); }, 300);
+    xo.tail = () => {
+      xo.tail = null; clearTimeout(xo.tailT);
+      try { A.a.pause(); } catch (e){}
+      A.a.removeAttribute('src'); try { A.a.load(); } catch (e){}
+      A.a.muted = false; A._swapping = false;
+      A.a.crossOrigin = 'anonymous';   // I1: empty
+      try { this._capture(A, 0); } catch (e){}
+      this._finishTake();
+    };
+    xo.tailT = setTimeout(() => { if (xo.tail) xo.tail(); }, 120 + IOS_MUTE_LAG * 1000);
+  },
+  /* THE CROSSOVER FAILED BEFORE ITS COMMIT (B errored, stalled, refused,
+     or would not line up). A clean A is captured where it plays (a short
+     blink — the one time the tap's lag is heard) and B, already in the
+     graph, is emptied as the idle deck. A tainted A cannot be: the decks
+     wait for the next track, when nothing is playing to be lost. */
+  _xoFail(tok, why){
+    if (tok !== this._seq || this.phase !== 'taking') return;
+    this._last = 'crossover: ' + why;
+    const xo = this._xo; if (!xo || xo.swapped) return;
+    const A = xo.A, B = xo.B;
+    if (xo.captured && srcClean(A.a.currentSrc || A.a.src, location.origin, A.a.crossOrigin)){
+      this._seq++;
+      B._joining = false;
+      try { B.a.pause(); } catch (e){}
+      B.a.removeAttribute('src'); try { B.a.load(); } catch (e){}
+      A.a.crossOrigin = 'anonymous';
+      try { this._capture(A, 1); } catch (e){ return this.abortTake('tainted'); }
+      const t = player.tracks[player.cur]; A.norm = normLin(t);
+      setTimeout(() => { if (A.gain) DECKS.gainWrite(A.gain.gain, A.norm || 1, 0.5); }, 300);
+      this._xo = null;
+      this._finishTake();
+      return;
+    }
+    this.abortTake('tainted');
+  },
+  /* BEFORE THE COMMIT, A TAKE CAN BE CALLED OFF without anyone hearing it:
+     B goes back to being an empty direct deck (a twin takes its seat if it
+     was already captured — a captured element can never play direct
+     again), A is unmuted, and the booth waits. After the commit there is
+     nothing to call off: the take finishes now. */
+  abortTake(why){
+    if (this.phase !== 'taking') return;
+    this._last = (this._last && this._last.startsWith('crossover') ? this._last + ' → ' : '') + 'take called off: ' + why;
+    const xo = this._xo;
+    if (xo && xo.swapped){ if (xo.tail) xo.tail(); return; }
+    this._seq++;
+    if (xo){
+      const B = xo.B;
+      B._joining = false;
+      if (xo.captured) this._seat(xo.bi, this._takeTwin());
+      else {
+        try { B.a.pause(); } catch (e){}
+        B.a.removeAttribute('src'); try { B.a.load(); } catch (e){}
+        B.a.muted = false; B.a.removeAttribute('crossorigin');
+      }
+      xo.A.a.muted = false; xo.A._swapping = false;
+    }
+    this._xo = null;
+    this.phase = 'direct';
+    this.wantTake = why !== 'tainted' && why !== 'give' && typeof BOOTH !== 'undefined' && BOOTH.open;
+    if (why === 'tainted') this.pendingTake = true;
+    BOOTH.draw();
+  },
+  // the decks are live: everything the graph carries is switched on
+  _finishTake(){
+    this._xo = null;
+    this.phase = 'graph'; this.giveRetry = 0;
+    AE.graphLive = true;
+    SPEED.apply();
+    VINYL.install();
+    if (typeof FX !== 'undefined') FX._ftStart();
+    applyVolume();
+    DECKS.settle();
+    if (DECKS._pendingIdle){ const p = DECKS._pendingIdle; DECKS._pendingIdle = null; DECKS.restore(p); }
+    this.armSentinel();
+    syncMixHud(); BOOTH.draw();
+    ACTIVITY.log('system', T('Both decks are live'));
+  },
+  /* THE TRACK BOUNDARY, for a take that was waiting for one (a tainted record
+     on air, or one too near its end). playIndex calls this before it loads
+     the next record: nothing is lost by capturing now — the outgoing tail,
+     if any, is cut instead of faded — and the next record loads CORS-mode
+     into a deck already in the graph. */
+  captureAtBoundary(i){
+    if (!this.pendingTake || !BOOTH.open || this.phase !== 'direct' || document.hidden || !AE.ctx || AE.ctx.state !== 'running' || !this.can()) return false;
+    const t = player.tracks[i];
+    if (t && this._noGraph.has(t.id)) return false;
+    const ai = AE.active, A = AE.decks[ai], B = AE.decks[1 - ai];
+    VINYL.ejectSong();
+    try { B.a.pause(); } catch (e){}
+    B.a.removeAttribute('src'); try { B.a.load(); } catch (e){}
+    B.a.crossOrigin = 'anonymous';
+    A.a.crossOrigin = 'anonymous';      // I1: playIndex assigns its src right after
+    try { this._capture(B, 0); this._capture(A, 0); } catch (e){ return false; }
+    this.pendingTake = false;
+    this._finishTake();
+    return true;
+  },
+
+  /* ---- giving them back ------------------------------------------------ */
+  /* A NEW ELEMENT IN A DECK'S SEAT: the captured one (and its chain) let go of
+     — after `tearMs`, so a captured deck still sounding is heard out — and
+     the twin (or, short of twins, a fresh direct element primeDecks will
+     bless at the next touch) wired in its place. The pointer flips FIRST, so
+     the old element's own pause is nobody's news (I5). */
+  _seat(k, Tw, tearMs){
+    const d = AE.decks[k];
+    const old = { a: d.a, nodes: [d.src, d.shelf, d.hp, d.filter, d.gain, d.fader, d.echoSend], vinyl: d.vinyl, filter: d.filter };
+    d.a = Tw ? Tw.a : AE._deckEl(false);
+    d.src = d.shelf = d.hp = d.filter = d.gain = d.fader = d.echoSend = d.vinyl = null;
+    d._fxLast = null; d._fxSched = false;
+    d.primed = !!(Tw && Tw.primed); d.priming = false; d._joining = false; d._swapping = false;
+    clearTimeout(d._reT); clearTimeout(d._seekT); clearTimeout(d._swapT); d._seekPending = false; d._healing = false;
+    AE._wireDeck(d, k);
+    const tear = () => {
+      try { old.a.pause(); } catch (e){}
+      try { old.a.removeAttribute('src'); old.a.load(); } catch (e){}
+      old.a.muted = false;
+      if (old.vinyl) VINYL.unseatDeck({ vinyl: old.vinyl, filter: old.filter }, k, true);
+      for (const n of old.nodes) if (n) try { n.disconnect(); } catch (e){}
+    };
+    if (tearMs > 0) setTimeout(tear, tearMs); else tear();
+  },
+  /* TWO DECKS BECOME ONE RECORD (giveWinner): a seam lands, a yielded seam
+     goes where the handle favours, an armed plan is let go (its draw stays
+     the next), a hand's record rolling under a favouring handle takes the
+     air, and one not favoured — or cued and waiting — plays next from its
+     cue. Returns how long the outgoing needs to be heard out (ms). */
+  _resolveOne(){
+    try { BOOTH.releaseCues(); } catch (e){}
+    VINYL.drop();
+    if (typeof LOOPER !== 'undefined') try { LOOPER.cancel(); } catch (e){}
+    if (typeof FX !== 'undefined') try { FX.release(); } catch (e){}
+    const on = AE.active, off = 1 - on, s = DECKS.slots[off], d = AE.decks[off];
+    const w = giveWinner({ phase: MIXER.phase, gains: xfaderGains(DECKS.fader.x, DECKS.fader.curve), active: on,
+      idleOwner: s.owner, idleRolling: !d.a.paused && !d.a.ended, idleTrack: s.trackIdx, idleCue: s.cue });
+    let wait = 0;
+    if (w.action === 'finish'){
+      const od = MIXER.outDeck, nd = AE.decks[AE.active];
+      if (od && od.gain) DECKS.gainWrite(od.gain.gain, 0, 0.03);
+      if (nd && nd.gain) DECKS.gainWrite(nd.gain.gain, nd.norm || 1, 0.03);
+      wait = 150;
+      setTimeout(() => { if (MIXER.phase === 'running') MIXER.finish({ by: 'route' }); }, wait);
+    }
+    else if (w.action === 'finish-hand') MIXER.finish({ by: 'hand' });
+    else if (w.action === 'abort-hand') DECKS._abortHand(w.slot);
+    else if (w.action === 'cancel') MIXER.cancel('route');
+    else if (w.action === 'commit'){ DECKS.fader.hand = false; DECKS._commitHand(w.slot); wait = 120; }
+    else if (w.action === 'next'){
+      try { d.a.pause(); } catch (e){}
+      const tr = player.tracks[w.next];
+      if (tr){ player._committedNext = w.next; (player._nextCue || (player._nextCue = {}))[tr.id] = w.cue; }
+      toast(T("Deck B's record plays next, from its cue"));
+    }
+    if (!wait) DECKS.collapse();
+    return wait;
+  },
+  give(why, opts){
+    opts = opts || {};
+    if (this.phase === 'taking'){
+      const xo = this._xo;
+      if (xo && xo.swapped){ if (xo.tail) xo.tail(); }      // past the commit: finish it, then give
+      else { this.abortTake('give'); return true; }
+    }
+    if (this.phase !== 'graph' || !AE.graphLive || !AE.decks) return false;
+    if (!this._ready()){ this.giveRetry++; this._tryAt = performance.now(); BOOTH.draw(); return false; }
+    const tok = ++this._seq;
+    this.phase = 'giving';
+    const wait = this._resolveOne();
+    const k = AE.active, D = AE.decks[k], tr = player.tracks[player.cur];
+    // I4: the deck that is neither on air nor incoming lets go first
+    const empty = () => {
+      if (wait) DECKS.collapse();
+      const I = AE.decks[1 - k];
+      try { I.a.pause(); } catch (e){}
+      I.a.removeAttribute('src'); try { I.a.load(); } catch (e){}
+    };
+    const playing = !!(player.playing && D.a.src && !D.a.paused && !D.a.ended);
+    if (!playing){
+      /* paused or empty: no overlap to carry. The twins take both seats now and
+         the record waits on the new element at its spot, paused. */
+      empty();
+      const src = D.a.currentSrc || D.a.src, at = D.a.currentTime;
+      this._seat(k, this._takeTwin(), 0);
+      if (src) AE._loadAt(AE.decks[k].a, /^blob:/i.test(src) ? src : (tr ? tr.url : src), at);
+      this._finishGive();
+      return true;
+    }
+    if (wait) setTimeout(() => { if (tok === this._seq) empty(); }, wait); else empty();
+    /* PLAYING: the twin starts the same record, muted, in THIS task — inside
+       the click when there is one, which is also where AirPlay's picker has
+       to open (on the twin: the element that will carry the music). */
+    const Tw = this._takeTwin(), a = Tw.a;
+    const src = /^blob:/i.test(D.a.currentSrc || '') ? D.a.currentSrc : (tr ? tr.url : D.a.currentSrc);
+    a.muted = true;
+    try { a.playbackRate = D.a.playbackRate || 1; } catch (e){}
+    setPitchLock(a, D.a.preservesPitch !== false);
+    a.src = src;
+    this._gv = { tok, k, D, Tw };
+    a.play().catch(err => { if (!(err && err.name === 'AbortError')) this._giveFail(tok, 'refused'); });
+    if (opts.picker && a.webkitShowPlaybackTargetPicker){ try { a.webkitShowPlaybackTargetPicker(); } catch (e){} }
+    BOOTH.draw();
+    this._giveAsync(tok);
+    return true;
+  },
+  async _giveAsync(tok){
+    const g = this._gv, D = g.D, a = g.Tw.a, t0 = performance.now();
+    // the captured deck comes up to hardware level meanwhile — the twin plays at it (applyVolume)
+    if (D.gain) DECKS.gainWrite(D.gain.gain, 1, 0.33);
+    if (a.readyState < 1){
+      const r = await this._once(a, ['loadedmetadata', 'error'], 6000);
+      if (tok !== this._seq) return;
+      if (r !== 'loadedmetadata') return this._giveFail(tok, r);
+    }
+    try { a.currentTime = Math.max(0, D.a.currentTime - IOS_TAP_LAG * (D.a.playbackRate || 1)); } catch (e){}
+    if (a.paused) a.play().catch(() => {});
+    const moving = await this._advancing(a, 6000);
+    if (tok !== this._seq) return;
+    if (!moving) return this._giveFail(tok, 'stalled');
+    const v = await this._align(D.a, a, -1, tok);
+    if (tok !== this._seq) return;
+    if (v !== 'ok') return this._giveFail(tok, 'align');
+    const rest = 1000 - (performance.now() - t0);
+    if (rest > 0){ await new Promise(r => setTimeout(r, rest)); if (tok !== this._seq) return; }
+    this._swapOut(tok);
+  },
+  // the hand-back's commit: the twin is heard, the captured deck goes quiet at the same instant
+  _swapOut(tok){
+    const g = this._gv; if (!g || tok !== this._seq) return;
+    const { k, D, Tw } = g;
+    Tw.a.muted = false;
+    try {
+      const p = D.gain.gain, t0 = AE.ctx.currentTime + IOS_MUTE_LAG;
+      DECKS.gainWrite(p, null);
+      p.setValueAtTime(p.value, t0); p.linearRampToValueAtTime(0, t0 + 0.005);
+    } catch (e){}
+    this._seat(k, Tw, 120);
+    this._finishGive();
+  },
+  _giveFail(tok, why){
+    if (tok !== this._seq || this.phase !== 'giving') return;
+    this._last = 'hand-back refused: ' + why;
+    const g = this._gv;
+    this._seq++;
+    if (g){
+      const a = g.Tw.a;
+      try { a.pause(); } catch (e){}
+      a.removeAttribute('src'); try { a.load(); } catch (e){}
+      a.muted = false;
+      g.Tw.primed = false; this.twins.push(g.Tw);      // back in the pool, to be blessed again at the next touch
+      if (g.D.gain) DECKS.gainWrite(g.D.gain.gain, g.D.norm || 1, 0.33);
+    }
+    this._gv = null;
+    this.phase = 'graph';
+    this.giveRetry++; this._tryAt = performance.now();
+    BOOTH.draw();
+  },
+  // the decks are direct again, both seats on elements that never went into the graph
+  _finishGive(){
+    const ki = 1 - AE.active, I = AE.decks[ki];
+    if (I.src || I.gain) this._seat(ki, this._takeTwin(), 0);
+    AE.graphLive = false;
+    this.phase = 'direct'; this._gv = null; this.giveRetry = 0; this._lost = null;
+    clearTimeout(this._lostT); this._lostT = 0;
+    this._stopSentinel();
+    for (const t of this.twins){ try { t.a.removeAttribute('src'); } catch (e){} }
+    this.twins = [];
+    SPEED.apply(); applyVolume(); syncLoopFlag(); mediaSessionPosition(); syncMixHud();
+    if (BOOTH.open) this.wantTake = true;
+    BOOTH.draw();
+    ACTIVITY.log('system', T('The decks are direct again'));
+  },
+
+  /* ---- the booth, the transport and the page --------------------------- */
+  boothOpened(){
+    if (this.phase === 'graph'){ VINYL.install(); return; }
+    // shut and opened again before the hand-back's commit: it is called off, and the decks stay live
+    if (this.phase === 'giving' && this._gv && !this._gv.emergency){ this._giveFail(this._seq, 'reopened'); this.giveRetry = 0; VINYL.install(); BOOTH.draw(); return; }
+    if (this.phase !== 'direct') return;
+    if (this.can()) this.take('booth');
+    else BOOTH.draw();
+  },
+  boothClosed(){
+    this.wantTake = false; this.pendingTake = false;
+    if (this.phase === 'graph' || this.phase === 'taking') this.give('booth');
+  },
+  /* EVERY GESTURE ANYWHERE (pointerdown, touchend, keydown, click): with the
+     booth open the twins are made and blessed — a gesture is the only time
+     they can be. A sleeping booth wakes only on a touch INSIDE it (a tap on
+     the transport is a tap on the transport). A hand-back that was refused
+     for want of a twin is retried once the booth is shut. */
+  onGesture(ev){
+    if (!IOS_GRAPH) return;
+    const activating = ev && ev.type !== 'pointerdown';   // pointerdown is not an activation on WebKit
+    if (!BOOTH.open){
+      if (this.phase === 'graph' && this.giveRetry && activating){ this.fillTwins(); this.give('retry'); }
+      return;
+    }
+    this.fillTwins();
+    if (activating && this.phase === 'direct' && this.wantTake && this._inBooth(ev)) this.take('wake');
+  },
+  _inBooth(ev){
+    if (ev.type === 'keydown') return true;
+    const t = ev.target;
+    return !!(t && el.booth && t.nodeType === 1 && el.booth.contains(t));
+  },
+  // playIndex, before it loads anything: a take or a give in flight is settled, a waiting take lands
+  onTrack(i){
+    if (!IOS_GRAPH) return;
+    if (this.phase === 'taking'){
+      const xo = this._xo;
+      if (xo && xo.swapped){ if (xo.tail) xo.tail(); }
+      else { this.abortTake('track'); this.wantTake = BOOTH.open; }
+    } else if (this.phase === 'giving' && this._gv && !this._gv.emergency){
+      this._giveFail(this._seq, 'track');
+      // the hand-back the booth asked for is not forgotten: once this track is under way it is asked again
+      setTimeout(() => { if (this.phase === 'graph' && !BOOTH.open) this.give('retry'); }, 1500);
+    }
+    if (this.pendingTake) this.captureAtBoundary(i);
+  },
+  // the transport paused mid-take: the take starts again on the paused decks (no gesture needed if none is)
+  onPause(){
+    if (this.phase !== 'taking' || (this._xo && this._xo.swapped)) return;
+    this.abortTake('pause');
+    if (BOOTH.open) this.take('pause');
+  },
+  onHide(){
+    if (!IOS_GRAPH) return;
+    if (this.phase === 'taking'){ this.abortTake('hidden'); this.wantTake = BOOTH.open; return; }
+    if (this.phase !== 'graph') return;
+    VINYL.drop(); try { BOOTH.releaseCues(); } catch (e){}
+    if (typeof LOOPER !== 'undefined') try { LOOPER.cancel(); } catch (e){}
+    if (MIXER.phase === 'armed') MIXER.cancel('hidden');
+    this._hiddenAt = performance.now();
+    this.tickHidden();
+  },
+  // the 500 ms hidden tick (MIXER's): what a hidden page does with decks in the graph (hideAction)
+  tickHidden(){
+    if (!IOS_GRAPH || !document.hidden || this.phase !== 'graph' || !AE.decks) return;
+    const D = activeDeck();
+    const act = hideAction({ graph: AE.graphLive, ctxState: AE.ctx ? AE.ctx.state : 'closed', seam: MIXER.phase,
+      handRolling: DECKS.handRolling(), hiddenFor: (performance.now() - this._hiddenAt) / 1000,
+      onAirPlaying: !!(D && !D.a.paused && !D.a.ended), tries: this.giveRetry, sinceTry: (performance.now() - this._tryAt) / 1000 });
+    if (act === 'give') this.give('hidden');
+    else if (act === 'resolve'){ this._resolveOne(); this.give('hidden'); }
+    else if (act === 'emergency') this.onCtxLost(AE.ctx ? AE.ctx.state : 'closed');
+  },
+  onShow(){
+    if (!IOS_GRAPH) return;
+    if (this.phase === 'direct' && BOOTH.open){ this.wantTake = true; BOOTH.draw(); }
+  },
+
+  /* ---- supervision ------------------------------------------------------ */
+  /* THE CONTEXT LET GO while the graph holds the music: the element plays on
+     into nothing. Where it was is kept (less the tap's lag: what was last
+     HEARD). Behind a lock a twin takes over at once; in the foreground the
+     keeper argues for a second and a half first. */
+  onCtxLost(st){
+    if (!IOS_GRAPH || !AE.graphLive || this.phase !== 'graph') return;
+    const D = activeDeck();
+    if (!D || D.a.paused || D.a.ended) return;
+    this._lost = { pos: Math.max(0, D.a.currentTime - IOS_TAP_LAG * (D.a.playbackRate || 1)), at: performance.now() };
+    if (document.hidden){ this.emergency('ctx', this._lost.pos); return; }
+    if (this._lostT) return;
+    this._lostT = setTimeout(() => {
+      this._lostT = 0;
+      if (AE.graphLive && AE.ctx && AE.ctx.state !== 'running' && this._lost) this.emergency('ctx', this._lost.pos);
+    }, 1500);
+  },
+  // 1 Hz, from the Now Playing heartbeat: a missed statechange is caught here
+  watch(){
+    if (!IOS_GRAPH || !AE.graphLive || this.phase !== 'graph' || !AE.ctx) return;
+    const D = activeDeck();
+    if (AE.ctx.state !== 'running' && D && !D.a.paused && !D.a.ended && !this._lostT) this.onCtxLost(AE.ctx.state);
+  },
+  /* THE MUSIC, DIRECT, FROM `pos` — a twin if one is blessed (or a fresh
+     element when this runs inside a gesture), the captured deck playing on
+     as the session's anchor until the twin is heard advancing (I3, I6).
+     With nothing that may start, the honest answer is a pause at the spot:
+     the lock screen shows ⏸ and the next ▶ runs this again, in its gesture. */
+  emergency(why, pos){
+    if (!AE.graphLive || !AE.decks || (this._gv && this._gv.emergency)) return false;
+    const k = AE.active, D = AE.decks[k], tr = player.tracks[player.cur];
+    if (!D || !tr) return false;
+    clearTimeout(this._lostT); this._lostT = 0;
+    if (this.phase === 'giving' && this._gv) this._giveFail(this._seq, 'emergency');
+    if (this.phase === 'taking') this.abortTake('emergency');
+    const tok = ++this._seq;
+    this._lastPos = pos;                 // (the probes read where the music was picked up from)
+    let Tw = this._takeTwin();
+    if (!Tw && this._gestureLive()) Tw = { a: this._twin(), primed: true, priming: false };
+    if (!Tw){ this._sleep(pos); return false; }
+    this.phase = 'giving';
+    this._gv = { tok, k, D, Tw, emergency: true };
+    const src = /^blob:/i.test(D.a.currentSrc || '') ? D.a.currentSrc : tr.url;
+    const a = Tw.a;
+    a.muted = false;
+    try { a.playbackRate = D.a.playbackRate || 1; } catch (e){}
+    AE._loadAt(a, src, pos);
+    a.play().then(async () => {
+      const ok = await this._advancing(a, 6000);
+      if (tok !== this._seq) return;
+      if (!ok) return this._emergencyFail(tok, pos);
+      this._seat(k, Tw, 120);
+      if (!player.playing){ player.playing = true; updatePlayIcon(); player.renderList(); }
+      this._finishGive();
+      mediaSessionPlaybackState();
+    }, () => { if (tok === this._seq) this._emergencyFail(tok, pos); });
+    return true;
+  },
+  _emergencyFail(tok, pos){
+    const g = this._gv;
+    if (g){ try { g.Tw.a.pause(); g.Tw.a.removeAttribute('src'); g.Tw.a.load(); } catch (e){} }
+    this._gv = null; this.phase = 'graph'; this._seq++;
+    this._sleep(pos);
+  },
+  _sleep(pos){
+    const D = activeDeck(); if (!D) return;
+    player.playing = false;               // first: the pause below is ours, not the system's
+    try { D.a.pause(); } catch (e){}
+    try { if (isFinite(pos)) D.a.currentTime = pos; } catch (e){}
+    this._lost = { pos, at: performance.now(), asleep: true };
+    updatePlayIcon(); player.renderList(); mediaSessionPlaybackState();
+    ACTIVITY.log('system', T("iOS put the decks' audio to sleep with the screen off — paused at the spot"));
+  },
+  /* ▶ WITH THE DECKS IN THE GRAPH AND THE CONTEXT GONE: the press is the
+     gesture an emergency needs, so it runs here, inside it. Returns true when
+     it took the press. In the foreground with a context that merely needs a
+     nudge, the ordinary resume runs and this checks back in 1.5 s. */
+  resumeHook(d){
+    if (!IOS_GRAPH || !AE.graphLive || !AE.ctx) return false;
+    const pos = this._lost && isFinite(this._lost.pos) ? this._lost.pos : Math.max(0, d.a.currentTime - IOS_TAP_LAG);
+    if (AE.ctx.state !== 'running' && (document.hidden || (this._lost && this._lost.asleep))){
+      if (this.emergency('resume', pos)){ player.playing = true; updatePlayIcon(); player.renderList(); mediaSessionPlaybackState(); }
+      return true;                       // either way the press was this (an emergency that could not start paused honestly)
+    }
+    if (AE.ctx.state !== 'running'){
+      clearTimeout(this._resT);
+      this._resT = setTimeout(() => {
+        const D = activeDeck();
+        if (AE.graphLive && AE.ctx.state !== 'running' && player.playing && D) this.emergency('resume', Math.max(0, D.a.currentTime - IOS_TAP_LAG));
+      }, 1500);
+    }
+    return false;
+  },
+  /* A RECORD THE GRAPH CANNOT READ: a CORS check failed mid-track (one edge
+     response without the header fails the element as code 4), or the
+     sentinel heard a capture that is silent. That record is handed back
+     direct from where it was and is not put through the decks again this
+     session; the decks wait for the next one. */
+  onCorsError(t){
+    if (!IOS_GRAPH || !AE.graphLive || this.phase !== 'graph' || !t) return false;
+    this._noGraph.add(t.id);
+    this.pendingTake = !!BOOTH.open;
+    toast(T("This record won't go through the decks — playing it direct"));
+    this.emergency('cors', isFinite(AE._lastGoodT) ? AE._lastGoodT : 0);
+    return true;                         // never the rebuffer: that would load it CORS-mode again, into the same refusal
+  },
+  // a deck took a record under the graph: the sentinel listens for the next ten seconds
+  armSentinel(){
+    if (!IOS_GRAPH || !AE.graphLive) return;
+    this._loadAt = performance.now(); this._quiet = 0; this._sLastT = -1;
+    if (!this._sentT) this._sentT = setInterval(() => this._sentinel(), 250);
+  },
+  _stopSentinel(){ clearInterval(this._sentT); this._sentT = 0; },
+  _sentinel(){
+    const since = (performance.now() - this._loadAt) / 1000;
+    const D = activeDeck(), t = player.tracks[player.cur];
+    if (!AE.graphLive || this.phase !== 'graph' || !D || !D.gain || !AE.analyser || since > 10.5){ this._stopSentinel(); return; }
+    const ct = D.a.currentTime, advancing = !D.a.paused && !D.a.ended && this._sLastT >= 0 && ct > this._sLastT;
+    this._sLastT = ct;
+    const buf = this._sBuf || (this._sBuf = new Float32Array(AE.analyser.fftSize));
+    let q = 0;
+    try { AE.analyser.getFloatTimeDomainData(buf); for (let i = 0; i < buf.length; i++) q += buf[i] * buf[i]; } catch (e){ return; }
+    const rms = Math.sqrt(q / buf.length);
+    this._quiet = rms < SENTINEL_FLOOR ? this._quiet + 0.25 : 0;
+    let energy = null;
+    const st = t ? trackStructure(t) : null;
+    if (st && st.sections && st.sections.length && isFinite(D.a.duration) && D.a.duration > 0){
+      const f = ct / D.a.duration, sec = st.sections.find(s => f >= s.s && f < s.e);
+      if (sec && isFinite(sec.energy)) energy = sec.energy;
+    }
+    if (sentinelTrip({ rms, gainProduct: D.gain.gain.value * (D.fader ? D.fader.gain.value : 1), sinceLoad: since,
+      quietFor: this._quiet, sectionEnergy: energy, advancing, gateOpen: !AE.busGate || AE.busGate.gain.value > 0.5, muted: D.a.muted })){
+      this._stopSentinel();
+      if (t) this._noGraph.add(t.id);
+      this.pendingTake = !!BOOTH.open;
+      ACTIVITY.log('system', T("This record won't go through the decks — playing it direct"));
+      this.emergency('silent', Math.max(0, ct - IOS_TAP_LAG));
+    }
+  },
+};
+// the probes read the route: where the decks are, and what is in hand
+window.__mb8Route = () => ({ phase: DECKROUTE.phase, twins: DECKROUTE.twins.length, ready: DECKROUTE._ready(),
+  wantTake: DECKROUTE.wantTake, pendingTake: DECKROUTE.pendingTake, giveRetry: DECKROUTE.giveRetry,
+  xo: DECKROUTE._xo ? { kind: DECKROUTE._xo.kind, captured: DECKROUTE._xo.captured, swapped: DECKROUTE._xo.swapped } : null,
+  gate: IOS_GRAPH, rates: !ratesHeld(), noGraph: [...DECKROUTE._noGraph], lost: DECKROUTE._lost, from: DECKROUTE._lastPos, last: DECKROUTE._last || '' });
+window.addEventListener('click', ev => DECKROUTE.onGesture(ev), { capture: true, passive: true });
+document.addEventListener('visibilitychange', () => { if (document.hidden) DECKROUTE.onHide(); else DECKROUTE.onShow(); });
+
+/* "direct-to-output", or — on an iPhone the route serves — where its decks are
+   on the way into or out of the graph (DECKROUTE.boothText). One sentence,
+   asked for wherever a press finds no second deck. */
+function directWhy(){
+  return (typeof DECKROUTE !== 'undefined' && DECKROUTE.boothText()) || T('direct-to-output — no second deck here');
+}
 
 /* Is there anywhere to send to? The API existing is not a receiver existing —
    so when something authoritative has told us, obey it; when nothing can
@@ -20288,7 +21315,7 @@ function loadToDeck(slot, t){
   if (typeof DECKS === 'undefined' || !t) return false;
   DECKS.hand();
   if (!AE.ctx){ try { ensureCtx(); } catch (e){} }
-  if (!AE.graphLive || !AE.decks){ toast(T('direct-to-output — no second deck here')); return false; }
+  if (!AE.graphLive || !AE.decks){ toast(directWhy()); return false; }
   if (MIXER.phase === 'running' || MIXER.phase === 'manual' || DECKS.retiring(slot)){ toast(T('Deck {d} is busy — a blend is running', { d: L })); return false; }
   if (slot === AE.active && player.playing){ toast(T('Deck {d} is on air — load the other one', { d: L })); return false; }
   if (!DECKS.load(slot, t, { by: 'hand' })) return false;
@@ -23625,7 +24652,7 @@ const MIXER = {
       // a rate written to a playing element re-seats its resampler even when
       // the value is the one it already has — nothing here may touch a deck
       // that is already where it should be
-      const s = DECKS.slots[i], r = SPEED.rate * DECKS.pitch(i);
+      const s = DECKS.slots[i], r = deckRate(SPEED.rate * DECKS.pitch(i));
       try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){}
       setPitchLock(d.a, SPEED.keyLock && !s.synced);     // (already equality-guarded)
       if (d.shelf && d.shelf.gain.value !== 0) DECKS.gainWrite(d.shelf.gain, 0, 0.006);
@@ -23658,6 +24685,16 @@ const MIXER = {
     // to the same-element advance in playIndex (the stayPut path), which keeps a
     // pocketed phone playing. This is exactly what lets auto-mix default ON.
     if (!AE.graphLive){ if (this.phase !== 'idle') this.cancel('direct'); return; }
+    /* …and on an iPhone with the decks in the graph, never from behind a lock.
+       A seam already RUNNING lands on its own audio-clock curves (the hidden
+       tick keeps it going); nothing new is armed or fired there, because its
+       start would be an un-gestured play() of the other element, which iOS
+       refuses with the screen off — DECKROUTE hands the decks back instead,
+       and the same-element advance takes the next record as it always has. */
+    if (IS_IOS && document.hidden){
+      if (this.phase === 'armed') this.cancel('hidden');
+      if (this.phase === 'idle') return;
+    }
     if (!player.playing || AE.mic.on || player.repeat === 'one'){
       // a stop tears a seam down; repeat-one only steps the mixer aside (a hand's parked blend stands)
       if (this.phase !== 'idle') this.cancel(player.playing && !AE.mic.on ? 'repeat' : 'stopped');
@@ -23762,6 +24799,8 @@ const MIXER = {
     // beatmixing needs steady timers — hidden/locked, blend on a fade instead
     if (plan.type === 'beatmix' && document.hidden)
       plan = { type: 'fade', seconds: 4, why: 'screen off — coarse timers' };
+    // …and rates that play clean: an iPhone's captured decks hold 1×, so two tempi meet in the fade (iosSeamPlan)
+    plan = iosSeamPlan(plan, !ratesHeld());
     this.plan = plan;
     this.next = i;
     this._cueReset(B);
@@ -23856,7 +24895,7 @@ const MIXER = {
        deck is paused (a new src's load() pauses it), so no fading tail of the
        last record is ever re-pitched in the hearing. */
     if (fresh && nd.a.paused){
-      try { if (nd.a.playbackRate !== SPEED.rate) nd.a.playbackRate = SPEED.rate; } catch (e){}
+      { const r = deckRate(SPEED.rate); try { if (nd.a.playbackRate !== r) nd.a.playbackRate = r; } catch (e){} }
       setPitchLock(nd.a, SPEED.keyLock);
     }
     return true;
@@ -23918,7 +24957,7 @@ const MIXER = {
     nd.a.addEventListener('loadedmetadata', once);
     try { nd.a.load(); } catch (e){}
     // the slot's own pitch (a hand's SYNC on the armed deck) rides on the listener's rate, as SPEED.apply composes it
-    const si = AE.decks.indexOf(nd), sl = DECKS.slots[si], r = SPEED.rate * DECKS.pitch(si);
+    const si = AE.decks.indexOf(nd), sl = DECKS.slots[si], r = deckRate(SPEED.rate * DECKS.pitch(si));
     try { if (nd.a.playbackRate !== r) nd.a.playbackRate = r; } catch (e){}
     setPitchLock(nd.a, SPEED.keyLock && !(sl && sl.synced));
     return true;
@@ -23974,6 +25013,8 @@ const MIXER = {
     const p = this.plan, od = activeDeck();
     if (!this.on || this.phase !== 'armed' || !p || p.type !== 'beatmix' || !nd || !od || nd === od) return false;
     if (!AE.graphLive || !AE.ctx || AE.ctx.state !== 'running' || !nd.gain || !nd.fader || document.hidden) return false;
+    // the cue is steered by tempo, and an iPhone's captured decks hold 1× (deckRate): there the seam places B the old way
+    if (ratesHeld()) return false;
     if (!player.playing || AE.mic.on || player.repeat === 'one' || AE.xfading || od.a.paused || od.a.ended) return false;
     const s = DECKS.slots[AE.decks.indexOf(nd)];
     if (!s || s.owner === 'hand' || DECKS.fader.hand || DECKS.fader.mode !== 'rest'
@@ -24089,7 +25130,7 @@ const MIXER = {
   _cueRate(){
     const c = this._cue, p = this.plan;
     if (!c || !p || p.type !== 'beatmix') return;
-    const r = glideRates(p.bpmA, p.bpmB, 0).rateB * seamPitchCarry(DECKS.pitch(AE.active), 0) * SPEED.rate * (1 + (c.pull || 0));
+    const r = deckRate(glideRates(p.bpmA, p.bpmB, 0).rateB * seamPitchCarry(DECKS.pitch(AE.active), 0) * SPEED.rate * (1 + (c.pull || 0)));
     if (Math.abs(r - c.rate) > 0.0002){ try { c.d.a.playbackRate = r; } catch (e){} c.rate = r; }
   },
   // fire()'s question: is the cue rolling, and on the grid? (seamCueHolds)
@@ -24115,7 +25156,7 @@ const MIXER = {
     try { d.a.pause(); } catch (e){}
     if (!(o && o.park === false) && isFinite(d._seekTo)){ try { d.a.currentTime = d._seekTo; } catch (e){} }
     if (i >= 0){
-      const r = SPEED.rate * DECKS.pitch(i);
+      const r = deckRate(SPEED.rate * DECKS.pitch(i));
       try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){}
       setPitchLock(d.a, SPEED.keyLock && !DECKS.slots[i].synced);
     }
@@ -24157,10 +25198,12 @@ const MIXER = {
     const i = held ? hs.trackIdx : (this.phase === 'armed' && this.next >= 0 ? this.next : player.pickNext());
     if (i === -1 || !player.tracks[i]){ return false; }
     const B = player.tracks[i];
-    const plan = planMixNow(mixOf(A), mixOf(B), d.a.currentTime,
+    const plan = iosSeamPlan(planMixNow(mixOf(A), mixOf(B), d.a.currentTime,
       // the bar it picks must be at least a lead-in away, or the seam is already
       // late the moment it is planned and the fader opens past the bar line
-      { durA: d.a.duration, quickFade: 0.8, lead: BEATMIX_LEAD, startB: held ? hs.cue : undefined });
+      { durA: d.a.duration, quickFade: 0.8, lead: BEATMIX_LEAD, startB: held ? hs.cue : undefined }),
+      // (two tempi on an iPhone's held rates: the planner's quick fade, performed)
+      !ratesHeld(), 0.8);
     if (plan.type !== 'beatmix'){
       player._committedNext = i;                        // same draw, plain path
       // …and the planner's quick fade is PERFORMED, at its length: a pair that
@@ -24301,8 +25344,8 @@ const MIXER = {
          cancel), when both decks are at their own tempo again. */
       setPitchLock(od.a, false); setPitchLock(nd.a, false);
       const g = glideRates(p.bpmA, p.bpmB, 0), k = seamPitchCarry(this._pA, 0);
-      od.a.playbackRate = this._lastRateA = g.rateA * k * SPEED.rate;
-      nd.a.playbackRate = this._lastRateB = g.rateB * k * SPEED.rate;
+      od.a.playbackRate = this._lastRateA = deckRate(g.rateA * k * SPEED.rate);
+      nd.a.playbackRate = this._lastRateB = deckRate(g.rateB * k * SPEED.rate);
       if (nd.shelf) nd.shelf.gain.value = BEATMIX_BASS_DUCK;   // one-bass rule: B ducked in
     }
     // a FADE on the live graph becomes a FILTERED fade: schedule the outgoing
@@ -24747,7 +25790,7 @@ const MIXER = {
     const p = this.plan, od = this.outDeck, nd = AE.decks && AE.decks[AE.active];
     if (!p || !od || !nd) return;
     const g = glideRates(p.bpmA, p.bpmB, f), k = seamPitchCarry(this._pA, f);   // a synced record glides home, both decks alike
-    const rA = g.rateA * k * SPEED.rate, rB = g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate;
+    const rA = deckRate(g.rateA * k * SPEED.rate), rB = deckRate(g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate);
     if (Math.abs(rA - this._lastRateA) > 0.0004){ try { od.a.playbackRate = rA; } catch (e){} this._lastRateA = rA; }
     if (Math.abs(rB - this._lastRateB) > 0.0002){ try { nd.a.playbackRate = rB; } catch (e){} this._lastRateB = rB; }
   },
@@ -24774,13 +25817,13 @@ const MIXER = {
     if (typeof DECKS !== 'undefined') DECKS.settle({ retired, resetPitch: true, force: by === 'hand' });
     if (od){
       od.a.pause();
-      try { od.a.playbackRate = SPEED.rate; } catch (e){}
+      try { od.a.playbackRate = deckRate(SPEED.rate); } catch (e){}
       setPitchLock(od.a, SPEED.keyLock);
       if (od.shelf) DECKS.gainWrite(od.shelf.gain, 0, 0.006);
       if (AE.graphLive && od.gain) DECKS.gainWrite(od.gain.gain, 0, 0.006);
     }
     if (nd){
-      try { nd.a.playbackRate = SPEED.rate; } catch (e){}
+      try { nd.a.playbackRate = deckRate(SPEED.rate); } catch (e){}
       setPitchLock(nd.a, SPEED.keyLock);                // the blend rode vinyl; the listener's lock returns
       if (nd.shelf) DECKS.gainWrite(nd.shelf.gain, 0, 0.006);
       if (AE.graphLive && nd.gain) DECKS.gainWrite(nd.gain.gain, nd.norm || 1, 0.006);
@@ -24830,7 +25873,10 @@ const MIXER = {
 };
 /* hidden tabs get no rAF: a coarse tick keeps fades (never beatmixes) firing */
 setInterval(() => {
-  if (document.hidden) MIXER.update(performance.now() / 1000, 0.5);
+  if (document.hidden){
+    MIXER.update(performance.now() / 1000, 0.5);
+    if (typeof DECKROUTE !== 'undefined') DECKROUTE.tickHidden();   // an iPhone's decks are handed back to direct
+  }
 }, 500);
 /* …and a pre-rolled cue never rolls through a hidden tab. Its poll would be
    throttled to a look a second, and a steering pull left on for a second is
@@ -26412,7 +27458,7 @@ const BYTES = {
     e = { refs: 0, ac, done: false, size: 0, at: performance.now(), promise: null };
     e.promise = fetch(url, { signal: ac.signal })
       .then(r => { if (!r.ok) throw new Error('fetch ' + r.status); return r.blob(); })
-      .then(b => { e.done = true; e.size = b.size; this._trim(); return b; });
+      .then(b => { e.done = true; e.size = b.size; e.blob = b; this._trim(); return b; });
     e.promise.catch(() => { if (this._m.get(url) === e) this._m.delete(url); });   // a failure is not remembered
     this._m.set(url, e);
     return e;
@@ -26437,8 +27483,13 @@ const BYTES = {
     if (!url || !blob) return;
     const old = this._m.get(url);
     if (old && !old.done){ try { old.ac.abort(); } catch (e){} }
-    this._m.set(url, { refs: 0, ac: null, done: true, size: blob.size || 0, at: performance.now(), promise: Promise.resolve(blob) });
+    this._m.set(url, { refs: 0, ac: null, done: true, size: blob.size || 0, at: performance.now(), promise: Promise.resolve(blob), blob });
     this._trim();
+  },
+  // the finished bytes, if they are already in hand — never starts a fetch (DECKROUTE's crossover)
+  peek(url){
+    const e = url ? this._m.get(url) : null;
+    return (e && e.done && e.blob) ? e.blob : null;
   },
   release(url, e){
     const cur = this._m.get(url);
@@ -28467,6 +29518,8 @@ const FX = {
        hand's platter, whichever that is. */
     const hand = typeof VINYL !== 'undefined' ? VINYL.for(slot) : null;
     if (hand && hand.canEngage()){ if (hand.brake(seconds)){ this.hand(); return; } }
+    // the element-rate memory of a brake is a rate, and an iPhone's captured deck holds 1 (deckRate)
+    if (ratesHeld()){ toast(T('The brake needs the platter here — this iPhone keeps both decks at their own tempo')); return; }
     this.brakeT = 0; this._brakeSec = seconds || 1.1; this._brakeFrom = d.a.playbackRate || 1;
     this._brakeDeck = d;
     this._brakeT0 = performance.now();
@@ -28481,14 +29534,14 @@ const FX = {
     // into a stall that never quite came back
     this.brakeT = (performance.now() - (this._brakeT0 || performance.now())) / 1000;
     const r = brakeRate(this.brakeT, this._brakeSec, this._brakeFrom);
-    try { d.a.playbackRate = r; } catch (e){}
+    try { d.a.playbackRate = deckRate(r); } catch (e){}
     // a lowpass follows the speed down, which is what a room full of air does —
     // the DECK's own filter, through the arbiter, so a hand's FILTER and a
     // seam's sweep on the same node are honoured rather than overwritten
     if (this.live() && d.filter){ d._fxBrake = 400 + r * 20000; this._ftStart(); }
     if (r <= 0.07){
       this.brakeT = -1; this._brakeDeck = null;
-      try { d.a.playbackRate = SPEED.rate * DECKS.pitch(AE.decks.indexOf(d)); } catch (e){}
+      try { d.a.playbackRate = deckRate(SPEED.rate * DECKS.pitch(AE.decks.indexOf(d))); } catch (e){}
       if (this.live() && d.filter){
         d._fxBrake = 0; d._fxTau = 0.12;                  // the air comes back slower than it left
         clearTimeout(d._fxTauT); d._fxTauT = setTimeout(() => { d._fxTau = 0; }, 700);
@@ -28671,7 +29724,7 @@ const FX = {
        lost: playIndex() calls MIXER.cancel() first, which settles every deck. */
     if (braking){
       const d = this._brakeDeck || activeDeck();
-      if (d){ try { d.a.playbackRate = SPEED.rate * DECKS.pitch(AE.decks.indexOf(d)); } catch (e){} }
+      if (d){ try { d.a.playbackRate = deckRate(SPEED.rate * DECKS.pitch(AE.decks.indexOf(d))); } catch (e){} }
     }
     this._brakeDeck = null;
     if (!this.live()) return;
@@ -28961,6 +30014,8 @@ function makeVinylHand(i){
       const d = this.deck();
       if (!d) return T('The platter is still being seated — a moment');
       if (this.song()){
+        // an iPhone the route serves: no song tape — the platters wait for the decks to be taken into the graph
+        if (IOS_GRAPH && typeof DECKROUTE !== 'undefined') return DECKROUTE.boothText() || T('Deck B is asleep — touch the booth to wake it');
         if (!VINYL.canSong()) return T('Vinyl needs the engine — on this device the music plays direct, so the platter stands down');
         if (this.i !== AE.active) return T('On this device only the record on air has a platter');
         if (!player.playing) return T('Press play first — a record needs to be turning');
@@ -28969,7 +30024,7 @@ function makeVinylHand(i){
         if (s.state === 'loading' || !VINYL.songNode) return T('Pressing this record for the platter — a moment');
         if (s.state === 'failed') return T('This record could not be pressed for the platter — the music plays on');
       }
-      else if (!this.ok()) return T('The platter is still being seated — a moment');
+      else if (!this.ok()) return (IS_IOS && !IOS_WORKLETS) ? T('Platters are off for this test (worklets=0)') : T('The platter is still being seated — a moment');
       if (!this.rolling() || d.a.readyState < 2) return T('Press play first — a record needs to be turning');
       if (AE.mic.on) return T('Not on the microphone');
       if ((typeof LOOPER !== 'undefined' && LOOPER.on) || (typeof FX !== 'undefined' && FX.loop)) return T('Let the loop go first — the tape is holding it');
@@ -29300,6 +30355,8 @@ const VINYL = {
      deck that is already seated is left alone. */
   async install(){
     if (!AE.ctx || !AE.decks || !AE.graphLive || this._busy) return;
+    // '?worklets=0': the diagnostic A/B for an iPhone's dropouts — no platter is seated (IOS_WORKLETS)
+    if (IS_IOS && !IOS_WORKLETS) return;
     if (!(AE.ctx.audioWorklet && typeof AudioWorkletNode === 'function' && typeof Blob === 'function'
           && window.URL && URL.createObjectURL)) return;
     const ctx = AE.ctx;
@@ -29319,7 +30376,8 @@ const VINYL = {
       const node = new AudioWorkletNode(AE.ctx, 'mb8-vinyl', {
         numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
         channelCount: 2, channelCountMode: 'explicit', channelInterpretation: 'speakers',
-        processorOptions: { seconds: VINYL_RING_SEC },
+        // a phone keeps half the reach: two 24 s stereo rings are memory iOS jettisons pages over
+        processorOptions: { seconds: IS_IOS ? 12 : VINYL_RING_SEC },
       });
       node.port.onmessage = e => hand._onReport(e.data);
       node.onprocessorerror = () => this.unseatDeck(d, k);
@@ -29368,8 +30426,9 @@ const VINYL = {
      changes: 32 MB at most, never two. The record on air's hand alone has it. */
   songNode: null, _songGain: null, _song: null, _songMuted: null, _clockAt: 0,
   // the element-direct deck can scratch where the audio thread can run a worklet and the music is not out on AirPlay
+  // (never where the route can take the decks into the graph: there the booth scratches both decks for real)
   canSong(){
-    return !!(IS_IOS && !AE.graphLive && AE.ctx && AE.ctx.audioWorklet && typeof AudioWorkletNode === 'function'
+    return !!(IS_IOS && !IOS_GRAPH && !AE.graphLive && AE.ctx && AE.ctx.audioWorklet && typeof AudioWorkletNode === 'function'
               && !(typeof AIRPLAY !== 'undefined' && AIRPLAY.out));
   },
   _songKey(){ const t = player.tracks[player.cur]; return t ? (t.url || String(t.id)) : ''; },
@@ -29527,7 +30586,8 @@ for (const p of ['engaged', 'armed', 'slip', 'held', 'rate', 'mode', 'lag', '_mo
   Object.defineProperty(VINYL, p, { get(){ return this.hand()[p]; }, set(v){ this.hand()[p] = v; }, configurable: true });
 
 // a pocketed phone must never be left holding a muted element: hidden, the platter lets go
-document.addEventListener('visibilitychange', () => { if (document.hidden && VINYL.songMode()) VINYL.drop(); });
+// (and on an iPhone with the decks in the graph too: a held platter never survives a pocket)
+document.addEventListener('visibilitychange', () => { if (document.hidden && (VINYL.songMode() || IS_IOS)) VINYL.drop(); });
 
 const FXPADS = {
   bank: 'loop',
@@ -29984,7 +31044,7 @@ function wireDeckTransport(){
     if (d && DECKS.track(slot) && !d.a.paused && !d.a.ended && !MIXER.cueing(d)){ DECKS.pause(slot); return true; }
     if (!DECKS.track(slot)){ BOOTH.holdState(slot, T('nothing to play — LOAD a pick, or a pad')); return false; }
     if (!DECKS.play(slot)){
-      BOOTH.holdState(slot, seam(slot) ? T('busy — a blend is running') : T('direct-to-output — no second deck here'));
+      BOOTH.holdState(slot, seam(slot) ? T('busy — a blend is running') : directWhy());
       return false;
     }
     return true;
@@ -30033,7 +31093,8 @@ function wireDeckTransport(){
     const now = DECKS.slots[slot].synced;
     if (was && !now) return true;
     if (!now){
-      BOOTH.holdState(slot, !AE.graphLive ? T('direct-to-output — no second deck here')
+      BOOTH.holdState(slot, !AE.graphLive ? directWhy()
+        : ratesHeld() ? T('Tempo match needs iOS that plays tempo cleanly — this one keeps both decks at their own tempo')
         : seam(slot) ? T('busy — a blend is running') : T('SYNC needs a tempo on both decks'));
       return false;
     }
@@ -30052,7 +31113,7 @@ function wireDeckTransport(){
     // is a gesture), as loadToDeck's are — a booth opened before the first play
     // is not a device without a second deck
     if (!AE.ctx){ try { ensureCtx(); } catch (e){} }
-    if (!AE.graphLive || !AE.decks){ toast(T('direct-to-output — no second deck here')); return false; }
+    if (!AE.graphLive || !AE.decks){ toast(directWhy()); return false; }
     if (seam(slot)){ toast(T('Deck {d} is busy — a blend is running', { d: L })); return false; }
     if (slot === AE.active && player.playing){ toast(T('Deck {d} is on air — load the other one', { d: L })); return false; }
     const here = DECKS.track(slot);
@@ -30153,7 +31214,7 @@ function wireXfader(){
   xf.addEventListener('contextmenu', ev => ev.preventDefault());
   if (el.xfAuto) el.xfAuto.addEventListener('click', () => {
     DECKS.hand();
-    if (!AE.graphLive){ toast(T('direct-to-output — no second deck here')); return; }
+    if (!AE.graphLive){ toast(directWhy()); return; }
     if (!DECKS.faderAuto()) toast(T('AUTO — the planner has the fader; a hand takes it'));
   });
   if (el.xfCut) el.xfCut.addEventListener('click', () => {
@@ -30969,7 +32030,9 @@ const BOOTH = {
       el.booth.classList.add('open');
       if (!this._fxWired){ this._fxWired = true; wireFxRack(); wireDeckWave(); }
       FXPADS.render(); syncFxHud();
-      if (VINYL.songMode()) VINYL.pressSong();   // element-direct: the record is pressed while the booth is open
+      // an iPhone the route serves: the booth takes the decks into the graph, in this gesture (DECKROUTE)
+      if (IOS_GRAPH) DECKROUTE.boothOpened();
+      else if (VINYL.songMode()) VINYL.pressSong();   // element-direct: the record is pressed while the booth is open
       else VINYL.install();                     // …and on the graph, both platters are seated (a rebuilt context included)
       this.draw();
     } else {
@@ -30978,6 +32041,7 @@ const BOOTH = {
       el.booth.classList.remove('open');
       el.booth.classList.add('closing');
       this.releaseCues();                      // a cue held as the booth goes is let go with it
+      if (IOS_GRAPH) DECKROUTE.boothClosed();   // …and an iPhone's decks go back to direct, onto their twins
       VINYL.ejectSong();                       // the pressed record is let go with the booth
       DECKWAVE._tiles.clear();                 // and the painted tiles: the detail stays, the pixels go
       this._closeT = setTimeout(() => el.booth.classList.remove('closing'), 320);
@@ -31021,7 +32085,7 @@ const BOOTH = {
   // why the handle refused a hand
   faderWhy(){
     return !AE.decks ? T('Play something first — the decks wake with the first track')
-      : !AE.graphLive ? T('direct-to-output — no second deck here')
+      : !AE.graphLive ? directWhy()
       : AE.xfading ? T('Deck {d} is busy — a blend is running', { d: AE.active ? 'A' : 'B' })
       : T('The set pinned this song to play in full — the fader waits for it');
   },
@@ -31961,7 +33025,7 @@ const BOOTH = {
       }
       if (tr) return rolling ? [T('playing · in your hands'), g > 0.01] : [T('paused'), false];
       return [!player.playing ? '' :
-        !AE.graphLive ? T('direct-to-output — no second deck here') : T('empty — LOAD a pick, or a pad'), false];
+        !AE.graphLive ? directWhy() : T('empty — LOAD a pick, or a pad'), false];
     };
     const sA = rowState(0), sB = rowState(1);
     this._deckRow('A', tA, dA, sA[0], sA[1]);

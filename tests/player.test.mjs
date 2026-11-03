@@ -11932,15 +11932,16 @@ test('the decks in the player: slots by identity, the restore onto the idle deck
   assert.ok(decks.includes("this.load(this.idle(), t, { at: r.cue, by: 'restore' });"), 'R10: the hand\'s record returns to the idle deck');
   assert.ok(!decks.includes('const slot = r.slot === 1 ? 1 : 0;'), 'R10: the saved letter is not where it goes');
   assert.ok(decks.includes('if (!cued) s.cue = 0;'), 'R29: a transport start cues the record at its top');
-  assert.ok(decks.includes('try { if (d.a.playbackRate !== SPEED.rate) d.a.playbackRate = SPEED.rate; } catch (e){}\n    setPitchLock(d.a, SPEED.keyLock);'),
+  // (through deckRate, the one door every deck rate passes: on an iPhone with the decks in the graph it holds 1×)
+  assert.ok(decks.includes('{ const r = deckRate(SPEED.rate); try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){} }\n    setPitchLock(d.a, SPEED.keyLock);'),
     'R13: the element follows the slot it resets');
   const mixer = html.slice(html.indexOf('const MIXER = {'), html.indexOf('/* hidden tabs get no rAF'));
   assert.ok(mixer.includes("this._pA = (typeof DECKS !== 'undefined') ? DECKS.pitch(AE.active) : 1;"), 'R13: the on-air pitch is read at fire');
-  assert.ok(mixer.includes('od.a.playbackRate = this._lastRateA = g.rateA * k * SPEED.rate;') && mixer.includes('nd.a.playbackRate = this._lastRateB = g.rateB * k * SPEED.rate;'), 'R13: fire carries it');
-  assert.ok(mixer.includes('k = seamPitchCarry(this._pA, f);') && mixer.includes('const rA = g.rateA * k * SPEED.rate, rB = g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate;'), 'R13: the glide carries it home');
+  assert.ok(mixer.includes('od.a.playbackRate = this._lastRateA = deckRate(g.rateA * k * SPEED.rate);') && mixer.includes('nd.a.playbackRate = this._lastRateB = deckRate(g.rateB * k * SPEED.rate);'), 'R13: fire carries it');
+  assert.ok(mixer.includes('k = seamPitchCarry(this._pA, f);') && mixer.includes('const rA = deckRate(g.rateA * k * SPEED.rate), rB = deckRate(g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate);'), 'R13: the glide carries it home');
   assert.equal((mixer.match(/this\._lastRateA = this\._lastRateB = 1; this\._pA = 1;/g) || []).length, 2, 'R13: finish and cancel let it go');
   assert.ok(mixer.includes('const fresh = ws.rec !== had;') && mixer.includes('if (fresh){ const mB = mixOf(B); ws.cue = (mB && mB.in && mB.in.start) || 0; }'), 'R29: the auto-DJ\'s record gets its own cue');
-  assert.ok(mixer.includes('if (fresh && nd.a.paused){\n      try { if (nd.a.playbackRate !== SPEED.rate) nd.a.playbackRate = SPEED.rate; } catch (e){}\n      setPitchLock(nd.a, SPEED.keyLock);'),
+  assert.ok(mixer.includes('if (fresh && nd.a.paused){\n      { const r = deckRate(SPEED.rate); try { if (nd.a.playbackRate !== r) nd.a.playbackRate = r; } catch (e){} }\n      setPitchLock(nd.a, SPEED.keyLock);'),
     'R13: a new record on the idle deck plays at the listener\'s rate, never a retired match');
   assert.ok(decks.includes('if (retired != null && retired >= 0){ r.trackIdx = retired; r.pitch = 1; r.synced = false; }'), 'R13: the retired deck\'s sync retires with it');
   assert.ok(decks.includes('onPlayIndex(newIdx, retired, fadeDur, cued, idx){') && decks.includes('if (idx != null && idx >= 0) s.trackIdx = idx;'), 'R13: the on-air slot names the record it plays');
