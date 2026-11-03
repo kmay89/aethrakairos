@@ -102,7 +102,10 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' WAVE_V, WAVE_HZ, WAVE_SR, WAVE_TILT, WAVE_PLANES, WAVE_MIPS, waveBiquad, wavePct, waveDetail, waveQuant, waveFromEnv, waveRange, waveGrid, waveBeatPos, waveWorkerSource,' +
   ' waveTrailMean, waveTrailMax, waveTilt, waveMip, waveNorm, wavePack, waveLevel, waveRangeAt, waveFoldPeaks, waveOnsets, waveBandColours, waveTiltAt, waveTiltLUT, waveGridStyle, waveDeckTime, waveRateStep, waveClock,' +
   ' VINYL_SONG_FRAMES, vinylSongRate, vinylToTape, makeVinylSong, vinylSongCommand, vinylSongProcess,' +
-  ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed, synLookahead };';
+  ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed, synLookahead,' +
+  ' iosMajor, iosGraphAllowed, iosRatesOk, IOS_SAME_TEMPO, iosSeamPlan, pickOverride, lagOverride, srcClean, crossoverSource,' +
+  ' XO_TOL, XO_ACCEPT, XO_SEEKS, crossoverAligned, giveWinner, HIDE_RESOLVE_S, HIDE_RETRY_S, HIDE_TRIES, hideAction, stayPutRule,' +
+  ' SENTINEL_FLOOR, sentinelTrip };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -12182,6 +12185,157 @@ test('the cued deck in the player: parked by the warm, rolled silent, skipped by
   assert.ok(html.includes("rolling(){ const d = this.deck(); return !!(d && !d.a.paused && !d.a.ended && !(typeof MIXER !== 'undefined' && MIXER.cueing(d))); },"), 'the platter waits for PLAY');
   assert.ok(html.includes("if (d && DECKS.track(slot) && !d.a.paused && !d.a.ended && !MIXER.cueing(d)){ DECKS.pause(slot); return true; }"), 'PLAY starts it by hand');
   assert.ok(html.includes("if (typeof MIXER !== 'undefined' && MIXER.cueing(d)) return;   // a rolling cue takes its rate from the seam"), 'SPEED leaves its rate to the seam');
+});
+
+// ---------------------------------------------------------------- two decks on an iPhone (DECKROUTE, @media)
+const UA18 = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+const UA176 = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1';
+const UA26 = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1';
+const UACRIOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/129.0.6668.69 Mobile/15E148 Safari/604.1';
+const UAPAD = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15';
+test('iosMajor: the OS figure and Version/ both read, the larger wins; iPadOS-as-Mac reads Version/ only; 10_15 is never a version', () => {
+  assert.equal(S.iosMajor(UA18, 'iPhone', 5), 18);
+  assert.equal(S.iosMajor(UA176, 'iPhone', 5), 17);
+  assert.equal(S.iosMajor(UA26, 'iPhone', 5), 26, 'iOS 26 Safari froze the UA at 18_6 and says 26 in Version/');
+  assert.equal(S.iosMajor(UACRIOS, 'iPhone', 5), 18, 'Chrome on iOS carries the OS figure only');
+  assert.equal(S.iosMajor(UAPAD, 'MacIntel', 5), 18, 'an iPad in desktop mode');
+  assert.equal(S.iosMajor(UAPAD, 'MacIntel', 0), 0, 'a real Mac is not iOS');
+  assert.notEqual(S.iosMajor('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 'MacIntel', 5), 10, 'Mac OS X 10_15 is not iOS 10');
+  assert.equal(S.iosMajor('garbage', 'Linux', 0), 0);
+});
+test('iosGraphAllowed: needs iOS, audioSession and a worklet always; direct is final; graph skips the floor; the default gates the rest', () => {
+  const base = { ios: true, major: 18, hasAudioSession: true, hasWorklet: true, override: '', defaultOn: true };
+  assert.equal(S.iosGraphAllowed(base), true, 'iOS 18 with the default on');
+  assert.equal(S.iosGraphAllowed({ ...base, major: 17 }), false, '17.6 keeps the music direct');
+  assert.equal(S.iosGraphAllowed({ ...base, major: S.iosMajor(UA26, 'iPhone', 5) }), true, 'iOS 26');
+  assert.equal(S.iosGraphAllowed({ ...base, major: S.iosMajor(UACRIOS, 'iPhone', 5) }), true, 'CriOS on 18');
+  assert.equal(S.iosGraphAllowed({ ...base, major: S.iosMajor(UAPAD, 'MacIntel', 5) }), true, 'iPadOS in desktop mode');
+  assert.equal(S.iosGraphAllowed({ ...base, hasAudioSession: false }), false, 'no audioSession, no graph');
+  assert.equal(S.iosGraphAllowed({ ...base, hasWorklet: false }), false, 'no worklet, no platters, no graph');
+  assert.equal(S.iosGraphAllowed({ ...base, override: 'direct' }), false, 'decks=direct is final');
+  assert.equal(S.iosGraphAllowed({ ...base, major: 17, override: 'graph' }), true, 'decks=graph skips the version floor');
+  assert.equal(S.iosGraphAllowed({ ...base, override: 'graph', hasAudioSession: false }), false, '…but never the platform');
+  assert.equal(S.iosGraphAllowed({ ...base, defaultOn: false }), false, 'shipped off: nothing without the override');
+  assert.equal(S.iosGraphAllowed({ ...base, ios: false, override: 'graph' }), false, 'not iOS: nothing to take');
+});
+test('iosRatesOk: one place decides — free off iOS and on the direct path; held at 1 on an iOS graph unless overridden', () => {
+  assert.equal(S.iosRatesOk({ ios: false, graph: true, override: false }), true, 'desktop');
+  assert.equal(S.iosRatesOk({ ios: true, graph: false, override: false }), true, 'iOS direct: element rates are clean');
+  assert.equal(S.iosRatesOk({ ios: true, graph: true, override: false }), false, 'iOS in the graph: WebKit 240405');
+  assert.equal(S.iosRatesOk({ ios: true, graph: true, override: true }), true, '?rates=1 for a WebKit that has the fix');
+});
+test('iosSeamPlan: with the rates held a beatmix between two tempi becomes the fade; one tempo still beatmixes; fades and gapless pass', () => {
+  const bm = (a, b) => ({ type: 'beatmix', bpmA: a, bpmB: b, beats: 16, seconds: 7.7 });
+  assert.equal(S.iosSeamPlan(bm(124, 126), true).type, 'beatmix', 'rates free: untouched');
+  const f = S.iosSeamPlan(bm(124, 126), false);
+  assert.equal(f.type, 'fade'); assert.equal(f.seconds, 4);
+  assert.equal(S.iosSeamPlan(bm(124, 126), false, 0.8).seconds, 0.8, 'MIX NOW keeps its quick fade');
+  assert.equal(S.iosSeamPlan(bm(124, 124.3), false).type, 'beatmix', 'inside 0.3 %: no glide needed');
+  assert.equal(S.iosSeamPlan(bm(124, 124.5), false).type, 'fade', 'outside it: the fade');
+  assert.equal(S.iosSeamPlan({ type: 'gapless' }, false).type, 'gapless');
+  assert.equal(S.iosSeamPlan({ type: 'fade', seconds: 3 }, false).seconds, 3);
+  assert.equal(S.iosSeamPlan(null, false), null);
+});
+test('pickOverride / lagOverride: the address bar wins and is remembered, auto clears, nonsense falls back', () => {
+  const A = ['graph', 'direct'];
+  assert.deepEqual(S.pickOverride('graph', '', A), { v: 'graph', save: 'graph' });
+  assert.deepEqual(S.pickOverride(null, 'direct', A), { v: 'direct', save: null }, 'remembered');
+  assert.deepEqual(S.pickOverride('auto', 'graph', A), { v: '', save: '' }, 'cleared');
+  assert.deepEqual(S.pickOverride('bogus', 'graph', A), { v: 'graph', save: null }, 'nonsense ignored');
+  assert.deepEqual(S.pickOverride(null, 'bogus', A), { v: '', save: null });
+  assert.equal(S.lagOverride('70', null, 200, 0.05), 0.07);
+  assert.equal(S.lagOverride(null, '30', 200, 0.05), 0.03, 'stored');
+  assert.equal(S.lagOverride('900', null, 200, 0.05), 0.2, 'clamped');
+  assert.equal(S.lagOverride('-5', null, 200, 0.05), 0, 'clamped at zero');
+  assert.equal(S.lagOverride('x', 'y', 200, 0.05), 0.05, 'the default');
+});
+test('srcClean: blob, data and same-origin are clean; the media host is tainted unless loaded in CORS mode; empty is clean', () => {
+  const page = 'https://aethrakairos.com';
+  assert.equal(S.srcClean('blob:https://aethrakairos.com/0b1c', page, false), true);
+  assert.equal(S.srcClean('data:audio/wav;base64,AAAA', page, false), true);
+  assert.equal(S.srcClean('https://aethrakairos.com/audio/demo.mp3', page, false), true);
+  assert.equal(S.srcClean('audio/demo.mp3', page, false), true, 'relative is same-origin');
+  assert.equal(S.srcClean('https://media.aethrakairos.com/audio/1/01.mp3', page, false), false, 'the catalog host: tainted');
+  assert.equal(S.srcClean('https://media.aethrakairos.com/audio/1/01.mp3', page, 'anonymous'), true, 'unless CORS-mode');
+  assert.equal(S.srcClean('', page, false), true);
+});
+test('crossoverSource: the on-air blob, then bytes in hand, then the network in CORS mode', () => {
+  assert.equal(S.crossoverSource({ onAirSrc: 'blob:x/1', peek: true, trackUrl: 'https://m/1.mp3' }), 'onair');
+  assert.equal(S.crossoverSource({ onAirSrc: 'https://m/1.mp3', peek: true, trackUrl: 'https://m/1.mp3' }), 'bytes');
+  assert.equal(S.crossoverSource({ onAirSrc: 'https://m/1.mp3', peek: null, trackUrl: 'https://m/1.mp3' }), 'cors');
+  assert.equal(S.crossoverSource({ onAirSrc: '', peek: null, trackUrl: 'https://m/1.mp3' }), 'cors');
+});
+test('crossoverAligned: inside 15 ms is the same record; three seeks then anything inside 60 ms; worse fails; a user jump refills the budget', () => {
+  let s = { seeks: 0 };
+  assert.equal(S.crossoverAligned(s, { delta: 0.010 }), 'ok');
+  assert.equal(S.crossoverAligned(s, { delta: -0.012 }), 'ok', 'either side');
+  s = { seeks: 0 };
+  assert.equal(S.crossoverAligned(s, { delta: 0.080 }), 'seek');
+  assert.equal(S.crossoverAligned(s, { delta: 0.040 }), 'seek');
+  assert.equal(S.crossoverAligned(s, { delta: 0.030 }), 'seek');
+  assert.equal(s.seeks, S.XO_SEEKS);
+  assert.equal(S.crossoverAligned(s, { delta: 0.050 }), 'ok', 'after three, inside 60 ms is taken');
+  assert.equal(S.crossoverAligned(s, { delta: 0.070 }), 'fail', 'worse is refused');
+  assert.equal(S.crossoverAligned(s, { delta: 0.070, jump: true }), 'seek', 'a seek on the record on air moves the target and refills');
+  assert.equal(S.crossoverAligned({ seeks: 0 }, { delta: NaN }), 'wait');
+});
+test('giveWinner: every seam and hand state resolves to one record', () => {
+  const g = (x) => x === 0 ? [1, 0] : x === 1 ? [0, 1] : [0.7, 0.7];
+  assert.deepEqual(S.giveWinner({ phase: 'idle', gains: g(0), active: 0, idleOwner: 'free', idleTrack: -1 }), { action: 'none' });
+  assert.deepEqual(S.giveWinner({ phase: 'armed', gains: g(0), active: 0 }), { action: 'cancel' });
+  assert.deepEqual(S.giveWinner({ phase: 'running', gains: g(0), active: 1 }), { action: 'finish' });
+  // a yielded seam: the incoming is on air (fire flipped AE.active)
+  assert.deepEqual(S.giveWinner({ phase: 'manual', gains: g(1), active: 1 }), { action: 'finish-hand' }, 'handle at the incoming');
+  assert.deepEqual(S.giveWinner({ phase: 'manual', gains: g(0.5), active: 1 }), { action: 'finish-hand' }, 'centre: the incoming');
+  assert.deepEqual(S.giveWinner({ phase: 'manual', gains: g(0), active: 1 }), { action: 'abort-hand', slot: 0 }, 'handle at the outgoing');
+  assert.deepEqual(S.giveWinner({ phase: 'idle', gains: g(1), active: 0, idleOwner: 'hand', idleRolling: true, idleTrack: 4, idleCue: 12 }),
+    { action: 'commit', slot: 1 }, 'a hand\'s record rolling and favoured takes the air');
+  assert.deepEqual(S.giveWinner({ phase: 'idle', gains: g(0), active: 0, idleOwner: 'hand', idleRolling: true, idleTrack: 4, idleCue: 12 }),
+    { action: 'next', slot: 1, next: 4, cue: 12 }, 'rolling but not favoured: it plays next, from its cue');
+  assert.deepEqual(S.giveWinner({ phase: 'idle', gains: g(0), active: 0, idleOwner: 'hand', idleRolling: false, idleTrack: 4, idleCue: 30.5 }),
+    { action: 'next', slot: 1, next: 4, cue: 30.5 }, 'cued and paused: next, from its cue');
+});
+test('hideAction: give when single; wait through a blend, resolve after 30 s; emergency on a dead context; keep after three refusals, retry every 30 s', () => {
+  const b = { graph: true, ctxState: 'running', seam: 'idle', handRolling: false, hiddenFor: 1, onAirPlaying: true, tries: 0 };
+  assert.equal(S.hideAction({ ...b, graph: false }), 'none');
+  assert.equal(S.hideAction(b), 'give');
+  assert.equal(S.hideAction({ ...b, seam: 'armed' }), 'give', 'an armed plan is let go of by onHide; nothing is blending');
+  assert.equal(S.hideAction({ ...b, seam: 'running' }), 'wait', 'a running seam lands on its curves');
+  assert.equal(S.hideAction({ ...b, seam: 'manual' }), 'wait');
+  assert.equal(S.hideAction({ ...b, handRolling: true }), 'wait', 'a hand\'s record finishes its roll');
+  assert.equal(S.hideAction({ ...b, seam: 'running', hiddenFor: 30 }), 'resolve', 'thirty seconds: forced to one');
+  assert.equal(S.hideAction({ ...b, ctxState: 'interrupted' }), 'emergency');
+  assert.equal(S.hideAction({ ...b, ctxState: 'suspended', onAirPlaying: false }), 'give', 'nothing sounding: an ordinary give');
+  assert.equal(S.hideAction({ ...b, tries: 1, sinceTry: 0.5 }), 'keep', 'a refused give is not retried at once');
+  assert.equal(S.hideAction({ ...b, tries: 1, sinceTry: 3 }), 'give');
+  assert.equal(S.hideAction({ ...b, tries: 3, sinceTry: 10 }), 'keep', 'three refusals keep the graph');
+  assert.equal(S.hideAction({ ...b, tries: 3, sinceTry: 30 }), 'give', '…and retry every 30 s');
+});
+test('stayPutRule: the element-direct contract unchanged; under the graph only hidden or an unblessed other deck stays put; a cue always wins', () => {
+  const b = { ios: true, xfade: false, playing: true, cued: false, graph: false, hidden: false, otherPrimed: true };
+  assert.equal(S.stayPutRule(b), true, 'iOS direct: the one blessed element');
+  assert.equal(S.stayPutRule({ ...b, ios: false }), false, 'desktop: two decks');
+  assert.equal(S.stayPutRule({ ...b, playing: false }), false, 'paused: nothing to carry');
+  assert.equal(S.stayPutRule({ ...b, xfade: true }), false);
+  assert.equal(S.stayPutRule({ ...b, cued: true }), false, 'a hand\'s cue beats the same-element advance');
+  assert.equal(S.stayPutRule({ ...b, graph: true }), false, 'graph, visible, other deck blessed: the other deck');
+  assert.equal(S.stayPutRule({ ...b, graph: true, hidden: true }), true, 'hidden: no cross-deck start behind a lock');
+  assert.equal(S.stayPutRule({ ...b, graph: true, otherPrimed: false }), true, 'an unblessed deck is never started from a timer');
+});
+test('sentinelTrip: only 2-10 s after a load, only an advancing open deck, under the floor long enough for what the record says', () => {
+  const b = { rms: 0, gainProduct: 1, sinceLoad: 5, quietFor: 3, sectionEnergy: 0.6, advancing: true, gateOpen: true, muted: false };
+  assert.equal(S.sentinelTrip(b), true);
+  assert.equal(S.sentinelTrip({ ...b, sinceLoad: 1.5 }), false, 'too early');
+  assert.equal(S.sentinelTrip({ ...b, sinceLoad: 11 }), false, 'too late: a breakdown is music');
+  assert.equal(S.sentinelTrip({ ...b, rms: 0.01 }), false, 'sounding');
+  assert.equal(S.sentinelTrip({ ...b, quietFor: 2 }), false, 'not quiet for long enough');
+  assert.equal(S.sentinelTrip({ ...b, sectionEnergy: 0.1 }), false, 'a quiet part is allowed to be quiet');
+  assert.equal(S.sentinelTrip({ ...b, sectionEnergy: null, quietFor: 3 }), false, 'no structure: needs 4 s');
+  assert.equal(S.sentinelTrip({ ...b, sectionEnergy: null, quietFor: 4 }), true);
+  assert.equal(S.sentinelTrip({ ...b, advancing: false }), false, 'a stopped deck is the watchdog\'s');
+  assert.equal(S.sentinelTrip({ ...b, muted: true }), false, 'a muted deck is silent on purpose');
+  assert.equal(S.sentinelTrip({ ...b, gainProduct: 0.05 }), false, 'a faded deck is silent on purpose');
+  assert.equal(S.sentinelTrip({ ...b, gateOpen: false }), false, 'a held loop owns the bus');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

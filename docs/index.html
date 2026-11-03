@@ -10148,6 +10148,191 @@ function prefetchMayRun(o){
   if (o.left != null && isFinite(o.left) && ahead >= o.left - 0.5) return true;
   return ahead >= (o.need != null ? o.need : PREFETCH_AHEAD_S);
 }
+
+/* ---- TWO DECKS ON AN iPHONE: the pure half of DECKROUTE ------------------
+   On iOS the decks play element-direct, because createMediaElementSource is
+   a one-way door and the context it opens onto is what a locked screen
+   takes away. DECKROUTE (below the AirPlay module) lets the booth take the
+   decks into the graph while it is open, and gives them back — onto fresh,
+   pre-blessed "twin" elements — when it closes or the phone goes into a
+   pocket. Every decision that can be made without an element is made here,
+   where it can be tested. */
+
+/* WHICH iOS. Safari on iOS 26 froze its UA at "OS 18_6" and moved the real
+   number to "Version/26", so both are read and the larger wins; Chrome and
+   Firefox on iOS carry the OS figure only. iPadOS in its desktop mode calls
+   itself a Mac — "Mac OS X 10_15_7", which is not a version of anything —
+   so there only Version/ counts, and only when the "Mac" has a touch screen.
+   0 is "cannot say", which no gate passes. */
+function iosMajor(ua, platform, touchPoints){
+  ua = String(ua || '');
+  const v = ua.match(/Version\/(\d+)/), ver = v ? +v[1] : 0;
+  if (/iP(hone|ad|od)/.test(ua)){
+    const m = ua.match(/OS (\d+)_\d+/);
+    return Math.max(m ? +m[1] : 0, ver);
+  }
+  if (platform === 'MacIntel' && touchPoints > 1) return ver;
+  return 0;
+}
+/* MAY THE BOOTH TAKE THE DECKS INTO THE GRAPH ON THIS DEVICE. Three things
+   are needed whatever anybody says: iOS itself (elsewhere the graph is the
+   only path and there is nothing to take), navigator.audioSession (16.4+:
+   'playback' is what keeps the context alive behind a lock on 17.5+, and
+   what the ringer switch answers to) and AudioWorklet (the platters). An
+   override of 'direct' is final; 'graph' skips the version floor (for a
+   device run); otherwise iOS 18 or later, and only once the shipped default
+   says so. */
+function iosGraphAllowed(o){
+  if (o.override === 'direct') return false;
+  const can = !!(o.ios && o.hasAudioSession && o.hasWorklet);
+  if (o.override === 'graph') return can;
+  return can && (o.major | 0) >= 18 && !!o.defaultOn;
+}
+/* MAY A CAPTURED ELEMENT PLAY AT ANY RATE BUT ONE. On every shipping iOS
+   (16, 17, 18, the 26.0 branch) an element routed through a
+   MediaElementAudioSourceNode plays CHOPPY at playbackRate ≠ 1 and ignores
+   preservesPitch=false (WebKit bug 240405; the fix is on WebKit main only).
+   So while the decks are in the graph on iOS their elements stay at 1: the
+   beatmix glide, SYNC, the listener's SPEED and the element-rate brake all
+   stand down there, and a seam between two tempi is the filtered fade. Off
+   iOS, or with the decks direct, rates are as free as they always were; the
+   override ('?rates=1') is for a device run on a WebKit that has the fix.
+   THE ONE PLACE THAT DECIDES (deckRate, below the AE block, asks it). */
+function iosRatesOk(o){ return !o.ios || !o.graph || !!o.override; }
+/* WHAT A SEAM BECOMES WHEN THE RATES ARE HELD AT ONE. A beatmix between two
+   tempi is a glide — both rates moving to meet — and with the rates held it
+   would be two grids walking apart under the blend: it becomes the planner's
+   own honest fade. Two records already at one tempo (inside 0.3 %, about a
+   tenth of a beat of drift across a 16-beat seam) need no glide and still
+   beatmix, at 1×. Gapless and fade plans write no rate and pass untouched. */
+const IOS_SAME_TEMPO = 0.003;
+function iosSeamPlan(plan, ratesOk, fadeSec){
+  if (ratesOk || !plan || plan.type !== 'beatmix') return plan;
+  const a = +plan.bpmA, b = +plan.bpmB;
+  if (a > 0 && b > 0 && Math.abs(a / b - 1) < IOS_SAME_TEMPO) return plan;
+  return { type: 'fade', seconds: fadeSec > 0 ? fadeSec : 4, why: 'two tempi, and this iOS plays tempo choppy through the graph' };
+}
+/* A ROUTE OVERRIDE FROM THE ADDRESS BAR, remembered. `q` is the query value
+   (null when absent), `stored` what was saved; '' or 'auto' clears it. The
+   answer says what to use and what to save (null: leave the saved one). */
+function pickOverride(q, stored, allowed){
+  if (q != null){
+    if (q === '' || q === 'auto') return { v: '', save: '' };
+    if (allowed.indexOf(q) >= 0) return { v: q, save: q };
+  }
+  return { v: allowed.indexOf(stored) >= 0 ? stored : '', save: null };
+}
+// a lag override in milliseconds, clamped, as seconds (the default when absent or nonsense)
+function lagOverride(q, stored, maxMs, dflt){
+  const pick = v => { const n = parseFloat(v); return (v != null && v !== '' && isFinite(n)) ? Math.max(0, Math.min(maxMs, n)) / 1000 : null; };
+  const a = pick(q); if (a != null) return a;
+  const b = pick(stored); return b != null ? b : dflt;
+}
+/* IS WHAT THIS ELEMENT HOLDS READABLE BY THE GRAPH. A media element in no-CORS
+   mode playing a cross-origin file is TAINTED: a MediaElementAudioSourceNode
+   on it outputs pure zeros, with no error and (in Safari) no warning. Clean
+   is a blob: or data: URL (a copy this page made), a same-origin file, or a
+   load made in CORS mode — the attribute only ever set on an empty element
+   or right before a src (DECKROUTE's I1), so its presence means the current
+   resource was fetched that way. An element with nothing loaded is clean. */
+function srcClean(src, origin, cors){
+  src = String(src || '');
+  if (!src) return true;
+  if (/^(blob|data):/i.test(src)) return true;
+  if (cors) return true;
+  try { return new URL(src, origin).origin === origin; } catch (e){ return false; }
+}
+/* WHERE DECK B GETS THE RECORD ON AIR, to join it. The on-air element's own
+   blob first (no network at all, and clean); then the bytes the booth already
+   has in hand (BYTES — a blob made from them is clean too); only then the
+   network URL, which B loads in CORS mode. */
+function crossoverSource(o){
+  if (/^blob:/i.test(String(o.onAirSrc || ''))) return 'onair';
+  if (o.peek) return 'bytes';
+  return 'cors';
+}
+/* LINING THE INCOMING ELEMENT UP WITH THE ONE ON AIR. `delta` is how far the
+   incoming is from where it should be (seconds, after the tap lag), read with
+   both clocks in one task. Inside 15 ms it is the same record to an ear. Out
+   of it, a seek — at most three, because each one costs the element a decoder
+   flush; after three the join takes anything inside 60 ms (two short flams,
+   once) and refuses worse. A user's own seek on the record on air (a jump of
+   more than half a second) moves the target, and refills the budget. */
+const XO_TOL = 0.015, XO_ACCEPT = 0.060, XO_SEEKS = 3;
+function crossoverAligned(s, o){
+  if (o.jump) s.seeks = 0;
+  const d = +o.delta;
+  if (!isFinite(d)) return 'wait';
+  if (Math.abs(d) <= XO_TOL) return 'ok';
+  if ((s.seeks | 0) < XO_SEEKS){ s.seeks = (s.seeks | 0) + 1; return 'seek'; }
+  return Math.abs(d) <= XO_ACCEPT ? 'ok' : 'fail';
+}
+/* GIVING THE DECKS BACK LEAVES ONE RECORD. The direct path has one element
+   with a voice, so whatever two decks are doing is resolved to one first:
+     a seam running on its curves      → it lands on the incoming ('finish')
+     a seam a hand has taken           → whichever end the handle favours
+     a seam armed and not fired        → let go; its draw stays the next
+     a hand's record rolling, favoured → it takes the air ('commit')
+     a hand's record not favoured, or
+     cued and paused                   → it plays NEXT, from its cue ('next')
+   `gains` are the handle's [A, B] (xfaderGains), `active` the deck on air. */
+function giveWinner(o){
+  const g = o.gains || [1, 1], on = o.active === 1 ? 1 : 0, off = 1 - on;
+  if (o.phase === 'running') return { action: 'finish' };
+  if (o.phase === 'manual') return g[on] >= g[off] ? { action: 'finish-hand' } : { action: 'abort-hand', slot: off };
+  if (o.phase === 'armed') return { action: 'cancel' };
+  if (o.idleOwner === 'hand' && o.idleTrack != null && o.idleTrack >= 0){
+    if (o.idleRolling && g[off] > g[on]) return { action: 'commit', slot: off };
+    return { action: 'next', slot: off, next: o.idleTrack, cue: +o.idleCue || 0 };
+  }
+  return { action: 'none' };
+}
+/* WHAT A HIDDEN PAGE DOES WITH DECKS IN THE GRAPH, every half second. The
+   graph is handed back to a direct twin while the screen is still fresh off
+   (the session certain, the captured element still sounding — an overlap,
+   the one un-gestured start iOS allows), so a pocketed phone runs the path
+   that has always survived a lock. Not mid-blend: a running seam lands on
+   its own audio-clock curves and a hand's record finishes its roll — for
+   thirty seconds, then the two are forced to one ('resolve'). A context that
+   has stopped while the record on air still advances is silence: 'emergency'.
+   Three refused gives keep the graph, supervised, retrying every 30 s. */
+const HIDE_RESOLVE_S = 30, HIDE_RETRY_S = 30, HIDE_TRIES = 3;
+function hideAction(o){
+  if (!o.graph) return 'none';
+  if (o.ctxState !== 'running' && o.onAirPlaying) return 'emergency';
+  const tries = o.tries | 0, since = o.sinceTry == null ? Infinity : o.sinceTry;
+  if (tries >= HIDE_TRIES) return since >= HIDE_RETRY_S ? 'give' : 'keep';
+  if (tries > 0 && since < 2) return 'keep';
+  const busy = o.seam === 'running' || o.seam === 'manual' || !!o.handRolling;
+  if (busy) return (o.hiddenFor || 0) >= HIDE_RESOLVE_S ? 'resolve' : 'wait';
+  return 'give';
+}
+/* THE SAME-ELEMENT ADVANCE, and when it is right. Element-direct it is the
+   whole of the iOS contract: one blessed element, every hand-off a src swap.
+   With the decks in the graph, in the foreground, a blessed second deck can
+   take the next record the way it does on a desktop — unless the page is
+   hidden (no un-gestured cross-deck start behind a lock) or that deck has
+   never been blessed. A hand's cued record always wins: it is ON the other
+   deck already. */
+function stayPutRule(o){
+  return !!(o.ios && !o.xfade && o.playing && !o.cued && (!o.graph || o.hidden || !o.otherPrimed));
+}
+/* THE SILENCE SENTINEL. A capture can be silent with nothing anywhere saying
+   so — a tainted file outputs zeros, a context can stall — so in the first
+   seconds after a deck goes into the graph (or takes a new record there) the
+   level at the analyser is watched: advancing, its gain and fader open, the
+   bus open, not muted, and still under -80 dBFS for 2.5 s where the record's
+   own structure says this part is not quiet (4 s where there is no
+   structure to ask). Outside 2-10 s it never trips: a real breakdown, a
+   silent intro, a fade to nothing are music. */
+const SENTINEL_FLOOR = 1e-4;
+function sentinelTrip(o){
+  if (!(o.sinceLoad >= 2 && o.sinceLoad <= 10)) return false;
+  if (!o.advancing || o.muted || !o.gateOpen || !(o.gainProduct > 0.1)) return false;
+  if (!(o.rms < SENTINEL_FLOOR)) return false;
+  if (o.sectionEnergy == null) return o.quietFor >= 4;
+  return o.sectionEnergy >= 0.3 && o.quietFor >= 2.5;
+}
 // @media-end
 
 /* The native Mac shell (Tauri) tags its webview's user-agent, so the web app can
