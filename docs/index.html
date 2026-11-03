@@ -11395,12 +11395,20 @@ const DECKS = {
     d._warmed = true; d._seekTo = cue;
     try { if (d.a.preload !== 'auto') d.a.preload = 'auto'; } catch (e){}
     const src = (typeof PREFETCH !== 'undefined') ? PREFETCH.playable(track) : track.url;
-    if (typeof PREFETCH !== 'undefined' && src !== track.url) PREFETCH.spend();
     d.norm = normLin(track);
     s.trackIdx = i; s.owner = 'hand'; s.cue = cue; s.pitch = 1; s.synced = false;
     s.silentFor = 0; s.cueHeld = false; s.stuckFor = 0;
     this._gainTo(d, d.norm);                           // audible only as far as the handle says
     AE._loadAt(d.a, src, cue, () => {});
+    /* A WARMED COPY IS SPENT ONLY ONCE THE ELEMENT HOLDS IT. spend() sweeps,
+       and the sweep revokes every copy no deck is reading — so spending it
+       before _loadAt assigned the src revoked it under the deck, the load
+       failed, and a good record was marked broken and skipped. Tagged as
+       MIXER._seat tags it, so _sameSrc still knows the record by its URL. */
+    if (typeof PREFETCH !== 'undefined' && src !== track.url){
+      d.a._warmOf = track.url; d.a._warmSrc = d.a.src;
+      PREFETCH.spend();
+    }
     try { d.a.playbackRate = SPEED.rate; } catch (e){}
     setPitchLock(d.a, SPEED.keyLock);
     this.applyFaderGains();
@@ -13622,6 +13630,10 @@ const PREFETCH = {
      download that was halfway there, and started it again. Measured, before the
      split: 61 requests and 120 MB served for a warm that never once landed. */
   id: null, url: '', _want: null, _ac: null, _busy: false, _fail: 0, _spent: [],
+  /* A FAILED COPY WAITS BEFORE IT ASKS AGAIN. The mixer asks every frame, so
+     without a pause one dropped connection was three failures inside a
+     second, and _fail switched the copy off for the rest of the session. */
+  _failAt: -1e9, RETRY_MS: 5000,
   /* A RECORD THAT WILL NOT COPY IS NOT ASKED AGAIN. The mixer asks every frame
      (MIXER._warmB), so a file over CAP, or one the server refuses, would be
      re-requested on every frame until the session-wide _fail gave up on every
@@ -13695,10 +13707,12 @@ const PREFETCH = {
   },
   async want(track){
     if (!this.allowed(track)) return;
+    if (performance.now() - this._failAt < this.RETRY_MS) return;
     if (this.id === track.id && this.url) return;          // already holding it
     if (this._want === track.id && this._busy) return;     // already fetching it — do NOT restart
     this.drop();
     this._busy = true;
+    this._len = 0; this._got = 0;                  // the last copy's progress is not this one's: eta() unknown until our headers land
     const id = track.id;
     this._want = id;
     const ac = new AbortController();
@@ -13721,9 +13735,10 @@ const PREFETCH = {
     } catch (e){
       // AbortError is our own doing (the draw moved on) and is not a failure
       if (!(e && e.name === 'AbortError')){
-        this._fail++;
-        // a file too big or refused outright is this record's answer; a dropped connection is the network's
+        // a file too big or refused outright is this record's answer, not the
+        // network's: it is remembered for this record and costs nothing else
         if (e && /^(too big|http 4)/.test(e.message || '')) this._no.add(id);
+        else { this._fail++; this._failAt = performance.now(); }
       }
       this.url = ''; this.id = null;
     } finally {
@@ -23435,8 +23450,10 @@ const MIXER = {
     nd._preloadOnce = once;
     nd.a.addEventListener('loadedmetadata', once);
     try { nd.a.load(); } catch (e){}
-    try { if (nd.a.playbackRate !== SPEED.rate) nd.a.playbackRate = SPEED.rate; } catch (e){}
-    setPitchLock(nd.a, SPEED.keyLock);
+    // the slot's own pitch (a hand's SYNC on the armed deck) rides on the listener's rate, as SPEED.apply composes it
+    const si = AE.decks.indexOf(nd), sl = DECKS.slots[si], r = SPEED.rate * DECKS.pitch(si);
+    try { if (nd.a.playbackRate !== r) nd.a.playbackRate = r; } catch (e){}
+    setPitchLock(nd.a, SPEED.keyLock && !(sl && sl.synced));
     return true;
   },
 
@@ -25178,7 +25195,10 @@ window.addEventListener('online', () => {
   toast(T('Back online'));
   // a stream that starved while the pipe was down reconnects on the next beat,
   // not twelve seconds from now
-  if (typeof WATCHDOG !== 'undefined' && player.playing) WATCHDOG.s.starve = STARVE_RELOAD_S - 1;
+  // (one memory per deck since the decks went two: every deck that was starving)
+  if (typeof WATCHDOG !== 'undefined' && player.playing)
+    WATCHDOG.s.forEach(m => { if (m && m.starve > 0) m.starve = Math.max(m.starve, STARVE_RELOAD_S - 1); });
+  if (typeof PREFETCH !== 'undefined'){ PREFETCH._fail = 0; PREFETCH._failAt = -1e9; }   // the network that refused copies is back
   checkForUpdate();                // a reconnect is the best moment to look
 });
 
