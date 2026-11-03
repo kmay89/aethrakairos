@@ -20,7 +20,7 @@ function block(name){
   return m[1];
 }
 const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n' + block('syn') + '\n' + block('color') + '\n' + block('safe') + '\n' + block('ux') + '\n' + block('clock') + '\n' + block('dance') + '\n' + block('stem') + '\n' + block('echo') + '\n' + block('mix') + '\n' + block('xfader') + '\n' + block('style') + '\n' + block('mixset') + '\n' + block('fx') + '\n' + block('lava') + '\n' + block('media') + '\n' + block('master') + '\n' + block('vinyl') + '\n' + block('wave') +
-  '\nreturn { loadAndLandAt, watchdogStep, STARVE_RELOAD_S, STARVE_RESEEK_S, STARVE_GIVE_UP, bufferedEndAt, prefetchMayRun, PREFETCH_AHEAD_S, seamWarmDue, SEAM_WARM_S, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
+  '\nreturn { loadAndLandAt, watchdogStep, STARVE_RELOAD_S, STARVE_RESEEK_S, STARVE_GIVE_UP, bufferedEndAt, prefetchMayRun, PREFETCH_AHEAD_S, seamWarmDue, SEAM_WARM_S, deckWarmRoute, SEAM_COPY_MARGIN_S, touchFxMode, mulberry32, solverDist, lerpFeat, sampleWaypoint, dealJourney, monotonicity,' +
   ' quantumStep, eraEligible, orderMemories, historyWindow, historyVerdict, reconcileQueue, clamp01,' +
   ' RITUALS, ritualByKey, dealRitual, freshPicks, openingSet, surpriseSet, libraryOrder, firstUnheardIndex, completionMilestones,' +
   ' SIGNATURE_RE, isSignature, signatureFirst,' +
@@ -2579,7 +2579,7 @@ test('SCENE_TASTE: every room on the roster has a character, in real features', 
       assert.ok(f === 'base' || FEATS.includes(f), `${k} wants "${f}", which is not a feature`);
   }
   // the whole point of the rewrite: no room is left out of the deal
-  assert.equal(S.SCENE_KEYS.length, 124);
+  assert.equal(S.SCENE_KEYS.length, 125);
 });
 
 test('creatureGenome: every form deals a bounded genome, whole where closed', () => {
@@ -2882,7 +2882,7 @@ test('dealScene: deterministic in r, and the mood actually leans', () => {
 });
 test('the mood leans the hand and the ghost, and only when there IS one', () => {
   // no mood → the map is exactly what it always was (the whole compatibility claim)
-  for (let sc = 0; sc < 124; sc++)
+  for (let sc = 0; sc < 125; sc++)
     for (const r of [0.01, 0.3, 0.6, 0.7, 0.86, 0.99]){
       assert.equal(S.touchAffinity(sc, 1, r), S.touchAffinity(sc, 1, r, null));
       assert.equal(S.ghostPattern(sc, 1, r), S.ghostPattern(sc, 1, r, null));
@@ -2929,7 +2929,7 @@ test('beatTapBonus: full exactly on the beat, zero off the window, symmetric', (
 });
 test('touchAffinity: every scene resolves to a real personality', () => {
   const KEYS = ['blackhole', 'grows', 'gathers', 'flows'];
-  for (let sc = 0; sc < 124; sc++)
+  for (let sc = 0; sc < 125; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.6, 0.86, 0.99])
         assert.ok(KEYS.includes(S.touchAffinity(sc, act, r)), `scene ${sc} act ${act} r ${r}`);
@@ -3484,7 +3484,7 @@ test('ghostShould: reduced motion is a no, and a live hand is a no', () => {
   assert.ok(!S.ghostShould({}), 'a fresh session is not an idle one');
 });
 test('ghostPattern: every room deals a real choreography, and the apex rests', () => {
-  for (let sc = 0; sc < 124; sc++)
+  for (let sc = 0; sc < 125; sc++)
     for (const act of [-1, 0, 1, 2, 3, 4])
       for (const r of [0.01, 0.3, 0.49, 0.6, 0.87, 0.99]){
         const k = S.ghostPattern(sc, act, r);
@@ -10786,6 +10786,31 @@ test('seamWarmDue: deck B takes the pipe once A is done with it, or when the exi
   assert.equal(S.seamWarmDue(null), false);
   assert.equal(S.SEAM_WARM_S, 20);
 });
+test('deckWarmRoute: the incoming record comes from memory when the pipe allows, the network only when it must', () => {
+  const R = o => S.deckWarmRoute(o);
+  assert.equal(R({ aDone: false, exitIn: 85, seconds: 16, ramOk: true }), 'wait', 'A still filling, exit far: headers only');
+  assert.equal(R({ aDone: true, exitIn: 85, seconds: 16, ramOk: true }), 'fetch', 'the pipe is free: one whole copy');
+  assert.equal(R({ aDone: true, exitIn: 85, seconds: 16, ramOk: false }), 'stream', 'no copy can be made: the stream warm, as before');
+  assert.equal(R({ aDone: true, exitIn: 85, seconds: 16, ramOk: true, landed: true }), 'seat', 'the copy is in hand');
+  assert.equal(R({ aDone: true, exitIn: 19, seconds: 4, ramOk: true }), 'stream', 'out of runway before the copy landed: the network window, now');
+  assert.equal(R({ aDone: false, exitIn: 25, seconds: 16, ramOk: true }), 'stream', 'a long seam needs its length plus ten');
+  assert.equal(R({ aDone: true, exitIn: 27, seconds: 16, ramOk: true }), 'fetch');
+  assert.equal(R({ aDone: true, exitIn: 85, ramOk: true, force: true }), 'stream', "fire() asking, nothing landed: stream");
+  assert.equal(R({ aDone: false, exitIn: 2, ramOk: true, force: true, landed: true }), 'seat', 'a landed copy is seated even at the last moment');
+  assert.equal(R({ aDone: true, exitIn: NaN, ramOk: true }), 'fetch', 'an unknown exit is not a near one');
+  assert.equal(R(null), 'wait');
+  // a copy on its way survives the backstop only if it lands with the margin to spare
+  assert.equal(R({ aDone: true, exitIn: 18, seconds: 4, ramOk: true, eta: 9 }), 'fetch', 'lands at 9 s of 18: keep it');
+  assert.equal(R({ aDone: true, exitIn: 18, seconds: 4, ramOk: true, eta: 15 }), 'stream', 'lands inside the margin: stream now');
+  assert.equal(R({ aDone: true, exitIn: 18, seconds: 4, ramOk: true, eta: Infinity }), 'stream', 'no measured rate yet');
+  assert.equal(R({ aDone: true, exitIn: 18, seconds: 4, ramOk: false, eta: 2 }), 'stream');
+  assert.equal(R({ aDone: true, exitIn: 18, seconds: 4, ramOk: true, eta: 2, force: true }), 'stream', 'fire() asking overrides a pending copy');
+  // the route never streams while the old gate would still have waited, and never waits once it would have warmed
+  for (const o of [{ aDone: false, exitIn: 85, seconds: 16 }, { aDone: false, exitIn: 19, seconds: 4 }, { aDone: true, exitIn: 60, seconds: 8 }]){
+    const was = S.seamWarmDue(o), now = R({ ...o, ramOk: false });
+    assert.equal(now !== 'wait', was, JSON.stringify(o));
+  }
+});
 
 // ---- the crossfader's law (@xfader): the gain curves, the two maps, the arbiter, SYNC's rate, the idle stop ----
 test('xfaderGains power: constant acoustic power at every handle position, full at the ends', () => {
@@ -11254,9 +11279,12 @@ test('tvOS: the RECENT shelf dedupes in its own set, a refreshed album tile redr
   const rt = home.slice(home.indexOf('private func recentTracks(in catalog: Catalog)'), home.indexOf('// MARK: - shared bits'));
   assert.ok(rt.includes('guard shown.insert(track.id).inserted else { continue }'), 'one tile per track, counted in its own set');
   assert.ok(!rt.includes('seen.contains(track.id)'), 'never in `seen`, which already holds the key that IS the id — that emptied the shelf');
-  const cover = home.slice(home.indexOf('private struct HomeAlbumCover: View'));
-  assert.ok(cover.includes('.onAppear { drawSleeve() }') && cover.includes('.onChange(of: album.tag) { _, _ in drawSleeve() }'),
-    'the sleeve follows the album at an offset-keyed slot, not the tile\'s lifetime');
+  const craft = readFileSync(join(root, 'tvos/AethraKairosTV/UI/Stagecraft.swift'), 'utf8');
+  const cover = craft.slice(craft.indexOf('struct AlbumSleeve: View'));
+  assert.ok(home.includes('AlbumSleeve(album: album, artist: catalog.artist, label: catalog.label)'),
+    'the album grid draws its tiles through AlbumSleeve');
+  assert.ok(cover.includes('.task(id: CoverCache.key(album, size))') && cover.includes('image = nil'),
+    'the sleeve follows the album at an offset-keyed slot, not the tile\'s lifetime: a new album restarts the draw and drops the old face');
   const player = readFileSync(join(root, 'tvos/AethraKairosTV/Audio/Player.swift'), 'utf8');
   const tg = player.slice(player.indexOf('    func toggle() {'), player.indexOf('    func play() {'));
   assert.ok(/wantsPlayback\.toggle\(\)[\s\S]*if !wantsPlayback \{ isPlaying = false \}[\s\S]*return\n\s*\}/.test(tg),

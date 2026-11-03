@@ -25,7 +25,7 @@ struct AethraKairosApp: App {
 
     var body: some Scene {
         WindowGroup {
-            HomeView()
+            HomeView(player: player)
                 .environmentObject(catalogStore)
                 .environmentObject(library)
                 .environmentObject(player)
@@ -39,6 +39,7 @@ struct AethraKairosApp: App {
                     // the player gets its context and the resume flow begins.
                     if let catalog = newCatalog {
                         player.attach(catalog: catalog)
+                        player.startSoakIfAsked(catalog: catalog)   // CI's endurance run only
                     }
                 }
                 .onChange(of: player.current) { _, track in

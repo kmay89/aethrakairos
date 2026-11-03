@@ -228,6 +228,10 @@ enum MixStyle: String, CaseIterable {
     private var deckDuration: [Double] = [0, 0]
     private var deckClaim = [0, 0]          // stale deferred stops must not kill a re-used deck
     private var shuffle = false
+    /// The queue is the NONSTOP MIX (playEverything): when it runs low a fresh
+    /// shuffle of the whole library is dealt onto its end, so the music never
+    /// stops on its own. Any other choice of what to play turns it off.
+    private(set) var endless = false
     private var generation = 0              // one materialization wins; stale loads drop out
     private var playedSecondsThisTrack: Double = 0
     private var failureStreak = 0
@@ -250,6 +254,12 @@ enum MixStyle: String, CaseIterable {
     private var recoveryFailures = 0
     private static let maxRecoveryFailures = 20
     private var retryPolls = 0
+    /// Recoveries in a row whose engine STARTED but whose deck still would not
+    /// play (AVFAudio raised; see AKCatch.h). Three of them and the engine is
+    /// thrown away and built fresh, as after a media-services reset — at most
+    /// once every 30 s, so a device that refuses every engine is not churned.
+    private var playRefusals = 0
+    private var lastRebuildAt: TimeInterval = -1_000
 
     /// Polls in a row the transport has believed "playing" while the active
     /// deck was not actually rendering — the liveness guard's evidence.
@@ -263,6 +273,12 @@ enum MixStyle: String, CaseIterable {
     private var pollTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
     private var pendingOpTask: Task<Void, Never>?
+    /// A SKIP IN FLIGHT: the deck still sounding while the track the listener
+    /// skipped to loads on the other one. It keeps playing until the new
+    /// track is decoded, then the two cross over on the equal-power law — a
+    /// skip is never a fade into silence followed by a wait. Any other change
+    /// of what plays hands it back first (releaseSkipHold).
+    private var skipHoldDeck: Int?
 
     // Seam state: one plan at a time, computed once, executed on the other deck.
     private var seamPlan: TransitionPlan?
@@ -347,6 +363,8 @@ enum MixStyle: String, CaseIterable {
     // MARK: transport
 
     func setQueue(_ tracks: [Track], startAt index: Int, autoplay: Bool) {
+        endless = false
+        releaseSkipHold(fade: 0.25)
         recordHistoryForCurrent()
         cancelSeam()
         stopActiveDeckDeferred()
@@ -373,6 +391,7 @@ enum MixStyle: String, CaseIterable {
         let tracks = keys.compactMap { catalog.track(forKey: $0) }
         guard !tracks.isEmpty else { return }
         shuffle = false
+        endless = false
         if let cur = current, let slot = tracks.firstIndex(where: { $0.id == cur.id }) {
             cancelSeam()               // next-up changed; the old plan is void
             queue = tracks
@@ -384,11 +403,37 @@ enum MixStyle: String, CaseIterable {
         }
     }
 
+    /// ONE PRESS, MUSIC: the whole library, shuffled, played nonstop — the
+    /// welcome's PLAY and the shelves' PLAY land here. The auto-mixer blends
+    /// each seam as it always does; the queue re-deals itself at its end.
+    func playEverything(in catalog: Catalog) {
+        let deck = catalog.tracks.shuffled()
+        guard !deck.isEmpty else { return }
+        setQueue(deck, startAt: 0, autoplay: true)
+        endless = true
+    }
+
+    /// The nonstop mix never reaches its end: two tracks out, another pass of
+    /// the library is dealt on. Appending never moves the current or the next
+    /// track, so an armed seam stays valid.
+    private func extendEndlessIfNeeded() {
+        guard endless, let catalog, currentIndex >= 0, currentIndex >= queue.count - 2 else { return }
+        var more = catalog.tracks.shuffled()
+        guard !more.isEmpty else { return }
+        // never the same song twice in a row across the pass boundary
+        if more.count > 1, let last = queue.last, more[0].id == last.id {
+            more.swapAt(0, more.count - 1)
+        }
+        queue.append(contentsOf: more)
+    }
+
     func toggle() {
         // A press while the track is still on its way flips the INTENT; it
         // never starts a second download of the same track.
         if materializing, currentIndex >= 0 {
             wantsPlayback.toggle()
+            // a pause while a skip loads silences the track it was holding
+            if !wantsPlayback { releaseSkipHold(fade: 0.3) }
             // the FACT follows a pause: a skip leaves isPlaying true from the
             // track it left, and a HUD, Now Playing and the idle lock that
             // still say "playing" invite a second press that undoes the pause.
@@ -442,6 +487,7 @@ enum MixStyle: String, CaseIterable {
 
     func pause() {
         wantsPlayback = false
+        releaseSkipHold(fade: 0.3)
         guard isPlaying else {
             // Pressed while the track is still on its way: the load lands
             // PARKED at the position, not playing at full volume.
@@ -461,13 +507,50 @@ enum MixStyle: String, CaseIterable {
     /// half-executed blend.
     func next() {
         guard hasNext() else { return }
-        hardSwitch(to: currentIndex + 1, startAt: 0, autoplay: true, fade: mixStyle.quickFade)
+        skip(to: currentIndex + 1)
     }
 
+    /// Back, the way every player does it: more than three seconds in, back
+    /// to the top of this track; otherwise the track before.
     func prev() {
         guard currentIndex >= 0 else { return }
-        let target = currentIndex > 0 ? currentIndex - 1 : 0
-        hardSwitch(to: target, startAt: 0, autoplay: true, fade: mixStyle.quickFade)
+        if deckReady, !materializing, position > 3 {
+            seek(to: 0)
+            return
+        }
+        skip(to: currentIndex > 0 ? currentIndex - 1 : 0)
+    }
+
+    /// THE LISTENER'S SKIP. The track that is playing keeps playing while the
+    /// one skipped to loads on the other deck; when it lands they cross over
+    /// over the style's quick-fade (equal power, the incoming rising in the
+    /// first 60 %). Pressed again while it is still loading, the same incoming
+    /// deck is retargeted and the held track simply plays on — rapid skipping
+    /// never cuts the audible deck. Paused, or with nothing audible, it is
+    /// the plain hard switch.
+    private func skip(to index: Int) {
+        guard queue.indices.contains(index) else { return }
+        recordHistoryForCurrent()
+        cancelSeam()
+        if skipHoldDeck == nil {
+            if isPlaying, deckReady, engine.isLive(deck: activeDeck) {
+                skipHoldDeck = activeDeck      // it keeps sounding until the next lands
+            } else {
+                stopActiveDeckDeferred(fade: 0.25)
+            }
+            activeDeck = 1 - activeDeck
+        }
+        // else: a skip is already loading on activeDeck — retarget it
+        activeRate = 1
+        materialize(index: index, startAt: 0, autoplay: true)
+    }
+
+    /// Hands the held deck back: a skip in flight was overtaken (a pause, a new
+    /// queue, an automatic advance, an engine rebuild). It fades and stops.
+    private func releaseSkipHold(fade: Double) {
+        guard let hold = skipHoldDeck else { return }
+        skipHoldDeck = nil
+        fadeOutAndStop(deck: hold, over: fade)
     }
 
     func seek(to seconds: Double) {
@@ -676,12 +759,26 @@ enum MixStyle: String, CaseIterable {
                         engineUp = false
                         NSLog("AethraKairos: engine start failed after load — %@", String(describing: error))
                     }
-                    self.engine.rampVolume(deck: deck, to: 1, over: 0.06)
-                    self.engine.play(deck: deck, atOffset: self.position, in: 0)
+                    if let hold = self.skipHoldDeck, hold != deck {
+                        // the skip's cross: the held track out over the
+                        // quick-fade, the new one up from silence over 60 %
+                        self.skipHoldDeck = nil
+                        let fade = self.mixStyle.quickFade
+                        NSLog("AethraKairos: skip crossfade, deck %d out over %.1f s, deck %d in", hold, fade, deck)
+                        self.engine.setVolume(deck: deck, to: 0)
+                        self.engine.play(deck: deck, atOffset: self.position, in: 0)
+                        self.engine.rampVolume(deck: deck, to: 1, over: fade * 0.6)
+                        self.fadeOutAndStop(deck: hold, over: fade)
+                    } else {
+                        self.skipHoldDeck = nil
+                        self.engine.rampVolume(deck: deck, to: 1, over: 0.06)
+                        self.engine.play(deck: deck, atOffset: self.position, in: 0)
+                    }
                     self.isPlaying = true
                     self.statusLine = engineUp ? "" : "audio output unavailable — retrying"
                 } else {
                     // Parked: restored-paused, or paused while the download ran.
+                    self.releaseSkipHold(fade: 0.3)
                     self.engine.rampVolume(deck: deck, to: 1, over: 0.005)
                     self.isPlaying = false
                     if autoplay { self.statusLine = "paused" }   // the pause overtook the play
@@ -697,6 +794,8 @@ enum MixStyle: String, CaseIterable {
                 // A cancelled download is not a bad track: a newer intent
                 // simply overtook this one.
                 if let le = error as? TrackLoader.LoaderError, case .cancelled = le { return }
+                // the skipped-to track will not come: the held one bows out
+                self.releaseSkipHold(fade: 0.6)
                 self.isPlaying = false
                 self.statusLine = "couldn't load — \(track.title)"
                 // Only a verdict about the TRACK (unreachable, corrupt, will
@@ -720,11 +819,12 @@ enum MixStyle: String, CaseIterable {
     /// silence over the minimum ramp before load() stops it — never a click.
     private func quiesce(deck: Int) async {
         guard engine.isPlaying(deck: deck) else { return }
-        engine.rampVolume(deck: deck, to: 0, over: 0.005)
-        await sleepSeconds(0.012)
+        engine.rampVolume(deck: deck, to: 0, over: 0.03)
+        await sleepSeconds(0.04)
     }
 
     private func hardSwitch(to index: Int, startAt: Double, autoplay: Bool, fade: Double = 0.25) {
+        releaseSkipHold(fade: 0.25)
         recordHistoryForCurrent()
         cancelSeam()
         stopActiveDeckDeferred(fade: fade)
@@ -738,20 +838,27 @@ enum MixStyle: String, CaseIterable {
     /// the tight 0.25 s default. The claim counter keeps a stale deferred stop
     /// from killing a re-used deck.
     private func stopActiveDeckDeferred(fade: Double = 0.25) {
-        let old = activeDeck
-        let claim = deckClaim[old]
-        if engine.isPlaying(deck: old) {
+        fadeOutAndStop(deck: activeDeck, over: fade)
+    }
+
+    /// Fade a deck out and stop it once it is silent — unless it has been
+    /// re-purposed in the meantime (its claim moved on), in which case the
+    /// stop is stale and the new owner keeps it.
+    private func fadeOutAndStop(deck: Int, over fade: Double) {
+        guard deckClaim.indices.contains(deck) else { return }
+        let claim = deckClaim[deck]
+        if engine.isPlaying(deck: deck) {
             let f = max(0.05, fade)
-            engine.rampVolume(deck: old, to: 0, over: f)
+            engine.rampVolume(deck: deck, to: 0, over: f)
             Task { [weak self] in
                 await sleepSeconds(f + 0.05)
-                guard let self, self.deckClaim[old] == claim else { return }
-                self.engine.stop(deck: old)
-                self.restDeck(old)
+                guard let self, self.deckClaim[deck] == claim else { return }
+                self.engine.stop(deck: deck)
+                self.restDeck(deck)
             }
         } else {
-            engine.stop(deck: old)
-            restDeck(old)
+            engine.stop(deck: deck)
+            restDeck(deck)
         }
     }
 
@@ -797,8 +904,19 @@ enum MixStyle: String, CaseIterable {
         guard wanted, deckReady, currentIndex >= 0 else { return }
         let deck = activeDeck
         let at = engine.position(deck: deck) ?? position
-        // At the very end, the next poll's end-of-track advance is the cure.
-        if isPlaying, let dur = currentDuration, at >= dur - 0.30 { return }
+        // At the very end, the next poll's end-of-track advance is the cure —
+        // when there IS a next track (the poll hard-advances or begins the
+        // armed seam from dur - 0.30). The LAST track has no such cure: the
+        // poll ends the queue only at dur - 0.05, and the deck's finished
+        // word is believed only while the engine runs, so an engine that
+        // stopped in a last track's final 0.3 s left the transport "playing"
+        // silence forever (the HUD lit, the idle timer held off), this guard
+        // returning every half second. There is nothing left to resume: the
+        // queue ends here, honestly.
+        if isPlaying, let dur = currentDuration, at >= dur - 0.30 {
+            if !hasNext() { endOfQueue(duration: dur) }
+            return
+        }
         cancelSeam()
         try? AVAudioSession.sharedInstance().setActive(true)
         do {
@@ -823,11 +941,26 @@ enum MixStyle: String, CaseIterable {
         retryPolls = 0
         engine.stop(deck: deck)
         engine.rampVolume(deck: deck, to: 1, over: 0.06)
-        engine.play(deck: deck, atOffset: at, in: 0)
+        let started = engine.play(deck: deck, atOffset: at, in: 0)
         isPlaying = true
         position = at
         statusLine = ""
         analyzer.setClock(playhead: at, mix: current?.mix, rate: clockRate)
+        guard !started else {
+            playRefusals = 0
+            return
+        }
+        // The engine runs but the deck refused: AVFAudio raised (now caught)
+        // or the engine fell over between the start and the play. The guard
+        // asks again in half a second; a third refusal replaces the engine.
+        playRefusals += 1
+        let now = ProcessInfo.processInfo.systemUptime
+        if playRefusals >= 3, now - lastRebuildAt >= 30 {
+            playRefusals = 0
+            lastRebuildAt = now
+            NSLog("AethraKairos: the deck keeps refusing to play — building a fresh audio engine")
+            rebuildAudioAfterMediaServicesReset()
+        }
     }
 
     /// mediaserverd died and took every AVFAudio object with it. Apple's law
@@ -847,6 +980,7 @@ enum MixStyle: String, CaseIterable {
         pendingOpTask?.cancel()
         pendingOpTask = nil
         engine.teardown()
+        skipHoldDeck = nil                // the old engine's decks are gone
         engine = DeckEngine()
         wireEngine()
         // Seam bookkeeping is reset against the NEW engine — its decks are idle,
@@ -859,6 +993,7 @@ enum MixStyle: String, CaseIterable {
         deadPolls = 0
         recoveryFailures = 0
         retryPolls = 0
+        playRefusals = 0
         deckDuration = [0, 0]
         deckGlide = [1, 1]
         activeRate = 1
@@ -908,6 +1043,8 @@ enum MixStyle: String, CaseIterable {
             }
             playedSecondsThisTrack += 0.25
         }
+        extendEndlessIfNeeded()
+        if Self.soak { soakTick() }
         // The clock truth flows one way: latency-compensated playhead into the
         // analyzer, every poll — the beat grid is authoritative when mix exists.
         // The same latency is handed over for onset visuals: a detected hit is
@@ -1208,5 +1345,65 @@ enum MixStyle: String, CaseIterable {
             engine.rampVolume(deck: activeDeck, to: 1, over: 0.2)
             activeRate = 1
         }
+    }
+
+    // MARK: - the soak (CI only)
+
+    /// CI's endurance run: `--soak` starts the nonstop mix as soon as the
+    /// library lands and then hurries the transport — four seconds into each
+    /// track it jumps to 28 s before the end (every fourth track it skips
+    /// instead), so a seam or a hard switch fires every ~30 s and an hour of
+    /// track changes fits in a CI job. Never on for a listener.
+    static let soak = ProcessInfo.processInfo.arguments.contains("--soak")
+    private var soakStarted = false
+    private var soakTracks = 0
+    private var soakKey: String?
+    private var soakEnteredAt: TimeInterval = 0
+    private var soakJumped = false
+    private var soakReportAt: TimeInterval = 0
+
+    func startSoakIfAsked(catalog: Catalog) {
+        guard Self.soak, !soakStarted else { return }
+        soakStarted = true
+        NSLog("AethraKairos soak: starting the nonstop mix over %d tracks", catalog.tracks.count)
+        playEverything(in: catalog)
+    }
+
+    private func soakTick() {
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - soakReportAt >= 30 {
+            soakReportAt = now
+            NSLog("AethraKairos soak: footprint %.0f MB, engine %@, playing %@, track %d, status '%@'",
+                  Self.footprintMB(), engine.isEngineRunning ? "running" : "stopped",
+                  isPlaying ? "yes" : "no", soakTracks, statusLine)
+        }
+        guard isPlaying, !seamRunning, let t = current, let dur = currentDuration else { return }
+        if t.id != soakKey {
+            soakKey = t.id
+            soakTracks += 1
+            soakEnteredAt = now
+            soakJumped = false
+            NSLog("AethraKairos soak: track %d - %@ (%.0f s)", soakTracks, t.title, dur)
+            return
+        }
+        guard !soakJumped, now - soakEnteredAt >= 4, position < dur - 32 else { return }
+        soakJumped = true
+        if soakTracks % 4 == 0, hasNext() {
+            next()
+        } else {
+            seek(to: dur - 28)
+        }
+    }
+
+    /// The process's physical footprint — the number jetsam judges an app by.
+    static func footprintMB() -> Double {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let kr = withUnsafeMutablePointer(to: &info) { p in
+            p.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        return kr == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
     }
 }
