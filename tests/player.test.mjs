@@ -12275,10 +12275,10 @@ test('a tempo moving under a held loop ends the run-on a doubling may use — it
   S.loopTapeCommand(T, { op: 'arm', A, N, gen: 1 });
   let r = tapeRun(T, song, pre.f, 10);
   assert.equal(T.mode, 'loop');
-  const written = T.written;
+  const written = T.written, foot = A + N + S.tapeXfade(N, TAPE_SR) + 4;
   S.loopTapeCommand(T, { op: 'speed', v: 1.04 });
-  assert.ok(T.lin <= written - Math.round(0.5 * TAPE_SR) || T.lin === A + N, 'dated back: the tick saw it late — lin ' + T.lin);
-  assert.ok(T.lin >= A + N, 'never before the out-point: the cut itself is not the run-on');
+  assert.ok(T.lin <= written, 'a 4 % move drifts past the bound at once, dated back to when the tick last saw the old rate — lin ' + T.lin);
+  assert.ok(T.lin >= foot, 'and never inside the loop\'s own footprint: the cut is not the run-on');
   S.loopTapeCommand(T, { op: 'len', N: 1600 });
   r = tapeRun(T, song, r.f, 200);
   assert.equal(T.N, 800, 'the doubling was never taken from tape cut at another rate');
@@ -12290,6 +12290,94 @@ test('a tempo moving under a held loop ends the run-on a doubling may use — it
   tapeRun(U, song, q.f, 10);
   S.loopTapeCommand(U, { op: 'speed', v: 1 });
   assert.equal(U.lin, Infinity, 'a speed that did not change marks nothing');
+});
+
+test('a phase-lock nudge under a held loop drifts too little to hear: a doubling is still taken (D, without refusing the inaudible)', () => {
+  const T = tapeOpen(8 * TAPE_SR);
+  const pre = tapeRun(T, song, 0, 20);
+  const A = pre.f - 400, N = 1600;
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 1 });
+  let r = tapeRun(T, song, pre.f, 12);
+  assert.equal(T.mode, 'loop', 'held');
+  S.loopTapeCommand(T, { op: 'speed', v: 1.0006 });        // the seam's servo trim: 0.06 %
+  S.loopTapeCommand(T, { op: 'len', N: 3200 });
+  r = tapeRun(T, song, r.f, 160);
+  assert.equal(T.N, 3200, 'taken: 0.06 % of a second of run-on is well under TAPE_DRIFT');
+  assert.equal(T.lin, Infinity, 'and nothing was marked');
+  // …but a sustained move, summed block by block, still crosses the bound and stops the run-on there
+  const U = tapeOpen(8 * TAPE_SR);
+  const q = tapeRun(U, song, 0, 20);
+  S.loopTapeCommand(U, { op: 'arm', A: q.f - 400, N: 1600, gen: 1 });
+  const q2 = tapeRun(U, song, q.f, 6);
+  S.loopTapeCommand(U, { op: 'speed', v: 1.003 });
+  tapeRun(U, song, q2.f, 120);
+  assert.ok(isFinite(U.lin), 'a 0.3 % move held for long enough drifts past TAPE_DRIFT: lin ' + U.lin);
+});
+
+test('the loop\'s own length stays reachable: a rate move right after the handover, then halve and double back, restores it (4)', () => {
+  const T = tapeOpen(8 * TAPE_SR);
+  const pre = tapeRun(T, song, 0, 20);
+  const A = pre.f - 400, N = 1600;
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 1 });
+  let r = tapeRun(T, song, pre.f, 12);                      // a block past the out-point
+  assert.equal(T.mode, 'loop');
+  S.loopTapeCommand(T, { op: 'speed', v: 1.04 });           // a real move, just after the handover
+  S.loopTapeCommand(T, { op: 'len', N: 800 });              // halve…
+  r = tapeRun(T, song, r.f, 4);
+  assert.ok(isFinite(T.lin), 'the move drifted past the bound: the run-on is cut off');
+  S.loopTapeCommand(T, { op: 'len', N: 1600 });             // …and back
+  r = tapeRun(T, song, r.f, 80);
+  assert.equal(T.N, 1600, 'the length it was already playing is granted again: that tape is the loop, not run-on');
+  // a stall heard right after the handover is floored the same way
+  const U = tapeOpen(8 * TAPE_SR);
+  const q = tapeRun(U, song, 0, 20);
+  S.loopTapeCommand(U, { op: 'arm', A: q.f - 400, N: 1600, gen: 1 });
+  const q2 = tapeRun(U, song, q.f, 12);
+  assert.equal(U.mode, 'loop');
+  S.loopTapeCommand(U, { op: 'lin', at: q2.f - 1000 });     // a mark dated back across the out-point
+  S.loopTapeCommand(U, { op: 'len', N: 800 });
+  const q3 = tapeRun(U, song, q2.f, 4);
+  S.loopTapeCommand(U, { op: 'len', N: 1600 });
+  tapeRun(U, song, q3.f, 80);
+  assert.equal(U.N, 1600);
+  // and past its own footprint a doubling still waits on — and is dropped by — the mark
+  S.loopTapeCommand(U, { op: 'len', N: 3200 });
+  tapeRun(U, song, q3.f + 80 * 128, 120);
+  assert.equal(U.N, 1600); assert.equal(U.Nwant, 0);
+});
+
+test('a deck that goes silent inside the pass a loop is being cut from is heard doing it: the cut is refused, with no word from the main thread (3)', () => {
+  // the deck is already stalled when the loop is pressed, and stays stalled into the pass
+  const T = tapeOpen(4 * TAPE_SR);
+  const pre = tapeRun(T, song, 0, 20);
+  const stall = f => (f >= pre.f - 100 && f < pre.f + 400) ? 0 : song(f);
+  S.loopTapeCommand(T, { op: 'arm', A: pre.f - 300, N: 1200, gen: 6 });
+  const r = tapeRun(T, stall, pre.f, 20);
+  assert.equal(T.mode, 'pass', 'refused at the out-point, though nothing marked it');
+  assert.equal(T.refusedGen, 6);
+  assert.ok(r.out.every((v, i) => v === Math.fround(stall(pre.f + i))), 'and the room heard the deck, never a loop of the stall');
+  // a stall that begins just before the out-point — its 'waiting' would reach the main thread after it
+  const U = tapeOpen(4 * TAPE_SR);
+  const p2 = tapeRun(U, song, 0, 20);
+  const H = p2.f + 900, late = f => (f >= H - 80 && f < H + 600) ? 0 : song(f);
+  S.loopTapeCommand(U, { op: 'arm', A: H - 1200, N: 1200, gen: 7 });
+  tapeRun(U, late, p2.f, 20);
+  assert.equal(U.mode, 'pass'); assert.equal(U.refusedGen, 7, 'refused: the silence is inside the cut');
+  // a deck that plays on through the pass is taken as ever
+  const V = tapeOpen(4 * TAPE_SR);
+  const p3 = tapeRun(V, song, 0, 20);
+  S.loopTapeCommand(V, { op: 'arm', A: p3.f - 300, N: 1200, gen: 8 });
+  tapeRun(V, song, p3.f, 20);
+  assert.equal(V.mode, 'loop');
+  // under a HELD loop a stall only bounds a doubling — the loop plays on over it
+  const W = tapeOpen(6 * TAPE_SR);
+  const p4 = tapeRun(W, song, 0, 20);
+  S.loopTapeCommand(W, { op: 'arm', A: p4.f - 300, N: 800, gen: 9 });
+  const p5 = tapeRun(W, song, p4.f, 10);
+  const held = f => (f >= p5.f + 50 && f < p5.f + 700) ? 0 : song(f);
+  tapeRun(W, held, p5.f, 10);
+  assert.equal(W.mode, 'loop', 'held on');
+  assert.ok(W.lin >= W.A + W.Ncut + S.tapeXfade(W.Ncut, TAPE_SR) + 4 && W.lin <= p5.f + 60, 'the run-on is cut off where the deck fell silent');
 });
 
 test('a jump or a stall inside the pass a loop is cut from is refused, never looped; a stale mark from before the arm does not count (E)', () => {
@@ -12374,6 +12462,44 @@ test('a roll the tape had not yet taken never moves the deck on release — it p
   };
   assert.deepEqual(run(false, true), { calls: ['cancel'], seeks: 0 }, 'pending on the tape: let go, the deck untouched');
   assert.deepEqual(run(false, false), { calls: [], seeks: 1 }, 'the re-seek roll (no tape) still puts the deck back in real time');
+});
+
+test('halving, doubling and the loop itself are sized at the record\'s tempo — through FX._resizeTo and FX.setLoop themselves (B)', () => {
+  const m0 = html.indexOf('  mediaBpm(d){'), m1 = html.indexOf('\n', m0);
+  const r0 = html.indexOf('  _resizeTo(beats){'), r1 = html.indexOf('  /* `byCommit`', r0);
+  const s0 = html.indexOf('  setLoop(beats, roll, landed){'), s1 = html.indexOf('  /* THE LEGACY WRAP RUNS ON ITS OWN CLOCK.', s0);
+  assert.ok(m0 > 0 && r0 > 0 && r1 > r0 && s0 > 0 && s1 > s0, 'FX.mediaBpm / _resizeTo / setLoop are where the test looks');
+  const sr = 48000;
+  for (const r of [0.75, 1, 1.032, 1.25]){
+    const want = beats => Math.round(beats * 60 / (124 * r) * sr);   // beats of what the room hears, in real frames
+    const posted = [];
+    const deck = { a: { currentTime: 10.3, playbackRate: r, seeking: false, readyState: 4 } };
+    const LOOPER = { engaged: () => posted.length > 0, ok: () => true, open: () => true, tapes: [{}], have: () => 24, cancel(){},
+      arm(start, len){ posted.push(len); return true; }, retarget(len){ posted.push(len); return true; } };
+    const body = 'return {' + html.slice(m0, m1 + 1) + html.slice(s0, s1) + html.slice(r0, r1) + '};';
+    const fx = Object.assign({ loop: null, _latchGen: 0, bpm: () => 124 * r, grid: () => 0, hand(){}, _legacyPoll(){}, _latchLanded(){} },
+      new Function('LOOPER', 'activeDeck', 'player', 'DECKS', 'AE', 'VINYL', 'HAPTICS', 'beatLen', 'loopTempo', 'loopInPoint', 'loopBounds', body)(
+        LOOPER, () => deck, { playing: true }, { handSlot: () => 0 }, { active: 0 }, undefined, { pulse(){} },
+        S.beatLen, S.loopTempo, S.loopInPoint, S.loopBounds));
+    fx.setLoop(4, false);
+    assert.ok(Math.abs(Math.round(posted[0] / r * sr) - want(4)) <= 1, `setLoop at ×${r}: ${Math.round(posted[0] / r * sr)} frames vs ${want(4)}`);
+    fx._resizeTo(8);
+    assert.ok(Math.abs(Math.round(posted[1] / r * sr) - want(8)) <= 1, `doubling at ×${r}: ${Math.round(posted[1] / r * sr)} frames vs ${want(8)}`);
+    assert.equal(fx.loop.len, posted[1]);
+    fx._resizeTo(2);
+    assert.ok(Math.abs(Math.round(posted[2] / r * sr) - want(2)) <= 1, `halving at ×${r}`);
+  }
+});
+
+test('a jump\'s re-latch belongs to the record that jumped: the hand on the other deck does not refuse it, and nothing strands the covering loop (1)', () => {
+  const s0 = html.indexOf('  setLoop(beats, roll, landed){'), s1 = html.indexOf('  /* THE LEGACY WRAP RUNS ON ITS OWN CLOCK.', s0);
+  assert.ok(/if \(!landed && typeof DECKS !== 'undefined' && DECKS\.handSlot\(\) !== AE\.active\) return;/.test(html.slice(s0, s1)),
+    'only a hand\'s own press is refused by the hand\'s focus');
+  const l0 = html.indexOf('  _latchLanded(d, beats, roll){'), l1 = html.indexOf('  _rolling(d)', l0) > 0 ? html.indexOf('\n  },', l0) : -1;
+  const look = html.slice(l0, l1);
+  assert.ok(/this\.setLoop\(L\.beats \|\| beats, roll, true\);[\s\S]*if \(!this\.loop && LOOPER\.engaged\(\)\)\{ LOOPER\.cancel\(\); this\.hand\(\); \}/.test(look),
+    'and a latch that did not take lets the covering loop go');
+  assert.ok(/if \(this\._scrubbing === d\)/.test(look), 'a lane still in hand holds the re-latch (2)');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

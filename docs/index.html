@@ -21579,6 +21579,9 @@ function loopAlignErr(deckAt, loopAt, len){
    reaches before it is refused rather than made from whatever was there. */
 const TAPE_RAMP = 0.006;      // s — every change of source is crossed over this long
 const TAPE_GUARD = 256;       // frames of slack every tape bound keeps from its edge
+const TAPE_DRIFT = 0.002;     // s of music the run-on may drift from the cut's density before a doubling may not use it
+const TAPE_SEEN_LATE = 0.1;   // s — how late the main thread sees a rate change (a tick)
+const TAPE_GAP = 0.003;       // s of exact silence from a deck that is meant to be playing: a stall, not music
 // the join's blend for a loop of n frames, in frames
 function tapeXfade(n, sr){ return Math.max(0, Math.round(loopXfadeLen(n / sr, 1) * sr)); }
 // the longest loop a tape of `cap` frames can hold with its blend and its slack
@@ -21590,6 +21593,7 @@ function makeLoopTape(sr){
     written: -1, rec0: 0, frozen: false,  // the tape holds [max(rec0, written − cap), written) whole
     mode: 'pass', A: 0, N: 0, xn: 0,      // the loop: its in-point frame, its length, its join's blend
     Nwant: 0, lin: Infinity,              // a longer length waiting for its tape; how far the run-on is the song in order
+    Ncut: 0, drift: 0, zrun: 0,           // the longest length taken; the run-on's density error; a run of silence
     pos: 0, speed: 1, speedTo: 1, outAt: -1,
     fade: null, fadeStep: 1 / Math.max(1, Math.round(TAPE_RAMP * rate)),
     gen: 0, laps: 0, refused: 0, refusedGen: -1, why: '',
@@ -21598,6 +21602,20 @@ function makeLoopTape(sr){
 // does the tape hold [from, from+n) whole: recorded, continuous, and not yet written over
 function tapeHolds(S, from, n){
   return !!(S && S.ring) && from >= S.rec0 && ringSlice(S.cap, S.written, from, n) !== null;
+}
+/* THE LOOP'S OWN FOOTPRINT: the longest length it has been taken at, its join's
+   blend and the read's margin. Tape inside it is the loop itself, already heard
+   lap after lap — so nothing that happens to the run-on later (a jump, a stall,
+   a tempo move) can make the loop's own length unreachable again: halving and
+   doubling back is always granted. Only tape beyond it is run-on. */
+function tapeFoot(S){ return S.A + S.Ncut + tapeXfade(S.Ncut, S.sr) + 4; }
+/* THE RUN-ON STOPPED BEING THE SONG IN ORDER at frame `at`. While a loop is
+   being cut (armed) that spoils the cut, and the handover refuses it; while one
+   is held it only bounds how far a doubling may reach, and never inside the
+   loop's own footprint. */
+function tapeBreak(S, at){
+  if (!isFinite(at)) return;
+  S.lin = Math.min(S.lin, S.mode === 'loop' ? Math.max(at, tapeFoot(S)) : at);
 }
 // one channel of a loop at position p (0 ≤ p < n): the tape at a+p, the head blended with what followed the out-point
 function tapeLoopAt(ring, cap, a, n, xn, p){
@@ -21648,12 +21666,26 @@ function loopTapeWrite(S, inL, inR, n, f0){
   if (f0 + n > keep + S.cap - TAPE_GUARD){ S.frozen = true; return; }
   if (S.frozen || f0 !== S.written){ S.rec0 = f0; S.frozen = false; }   // a gap: the continuous past starts again here
   const cap = S.cap, L = S.ring[0], R = S.ring[1];
-  let k = f0 % cap;
+  /* A STALL IS HEARD HERE, not reported. A deck that runs dry plays exact
+     silence into the graph while its clock stands still, and the event that
+     says so reaches the main thread when the main thread gets round to it —
+     after the out-point, on a busy frame, or not at all for a stall already
+     under way when the loop was pressed. So while a loop is being cut or
+     held, a run of TAPE_GAP of digital zeros is a break in the song where it
+     began (a track's own digital silence costs a refused cut, which is
+     nothing: the re-seek loop holds it). */
+  const watch = S.mode !== 'pass', gap = Math.round(TAPE_GAP * S.sr);
+  let k = f0 % cap, z = S.zrun;
   for (let i = 0; i < n; i++){
-    const xl = inL ? inL[i] : 0;
-    L[k] = xl; R[k] = inR ? inR[i] : xl;
+    const xl = inL ? inL[i] : 0, xr = inR ? inR[i] : xl;
+    L[k] = xl; R[k] = xr;
     if (++k === cap) k = 0;
+    if (watch){
+      if (xl === 0 && xr === 0){ if (++z === gap) tapeBreak(S, f0 + i - gap + 1); }
+      else z = 0;
+    }
   }
+  S.zrun = watch ? z : 0;
   S.written = f0 + n;
 }
 /* THE COMMANDS, applied between blocks. Frames are context frames, so the main
@@ -21675,29 +21707,36 @@ function loopTapeCommand(S, m){
     if (isFinite(v) && v > 0){
       const to = Math.max(0.25, Math.min(4, v));
       /* THE RUN-ON CHANGES DENSITY WITH THE RATE. The deck keeps recording at its
-         new speed, so tape past here holds `v` times the music a frame the cut
-         does — and a doubling read from it at `v` would play it at v². It is a
-         jump for doubling's purposes (lin), dated back half a second because the
-         main thread sees a rate change only on the tick after it, and never
-         before the out-point: a held loop's own cut is not the run-on. */
-      if (S.mode === 'loop' && Math.abs(to - S.speedTo) > 1e-6)
-        S.lin = Math.min(S.lin, Math.max(S.A + S.N, S.written - Math.round(0.5 * S.sr)));
+         new speed, so tape past the out-point holds `v` times the music a frame
+         the cut does, and a doubling read from it at `v` plays that stretch at
+         v². What matters is how far it has drifted, not that it moved: the
+         seam's phase lock nudges the rate by fractions of a percent and stays
+         locked, and refusing a doubling for an error nobody can hear is a
+         fault too. So the drift is summed (per block, loopTapeProcess) and the
+         run-on is cut off only where it passes TAPE_DRIFT. The tick sees a
+         change late, so the frames already spent at the new rate are booked
+         here at once. */
+      if (S.mode === 'loop' && S.lin > S.written){
+        const late = Math.min(Math.round(TAPE_SEEN_LATE * S.sr), Math.max(0, S.written - (S.A + S.N)));
+        S.drift += (to - S.speedTo) * late;
+        if (Math.abs(S.drift) > TAPE_DRIFT * S.sr) tapeBreak(S, S.written - late);
+      }
       S.speedTo = to;
     }
   } else if (op === 'lin'){
-    const at = +m.at;
-    if (isFinite(at)) S.lin = Math.min(S.lin, at);
+    tapeBreak(S, +m.at);
   } else if (op === 'arm'){
     const A = Math.round(+m.A), N = Math.round(+m.N);
     S.gen = m.gen | 0;
     if (!S.ring || !isFinite(A) || !tapeFits(N, S.cap, S.sr)){ tapeRefuse(S, 'length'); return S; }
     if (S.mode === 'loop') tapeFadeFrom(S);        // a new loop over a held one: crossed out of, never cut
-    S.mode = 'armed'; S.A = A; S.N = N; S.xn = tapeXfade(N, S.sr); S.Nwant = 0; S.lin = Infinity;   // only marks after this arm count
+    S.mode = 'armed'; S.A = A; S.N = S.Ncut = N; S.xn = tapeXfade(N, S.sr); S.Nwant = 0; S.lin = Infinity;   // only marks after this arm count
+    S.drift = 0; S.zrun = 0;
     S.pos = 0; S.outAt = -1; S.laps = 0; S.speed = S.speedTo = 1;
   } else if (op === 'len'){
     const N = Math.round(+m.N);
     if (!S.ring || !tapeFits(N, S.cap, S.sr)) return S;
-    if (S.mode === 'armed'){ S.N = N; S.xn = tapeXfade(N, S.sr); }   // the handover moves with it, from the same in-point
+    if (S.mode === 'armed'){ S.N = S.Ncut = N; S.xn = tapeXfade(N, S.sr); }   // the handover moves with it, from the same in-point
     else if (S.mode === 'loop'){
       if (N < S.N){
         // shorter is exact and at once: a head past the new out-point comes back inside it, at the same phase
@@ -21742,6 +21781,11 @@ function loopTapeProcess(S, inL, inR, outL, outR, n, f0){
       }
     }
   }
+  // the run-on's density against the cut, summed as it is recorded (see 'speed')
+  if (S.mode === 'loop' && S.lin > f0 && f0 + n > S.A + S.N){
+    S.drift += (S.speedTo - 1) * (f0 + n - Math.max(f0, S.A + S.N));
+    if (Math.abs(S.drift) > TAPE_DRIFT * S.sr) tapeBreak(S, f0);
+  }
   const ring = S.ring, cap = S.cap, mix = [0, 0];
   for (let i = 0; i < n; i++){
     const xl = inL ? inL[i] : 0, xr = inR ? inR[i] : xl;
@@ -21756,7 +21800,7 @@ function loopTapeProcess(S, inL, inR, outL, outR, n, f0){
           // a longer length waiting for its tape takes it at a wrap, once the run-on holds all of it
           const nx = S.Nwant > S.N ? S.Nwant + tapeXfade(S.Nwant, S.sr) + 4 : 0;
           if (nx && S.A + nx <= Math.min(S.written, S.lin) && tapeHolds(S, S.A, nx)){
-            S.N = S.Nwant; S.xn = tapeXfade(S.N, S.sr); S.Nwant = 0;
+            S.N = S.Nwant; S.Ncut = Math.max(S.Ncut, S.N); S.xn = tapeXfade(S.N, S.sr); S.Nwant = 0;
           } else {
             if (nx && S.A + nx > S.lin) S.Nwant = 0;   // the run-on stopped being the song before it reached that far: never
             S.pos -= S.N; S.laps++;
@@ -23017,9 +23061,10 @@ function vinylWorkletSource(){
     '}',
     "registerProcessor('mb8-vinyl', MB8Vinyl);",
     // the deck's loop tape: frames are context frames, so a loop is two integers and the handover needs no message in time
-    'const LOOP_XFADE = ' + LOOP_XFADE + ', TAPE_RAMP = ' + TAPE_RAMP + ', TAPE_GUARD = ' + TAPE_GUARD + ';',
+    'const LOOP_XFADE = ' + LOOP_XFADE + ', TAPE_RAMP = ' + TAPE_RAMP + ', TAPE_GUARD = ' + TAPE_GUARD
+      + ', TAPE_DRIFT = ' + TAPE_DRIFT + ', TAPE_SEEN_LATE = ' + TAPE_SEEN_LATE + ', TAPE_GAP = ' + TAPE_GAP + ';',
     equalPowerXfade.toString(), loopXfadeLen.toString(), loopHeadBlend.toString(), ringSlice.toString(),
-    tapeXfade.toString(), tapeFits.toString(), makeLoopTape.toString(), tapeHolds.toString(), tapeLoopAt.toString(),
+    tapeXfade.toString(), tapeFits.toString(), makeLoopTape.toString(), tapeHolds.toString(), tapeFoot.toString(), tapeBreak.toString(), tapeLoopAt.toString(),
     tapeFadeFrom.toString(), tapeFadeRead.toString(), tapeRefuse.toString(), tapeLoopPos.toString(), loopTapeWrite.toString(),
     loopTapeCommand.toString(), loopTapeProcess.toString(),
     'class MB8Loop extends AudioWorkletProcessor {',
@@ -26719,6 +26764,7 @@ const LOOP_IDLE_SEC   = 45;      // how long the tapes keep rolling unused
 const LOOP_BACK_NEED  = 0.40;    // buffered seconds the deck must hold past its return point
 const LOOP_BACK_MAX   = 1.50;    // how long a handback will wait for that before going anyway
 const LOOP_SETTLE     = 0.10;    // after a deck's song jumps, how long before its tape is the song again
+const LOOP_EVENT_LATE = 0.25;    // how late a deck's event may be handled: one busy frame and change
 const LOOP_ALIGN      = 0.004;   // seconds of music the deck may sit off the loop when it takes it back
 
 const LOOPER = {
@@ -26832,8 +26878,9 @@ const LOOPER = {
   arm(start, len, mode, slot){
     const i = (slot === 0 || slot === 1) ? slot : AE.active;
     const d = AE.decks && AE.decks[i], n = this.node(i);
-    // a deck still seeking says it is where it was sent, not where its audio is: no cut is taken from that
-    if (!d || !n || !this.tapes[i] || !AE.ctx || d.a.seeking) return false;
+    // a deck still seeking says it is where it was sent, not where its audio is, and a deck without the
+    // bytes to play (a stall) is recording silence: no cut is taken from either
+    if (!d || !n || !this.tapes[i] || !AE.ctx || d.a.seeking || d.a.readyState < 3) return false;
     this.cancel();
     const ctx = AE.ctx, sr = ctx.sampleRate, r = d.a.playbackRate || 1;
     const N = Math.round(len / r * sr);
@@ -26842,7 +26889,7 @@ const LOOPER = {
     this.deck = i; this.mode = mode === 'roll' ? 'roll' : 'loop';
     this.start = start; this.len = len; this.r0 = r; this.deckRate = r; this.speed = 1; this._sentSpeed = 1;
     this.A = A; this.N = N; this.gen++; this.rep = null;
-    this.handAt = (A + N) / sr;
+    this.handAt = this.cutAt = (A + N) / sr;          // cutAt: the out-point where the tape takes the cut (handAt follows the laps)
     this.armed = false; this.pending = true; this.on = false; this.idle = 0;
     try { n.port.postMessage({ op: 'arm', A, N, gen: this.gen }); }
     catch (e){ this.pending = false; return false; }
@@ -26906,11 +26953,21 @@ const LOOPER = {
      of it and the re-seek loop holds the in-point the hand pressed (the
      processor would refuse such a cut too, from its `lin`). HELD,
      the loop plays on untouched and only its run-on stops being the song: a
-     doubling may not reach past here. */
+     doubling may not reach past here (the processor never lets that reach
+     inside the loop's own footprint: tapeBreak). */
   broke(i, ev){
-    if (i !== this.deck || !this.engaged()) return;
+    if (i !== this.deck || !this.engaged() || !AE.ctx) return;
+    const d = AE.decks && AE.decks[i], now = AE.ctx.currentTime;
+    /* AND A BREAK IS DATED BY WHEN IT COULD HAVE HAPPENED, not by when its event
+       is handled: on a busy frame that is a quarter of a second later, by when
+       the tape may already have taken the cut. A jump our own code asked for
+       (a jump's re-latch, a handback, the end guard) was dealt with when it was
+       asked, and stamps _askedT so it is not mistaken for one. A stall is the
+       processor's own to judge: it hears the silence itself (tapeBreak). */
+    const ours = !!d && d._askedT != null && now - d._askedT < LOOP_EVENT_LATE;
+    const inPass = this.pending || (ev !== 'waiting' && !ours && !this.backing && now - LOOP_EVENT_LATE < this.cutAt);
     this.settle();
-    if (this.pending){ this.cancel(); this._lost(); }
+    if (inPass){ this.cancel(); this._lost(); }
     else this.mark(0.5);
   },
   // the loop's phase in seconds of music, and the song time it is playing, at context time t
@@ -26930,7 +26987,7 @@ const LOOPER = {
     if (!n || !tapeFits(N, Math.ceil(LOOP_RING_SEC * sr), sr)) return false;
     try { n.port.postMessage({ op: 'len', N }); } catch (e){ return false; }
     this._lenAt = Math.round(AE.ctx.currentTime * sr);   // reports from before this do not speak for the new length
-    if (this.pending){ this.N = N; this.len = len; this.handAt = (this.A + N) / sr; }
+    if (this.pending){ this.N = N; this.len = len; this.handAt = this.cutAt = (this.A + N) / sr; }
     return true;
   },
   /* THE DECK KEEPS ITS OWN TEMPO. The tape was cut at whatever rate the deck
@@ -26952,9 +27009,8 @@ const LOOPER = {
   mark(back){
     const n = this.node(this.deck);
     if (!n || !AE.ctx) return;
-    let at = Math.round((AE.ctx.currentTime - (back > 0 ? back : 0)) * AE.ctx.sampleRate);
-    // a HELD loop's jump came after its out-point (the cut itself is not the run-on); a pending one's anywhere in the pass
-    if (this.on) at = Math.max(at, this.A + this.N);
+    // (a held loop's processor never lets this reach inside the loop's own footprint: tapeBreak)
+    const at = Math.round((AE.ctx.currentTime - (back > 0 ? back : 0)) * AE.ctx.sampleRate);
     try { n.port.postMessage({ op: 'lin', at }); } catch (e){}
   },
 
@@ -26980,7 +27036,7 @@ const LOOPER = {
     if (d){
       to = seekTo != null ? seekTo
         : loopHandbackPos('loop', this.start, this.len, this.phaseAt(now), d.a.currentTime, LOOP_BACK_LEAD * r);
-      if (isFinite(to)){ try { d.a.currentTime = Math.max(0, to); this.seeks++; } catch (e){} d._tapeT0 = now; }
+      if (isFinite(to)){ try { d.a.currentTime = Math.max(0, to); this.seeks++; } catch (e){} d._tapeT0 = d._askedT = now; }
       else to = null;
     }
     this.backing = { at, to, deck: d, t0: now, waited: 0, reseeks: 0, prevE: null, prevT: 0, unready: false };
@@ -27022,7 +27078,7 @@ const LOOPER = {
       const at2 = now + LOOP_BACK_LEAD;
       const to2 = Math.max(0, this.mediaAt(at2) - LOOP_BACK_LEAD * r);
       try { d.a.currentTime = to2; this.seeks++; } catch (e2){}
-      d._tapeT0 = now;                                     // the jump is now; its event is only queued
+      d._tapeT0 = d._askedT = now;                         // the jump is now; its event is only queued
       b.at = at2; b.to = to2; b.t0 = now; b.waited = 0; b.prevE = null; b.reseeks++;
       this._backT = setTimeout(() => this._backPoll(), LOOP_POLL_MS);
       return;
@@ -27169,7 +27225,7 @@ const FX = {
     // a first pass still being cut is spoiled by the jump, and let go of
     if (taped && !LOOPER.on) LOOPER.cancel();
     try { d.a.currentTime = Math.max(0, to); } catch (e){}
-    if (AE.ctx) d._tapeT0 = AE.ctx.currentTime;                // the song jumped NOW; its 'seeking' is only queued
+    if (AE.ctx) d._tapeT0 = d._askedT = AE.ctx.currentTime;    // the song jumped NOW; its 'seeking' is only queued
     window.__mb8LastSeek = { to: Math.max(0, to), ctx: AE.ctx ? AE.ctx.currentTime : 0 };   // the probes read where it aimed
     if (taped){ L.jumped = true; this._latchLanded(d, keep, false); }
     else if (keep) this.setLoop(keep, false);
@@ -27181,23 +27237,28 @@ const FX = {
      it really is: setLoop cuts from the tape counted since the jump, so the
      in-point is the first line past the settle. Anything else the hand does
      meanwhile — another pad, a release, a track change — overtakes it (the
-     generation), and after three seconds it latches anyway and lets setLoop
-     fall back to the re-seek loop if the deck is still not there. */
+     generation), a lane still in hand holds it until the hand lets go, and
+     after three seconds it latches anyway and lets setLoop fall back to the
+     re-seek loop if the deck is still not there (arm refuses a deck that is
+     seeking or stalled). */
   _latchLanded(d, beats, roll){
     const gen = this._latchGen = (this._latchGen || 0) + 1;
     if (this.loop) this.loop.relatch = gen;
-    const t0 = performance.now();
-    let prev = -1;
+    let t0 = performance.now(), prev = -1;
     const look = () => {
       const L = this.loop;
       if (gen !== this._latchGen || !L || L.relatch !== gen) return;
       if (activeDeck() !== d || !player.playing){ if (LOOPER.engaged()) LOOPER.cancel(); this.loop = null; return; }
+      // a lane still being dragged: the deck has not arrived anywhere yet; the held loop covers until the hand lets go
+      if (this._scrubbing === d){ prev = -1; t0 = performance.now(); setTimeout(look, 15); return; }
       const ct = d.a.currentTime;
       const landed = !d.a.seeking && d.a.readyState >= 3 && prev >= 0 && ct > prev;
       prev = d.a.seeking ? -1 : ct;
       if (!landed && performance.now() - t0 < 3000){ setTimeout(look, 15); return; }
       this.loop = null;                                        // the held loop (if any) is crossed out of by the new arm
       this.setLoop(L.beats || beats, roll, true);              // (a length changed while it waited is the one latched)
+      // nothing latched after all: a covering loop must not be left playing with nothing that owns it
+      if (!this.loop && LOOPER.engaged()){ LOOPER.cancel(); this.hand(); }
     };
     setTimeout(look, 15);
   },
@@ -27773,8 +27834,9 @@ const FX = {
   setLoop(beats, roll, landed){
     const d = activeDeck();
     if (!d || !player.playing) return;
-    // a loop belongs to the record on air: the needle, the lanes, the jog and the commit all follow the air
-    if (typeof DECKS !== 'undefined' && DECKS.handSlot() !== AE.active) return;
+    // a loop belongs to the record on air: the needle, the lanes, the jog and the commit all follow the air.
+    // (A re-latch after a jump is that record's own loop coming back, whatever deck the hand touched meanwhile.)
+    if (!landed && typeof DECKS !== 'undefined' && DECKS.handSlot() !== AE.active) return;
     const slot = AE.active;
     // a hand's press overtakes a loop still waiting to be latched again after a jump: this press is the loop now
     if (!landed){ this._latchGen = (this._latchGen || 0) + 1; if (this.loop && this.loop.relatch) this.loop = null; }
@@ -27793,8 +27855,10 @@ const FX = {
     /* NOT FROM A DECK THAT HAS NOT LANDED. A loop pressed while the deck is still
        seeking (a cue, then a loop inside the seek) would be cut from a playhead
        that reads where the deck was sent, over tape that is still the old place
-       or the seek's gap. It is shown at once and latched once the deck is there. */
-    if (taped && d.a.seeking && !landed){
+       or the seek's gap — and one pressed during a stall, from a playhead that
+       stands still over tape that is silence. It is shown at once and latched
+       once the deck is playing where it says. */
+    if (taped && (d.a.seeking || d.a.readyState < 3) && !landed){
       const b0 = loopBounds(d.a.currentTime, this.grid(), bpm, beats);
       if (LOOPER.engaged()) LOOPER.cancel();
       this.loop = { start: b0.start, len: b0.len, beats, roll: !!roll, heldFrom: d.a.currentTime };
@@ -27944,7 +28008,7 @@ const FX = {
         LOOPER.follow(d);
         if (!L.roll && isFinite(d.a.duration) && d.a.duration - d.a.currentTime < 4){
           try { d.a.currentTime = L.start; } catch (e){}
-          if (AE.ctx) d._tapeT0 = AE.ctx.currentTime;
+          if (AE.ctx) d._tapeT0 = d._askedT = AE.ctx.currentTime;
           LOOPER.mark();
         }
       }
@@ -29439,6 +29503,7 @@ function wireBoothScrub(){
     id = ev.pointerId;
     try { cv.setPointerCapture(id); } catch (e){}
     DECKS.focus = p.slot; DECKS.hand();           // the lane's deck is the hand's from here
+    FX._scrubbing = p.deck;                         // a loop waiting to be latched again waits for the hand to let go
     FX._seek(p.deck, p.to); FX.hand();
     ev.preventDefault();
   });
@@ -29460,10 +29525,12 @@ function wireBoothScrub(){
   });
   const up = ev => {
     if (jog && ev.pointerId === jog.id){ const hand = VINYL.for(jog.deck); jog = null; hand.lift(); VINYL._cursor(); return; }
-    if (ev.pointerId === id){ id = null; if (typeof mediaSessionPosition === 'function') mediaSessionPosition(); }
+    if (ev.pointerId === id){ id = null; FX._scrubbing = null; if (typeof mediaSessionPosition === 'function') mediaSessionPosition(); }
   };
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', up);
+  // a capture lost without an up (the page hid, the pointer went away) must not hold a loop's re-latch forever
+  cv.addEventListener('lostpointercapture', ev => { if (ev.pointerId === id){ id = null; FX._scrubbing = null; } });
   // a wheel over a platter is a push of the record's edge: the motor briefly over or under speed — a pitch bend
   cv.addEventListener('wheel', ev => {
     const j = onJog(ev);

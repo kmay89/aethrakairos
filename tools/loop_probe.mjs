@@ -154,7 +154,8 @@ await page.evaluate(async () => {
     let holes = 0, run = 0; const w = Math.round(0.005 * sr);
     for (let i = i0; i < i1; i++){ if (Math.abs(x[i]) < 1e-4){ if (++run === w) holes++; } else run = 0; }
     let lap = null;
-    if (n > 0){ let d = 0; for (let i = i0 + n; i < i1; i++) d = Math.max(d, Math.abs(x[i] - x[i - n])); lap = peak > 0 ? d / peak : 1; }
+    // (a stretch shorter than two loops compares nothing, and reads as no answer at all — never as a perfect one)
+    if (n > 0){ let d = 0; for (let i = i0 + n; i < i1; i++) d = Math.max(d, Math.abs(x[i] - x[i - n])); lap = i1 - i0 < 2 * n ? NaN : peak > 0 ? d / peak : 1; }
     return { sec: (i1 - i0) / sr, rms, peak, worst, p9999, holes, lap, gaps: r.gaps };
   };
   // the music's energy in one narrow band (Goertzel), and its high end (a first difference)
@@ -393,15 +394,32 @@ const rated = await page.evaluate(async () => {
   const a = window.frameNow();
   await new Promise(r => setTimeout(r, 3200));
   const b = window.frameNow();
+  // …and doubled, then halved back, still at ×1.25: four heard beats, then two
+  FX.resizeLoop(1);
+  let t2 = Date.now();
+  while (LOOPER.N !== 2 * want && Date.now() - t2 < 5000) await new Promise(r => setTimeout(r, 20));
+  await new Promise(r => setTimeout(r, 300));
+  const c = window.frameNow();
+  while (window.frameNow() - c < 2.3 * 2 * want) await new Promise(r => setTimeout(r, 50));   // two laps and change, on the audio clock
+  const e = window.frameNow(), N2 = LOOPER.N;
+  FX.resizeLoop(-1);
+  await new Promise(r => setTimeout(r, 300));
+  const g = window.frameNow();
+  await new Promise(r => setTimeout(r, 2200));
+  const h = window.frameNow(), N3 = LOOPER.N;
   await window.recStop();
   FX.clearLoop();
   SPEED.idx = 0; SPEED.apply();
   await new Promise(r => setTimeout(r, 300));
-  return { rate, N, want, on: LOOPER.cycles > 0, heard: window.measure(a, b, want).lap, cut: window.measure(a, b, N).lap };
+  return { rate, N, N2, N3, want, on: LOOPER.cycles > 0, heard: window.measure(a, b, want).lap, cut: window.measure(a, b, N).lap,
+           doubled: window.measure(c, e, 2 * want).lap, halved: window.measure(g, h, want).lap };
 });
 R('a loop at ×1.25 is two beats of what the room hears — judged from the output, it repeats every two heard beats',
   Math.abs(rated.rate - 1.25) < 1e-6 && rated.heard < 0.005 && Math.abs(rated.N - rated.want) <= 1,
   `the music repeats at ${rated.want} frames to ${(rated.heard * 100).toFixed(3)}% of peak · the tape cut ${rated.N} frames (${(rated.N / rated.want * 2).toFixed(2)} beats)`);
+R('…and halved or doubled at ×1.25 it is still beats of what the room hears: four, then two again',
+  Math.abs(rated.N2 - 2 * rated.want) <= 1 && rated.doubled < 0.005 && Math.abs(rated.N3 - rated.want) <= 1 && rated.halved < 0.005,
+  `doubled: ${rated.N2} frames, repeating at four heard beats to ${(rated.doubled * 100).toFixed(3)}% · halved back: ${rated.N3}, at two to ${(rated.halved * 100).toFixed(3)}%`);
 
 /* A JUMP UNDER A HELD LOOP. A beat jump or a cue moves the loop with it: the
    same length is latched again at the new place. Under a tape loop that loop
@@ -511,28 +529,104 @@ R('doubled and straight back before the tape could take it: the loop stays the l
    millisecond on (as the watchdog's heal does) while the tape is still
    recording the loop's first pass: that pass is no longer the song in order,
    and it must never be cut into the tape — the loop is handed to the re-seek
-   path, on the in-point the hand pressed, and keeps looping there. */
-const broke = await page.evaluate(async () => {
+   path, on the in-point the hand pressed, and keeps looping there. Judged by
+   the processor's own reports (it must never have taken the cut) and by the
+   output: after the out-point the music must not repeat the first pass, as a
+   tape loop of it would, sample for sample. Main-thread state alone cannot tell
+   a tape that let go from one that was never told to. */
+const brokeRun = async (lateMs) => page.evaluate(async lateMs => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
   FX.clearLoop(); LOOPER.cancel();
   activeDeck().a.currentTime = 1.0;
-  await new Promise(r => setTimeout(r, 900));
-  const d = activeDeck();
-  FX.setLoop(4, false);                                  // a two-second first pass
-  await new Promise(r => setTimeout(r, 120));
-  const pending = LOOPER.pending, L = FX.loop;
-  d.a.currentTime = d.a.currentTime + 0.001;
+  await sleep(900);
+  const d = activeDeck(), sr = AE.ctx.sampleRate;
+  window.recStart();
+  FX.setLoop(2, false);                                  // a one-second first pass
+  const gen = LOOPER.gen, L = FX.loop, N = LOOPER.N, A = LOOPER.A, cut = (A + N) / sr;   // the out-point, as armed
+  const tape = LOOPER.node(LOOPER.deck), modes = [];
+  const hear = e => { const m = e.data || {}; if (m.gen === gen && m.mode) modes.push(m.mode); };
+  if (tape) tape.port.addEventListener('message', hear);
+  let jumpAt;
+  if (lateMs){
+    // just before the out-point, with the main thread busy for a frame — its 'seeking' is handled after the tape took the cut
+    while (AE.ctx.currentTime < cut - lateMs / 1000) await sleep(2);
+    jumpAt = AE.ctx.currentTime - cut;
+    d.a.currentTime = d.a.currentTime + 0.5;
+    const t = performance.now(); while (performance.now() - t < 220);
+  } else {
+    await sleep(120);
+    jumpAt = AE.ctx.currentTime - cut;
+    d.a.currentTime = d.a.currentTime + 0.001;
+  }
+  const pending = jumpAt < 0;
   window.__seeks = 0;
-  await new Promise(r => setTimeout(r, 3600));
+  await sleep(3600);
+  const b = window.frameNow();
+  await window.recStop();
+  if (tape) tape.port.removeEventListener('message', hear);
   const pos = d.a.currentTime;
-  const out = { pending, engaged: LOOPER.engaged(), loop: FX.loop === L, seeks: window.__seeks,
-    inside: L && pos >= L.start - 0.02 && pos <= L.start + L.len + 0.15 };
+  const out = { pending, jumpAt: jumpAt * 1000, engaged: LOOPER.engaged(), loop: FX.loop === L, seeks: window.__seeks,
+    inside: !!L && pos >= L.start - 0.02 && pos <= L.start + L.len + 0.15,
+    held: modes.length ? modes[modes.length - 1] === 'loop' : false,       // the processor's own last word
+    lap: window.measure(A + N + Math.round(0.4 * sr), b, N).lap };          // the output after the out-point, against itself a loop earlier
   FX.clearLoop();
   return out;
-});
+}, lateMs);
+const broke = await brokeRun(0);
 await page.waitForTimeout(400);
 R('a jump inside the pass a loop is being cut from is never cut into the tape — the re-seek loop holds the pressed in-point',
-  broke.pending && !broke.engaged && broke.loop && broke.seeks >= 1 && broke.inside,
-  `pending at the jump ${broke.pending} · on the tape after ${broke.engaged} · re-seek wraps ${broke.seeks} · inside the loop ${broke.inside}`);
+  broke.pending && !broke.engaged && !broke.held && broke.loop && broke.seeks >= 1 && broke.inside && broke.lap > 0.05,
+  `the tape's own last word ${broke.held ? 'loop' : 'pass'} · after the out-point the music repeats a lap to ${(broke.lap * 100).toFixed(1)}% (a tape loop of the pass: ~0) · re-seek wraps ${broke.seeks} · inside ${broke.inside}`);
+/* …AND ONE WHOSE EVENT IS HANDLED LATE. A seek ninety milliseconds before the
+   out-point, with the main thread then busy for a frame: by the time its
+   'seeking' is handled the tape has already taken the cut, jump and all, and
+   the old code took it for a jump under a held loop. A break is dated by when
+   it could have happened, so the spoiled cut is let go of all the same. */
+let late = null;
+for (let k = 0; k < 3 && !(late && late.pending && late.jumpAt > -150); k++){ late = await brokeRun(90); await page.waitForTimeout(400); }
+R('…and a jump just before the out-point whose event is handled after it is not looped either',
+  late.pending && late.jumpAt > -150 && !late.engaged && !late.held && late.loop && late.lap > 0.05,
+  `jumped ${late.jumpAt.toFixed(0)} ms before the out-point · the tape's own last word ${late.held ? 'loop' : 'pass'} · after the out-point the music repeats a lap to ${(late.lap * 100).toFixed(1)}%`);
+
+/* A RE-LATCH BELONGS TO THE RECORD THAT JUMPED. A beat jump under a held loop
+   waits for the deck to land before it latches the loop again; if the hand
+   touches the other deck meanwhile (its jog, its PLAY, its lane), the latch must
+   still be taken — the loop is this record's — and above all the covering loop
+   must never be left playing with nothing that owns it: a pause must silence it. */
+const owned = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  FX.clearLoop(); LOOPER.cancel();
+  activeDeck().a.currentTime = 1.0;
+  await sleep(900);
+  FX.setLoop(2, false);
+  let t = Date.now();
+  while (!LOOPER.on && Date.now() - t < 8000) await sleep(30);
+  await sleep(1200);
+  const g0 = LOOPER.gen, hs = DECKS.handSlot;
+  FX.beatJump(4);
+  DECKS.handSlot = () => 1 - AE.active;                  // the hand on the other deck while this one lands
+  t = Date.now();
+  while (FX.loop && FX.loop.relatch && Date.now() - t < 5000) await sleep(20);
+  await sleep(200);
+  DECKS.handSlot = hs;
+  const latched = !!FX.loop && LOOPER.gen !== g0, stranded = !FX.loop && LOOPER.engaged();
+  player.pause();
+  await sleep(400);
+  window.recStart();
+  await sleep(100);
+  const a = window.frameNow();
+  await sleep(600);
+  const b = window.frameNow();
+  await window.recStop();
+  const rms = window.measure(a, b, 0).rms;
+  player.resume();
+  await sleep(600);
+  FX.clearLoop(); LOOPER.cancel();
+  return { latched, stranded, rms, playing: player.playing };
+});
+R('a jump\'s re-latch is taken though the hand touched the other deck meanwhile — and a pause then silences it',
+  owned.latched && !owned.stranded && owned.rms < 0.001 && owned.playing,
+  `latched ${owned.latched} · a loop with no owner ${owned.stranded} · rms over the pause ${owned.rms.toFixed(4)}`);
 
 /* LETTING GO OF A LATCHED LOOP lands the deck inside it, where the loop was —
    the one splice the tape cannot make alone, because the deck ran on and has to
