@@ -25,9 +25,10 @@
  * musical variation imitates — so it proves the rack is in the path of the
  * actual playing track, which is what the bench cannot prove.
  *
- *   transport  a loop must actually pull the playhead back, hold it on the
- *              beat grid, and a roll must return it to real time — the one
- *              difference that makes them two controls rather than one.
+ *   transport  a loop must actually hold the music it was cut from — judged
+ *              at the output, lap against lap, at its own period — and a roll
+ *              must return the playhead to real time: the one difference that
+ *              makes them two controls rather than one.
  *   safety     nothing here may stop, mute or strand playback, and the whole
  *              rack must return to bypass on release. A booth that leaves the
  *              master filtered after a track change is worse than no booth.
@@ -245,8 +246,10 @@ await page.evaluate(() => {
        `AE.bus.disconnect(AE.fx.in)` throws (caught, and silently) and the
        first version of this bench measured pink noise WITH the fixture's
        synth underneath it. Lifting each deck's source off its own strip is
-       exact on both paths. */
-    for (const d of AE.decks) if (d && d.src && d.shelf){ try { d.src.disconnect(d.shelf); } catch (e){} }
+       exact on both paths — and the strip now begins at the deck's loop tape
+       when one is seated (src → tape → shelf), so the source is lifted off
+       whichever node it feeds. */
+    for (const d of AE.decks) if (d && d.src && d.shelf){ try { d.src.disconnect(d.tape || d.shelf); } catch (e){} }
     if (where === 'deck'){
       const d = AE.decks[DECKS.handSlot()];
       src.connect(d.shelf);
@@ -259,7 +262,7 @@ await page.evaluate(() => {
   window.__benchOff = () => {
     try { window.__bench.stop(); window.__bench.disconnect(); } catch (e){}
     window.__bench = null;
-    for (const d of AE.decks) if (d && d.src && d.shelf){ try { d.src.connect(d.shelf); } catch (e){} }
+    for (const d of AE.decks) if (d && d.src && d.shelf){ try { d.src.connect(d.tape || d.shelf); } catch (e){} }
     if (window.__masterWas != null) AE.master.gain.value = window.__masterWas;
   };
   window.__deckId = () => {
@@ -492,86 +495,134 @@ console.log('\nthe transport — a loop latches on the grid, a roll returns you 
 id = await freshTrack();
 await page.evaluate(() => FX.release());
 await page.waitForTimeout(300);
-/* A LOOP IS JUDGED AGAINST THE TICK IT CAN FIRE ON. We re-seek a media element
-   from the frame loop; under SwiftShader a frame is 40-60 ms, so the wrap cannot
-   be sample-accurate and pretending otherwise would only make this flaky. What
-   CAN be demanded — and is the thing that matters musically — is that the loop
-   never leaves its bounds by more than one tick, and that its cycles do not
-   walk late as they repeat. So the tick period is measured alongside, and the
-   wrap-to-wrap period is checked against the loop length. */
+/* THE LOOP IS JUDGED BY WHAT THE ROOM HEARS. This check used to read the
+   deck's playhead, and then the loop's own schedule — and both were believed
+   while the speaker played something else. The old tape (a ScriptProcessor on
+   the master, its blocks handed to the main thread) drifted 130–150 ms off its
+   own clock under a busy renderer, cut its loop across the re-seek's first
+   wrap, and looped THAT splice on every lap — three onsets a cycle where the
+   music has two — while the schedule this check computed its position from
+   said the period was perfect. A position the code computes cannot catch the
+   code being wrong. So the OUTPUT is recorded, by an AudioWorklet on AE.out
+   whose frames are stamped on the audio thread (a ScriptProcessor here would
+   drop exactly the blocks a busy main thread drops), and judged three ways:
+     · every lap after the out-point is the SAME AUDIO as the lap before it,
+       sample for sample, give or take what the master limiter breathes — the
+       one honest meaning of "the loop holds the music inside it";
+     · nothing in the held stretch is a hole, and the deck is not touched;
+     · the kick comes round with the loop's period, read off the onsets in the
+       recording: a lap that runs long by a seek is a lap whose onsets land late. */
+await page.evaluate(async () => {
+  const src = `class ProbeEar extends AudioWorkletProcessor {
+    constructor(){ super(); this.on = false; this.buf = new Float32Array(1024); this.n = 0; this.f = 0;
+      this.port.onmessage = e => { this.on = !!e.data; if (!this.on && this.n){ this.port.postMessage({ f: this.f, x: this.buf.slice(0, this.n) }); this.n = 0; } }; }
+    process(inputs){
+      if (!this.on) return true;
+      const ch = inputs[0] && inputs[0][0];
+      for (let i = 0; i < 128; i++){
+        if (this.n === 0) this.f = currentFrame + i;
+        this.buf[this.n++] = ch ? ch[i] : 0;
+        if (this.n === 1024){ this.port.postMessage({ f: this.f, x: this.buf }); this.buf = new Float32Array(1024); this.n = 0; }
+      }
+      return true;
+    }
+  }
+  registerProcessor('probe-ear', ProbeEar);`;
+  await AE.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+  const ear = new AudioWorkletNode(AE.ctx, 'probe-ear', { numberOfInputs: 1, numberOfOutputs: 0, channelCount: 1, channelCountMode: 'explicit' });
+  AE.out.connect(ear);
+  window.__ear = { node: ear, chunks: [] };
+  ear.port.onmessage = e => window.__ear.chunks.push(e.data);
+  window.__earOn = () => { window.__ear.chunks = []; ear.port.postMessage(true); };
+  // messages queue rather than drop, so the recording is whole however late the main thread collects it
+  window.__earOff = () => new Promise(res => { ear.port.postMessage(false); setTimeout(() => {
+    const ch = window.__ear.chunks.slice().sort((p, q) => p.f - q.f);
+    if (!ch.length) return res(null);
+    const f0 = ch[0].f, last = ch[ch.length - 1];
+    const x = new Float32Array(last.f + last.x.length - f0);
+    let gaps = 0, want = f0;
+    for (const c of ch){ if (c.f !== want) gaps++; x.set(c.x, c.f - f0); want = c.f + c.x.length; }
+    res({ f0, x, gaps });
+  }, 400); });
+  // what was heard between frames a and b, for a loop of n frames
+  window.__heard = (rec, a, b, n, sr) => {
+    const x = rec.x, i0 = Math.max(1, a - rec.f0), i1 = Math.min(x.length, b - rec.f0);
+    let peak = 0, diff = 0;
+    for (let i = i0 + n; i < i1; i++){ const v = Math.abs(x[i]); if (v > peak) peak = v; const d = Math.abs(x[i] - x[i - n]); if (d > diff) diff = d; }
+    let holes = 0, run = 0; const w = Math.round(0.005 * sr);
+    for (let i = i0; i < i1; i++){ if (Math.abs(x[i]) < 1e-4){ if (++run === w) holes++; } else run = 0; }
+    // onsets off a first difference (the hats, not the chord), its energy against its own slow average
+    const on = []; let x1 = 0, env = 0, slow = 1e-6, ref = -1e9;
+    for (let i = 0; i < x.length; i++){
+      const h = x[i] - x1; x1 = x[i]; const e2 = h * h;
+      env += (e2 - env) * 0.02; slow += (e2 - slow) * 0.0002;
+      if (env > slow * 6 && env > 1e-6 && i - ref > sr * 0.15){ ref = i; if (i >= i0 && i < i1) on.push(i); }
+    }
+    // the period: each onset to the one that comes round a loop later
+    const per = [];
+    for (let k = 0; k < on.length; k++) for (let j = k + 1; j < on.length; j++){
+      const d = on[j] - on[k];
+      if (d > n * 1.3) break;
+      if (Math.abs(d - n) < n * 0.3){ per.push(d); break; }
+    }
+    per.sort((p, q) => p - q);
+    const iv = []; for (let k = 1; k < on.length; k++) iv.push(Math.round((on[k] - on[k - 1]) / sr * 1000));
+    return { lapDiff: peak > 0 ? diff / peak : 1, peak, holes, onsets: on.length, laps: per.length,
+             period: per.length ? per[per.length >> 1] / sr : 0, spread: per.length ? (per[per.length - 1] - per[0]) / sr : 0, iv };
+  };
+});
 const looped = await page.evaluate(() => new Promise(res => {
-  const d = activeDeck();
-  FX.setLoop(2, false);                       // two beats, latched
-  const start = FX.loop.start, len = FX.loop.len;
-  const seen = [], ticks = [], wraps = [];
-  let last = performance.now(), prev = d.a.currentTime;
-  /* SAMPLED ON A TIMER, NOT A FRAME. Under SwiftShader a frame here runs ~180 ms
-     — a third of the loop — and wrap timestamps read off it carry ±180 ms of
-     their own, which is larger than the drift being looked for. A 10 ms timer is
-     throttled too, but nothing like as hard, and it is not coupled to the render
-     the loop is being asked to survive. The rAF pass alongside it exists only to
-     report the tick period the wrap can actually fire on. */
-  const raf = () => { const n = performance.now(); ticks.push(n - last); last = n; requestAnimationFrame(raf); };
+  const d = activeDeck(), sr = AE.ctx.sampleRate;
+  // every write to the playhead while the loop is held is counted, wherever it comes from
+  const desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime');
+  let seeks = 0, counting = false;
+  Object.defineProperty(d.a, 'currentTime', { configurable: true,
+    get(){ return desc.get.call(this); }, set(v){ if (counting) seeks++; desc.set.call(this, v); } });
+  /* THE FRAME TICK, reported alongside: the loop no longer depends on it, but
+     the hot cue below is judged against the tick it can fire on, and this is
+     where that tick is measured, under the same load. */
+  const ticks = []; let last = performance.now(), ticking = true;
+  const raf = () => { if (!ticking) return; const t = performance.now(); ticks.push(t - last); last = t; requestAnimationFrame(raf); };
   requestAnimationFrame(raf);
-  let entered = false;
-  const iv = setInterval(() => {
-    /* THE POSITION THE ROOM HEARS. Once the tape has taken the loop the deck
-       runs on underneath it, muted, by design — its playhead is no longer where
-       the music is. The loop's own phase is. */
-    const t = LOOPER.on ? LOOPER.start + loopPhaseAt(AE.ctx.currentTime, LOOPER.handAt, LOOPER.len) : d.a.currentTime;
-    /* AND ONLY ONCE THE LOOP HAS BEGUN. On the first press of a session the tape
-       holds no past, so the in-point is the NEXT grid line (loopInPoint): the
-       deck plays up to it, then loops. Those samples are before the loop, not
-       outside it. */
-    if (!entered){ if (t >= start - 0.001) entered = true; else return; }
-    if (t < prev - len * 0.4) wraps.push(performance.now() / 1000);   // the playhead jumped back
-    prev = t; seen.push(t);
-  }, 10);
+  window.__earOn();
   setTimeout(() => {
-    clearInterval(iv);
-    FX.clearLoop();
-    /* THE MEDIAN GAP, not the mean. The sampler can itself stall for longer than
-       the loop — a 1 s hitch in a 10 ms timer is not rare on this renderer — and
-       a stall that spans a whole cycle makes the probe MISS a wrap, which shows
-       up as one double-length gap and drags a mean straight through the
-       threshold. It cost one false failure at 1137 ms for a 968 ms loop. A
-       missed wrap cannot move a median. */
-    const gaps = [];
-    for (let i = 1; i < wraps.length; i++) gaps.push(wraps[i] - wraps[i - 1]);
-    gaps.sort((a, b) => a - b);
-    ticks.sort((a, b) => a - b);
-    res({ start, len, max: Math.max.apply(null, seen), min: Math.min.apply(null, seen),
-      tick: ticks[ticks.length >> 1] / 1000, wraps: wraps.length,
-      period: gaps.length ? gaps[gaps.length >> 1] : 0 });
-  }, 7200);
+    counting = true;
+    FX.setLoop(2, false);                       // two beats, latched
+    const L = FX.loop, rate = d.a.playbackRate || 1, pressF = Math.round(AE.ctx.currentTime * sr);
+    setTimeout(async () => {
+      const taped = LOOPER.engaged() && LOOPER.deck === AE.active;
+      const N = taped ? LOOPER.N : Math.round(L.len / rate * sr);
+      const outF = taped ? LOOPER.A + LOOPER.N : Math.round(pressF + (L.start + L.len - L.heldFrom) / rate * sr);
+      const endF = Math.round(AE.ctx.currentTime * sr);
+      counting = false; ticking = false;
+      FX.clearLoop();
+      delete d.a.currentTime;
+      const rec = await window.__earOff();
+      // judged from a full lap after the out-point (the chain's few ms of latency well inside) up to the release
+      const h = rec ? window.__heard(rec, outF + N + Math.round(0.05 * sr), endF - Math.round(0.05 * sr), N, sr) : null;
+      ticks.sort((p, q) => p - q);
+      res({ start: L.start, len: L.len, rate, N, taped, seeks, gaps: rec ? rec.gaps : -1, h, refused: LOOPER.refused,
+        tick: ticks.length ? ticks[ticks.length >> 1] / 1000 : 0.05 });
+    }, 7200);
+  }, 400);
 }));
-const slack = Math.max(0.05, looped.tick * 1.5);
-const over = looped.max - (looped.start + looped.len);
-R('a loop actually holds the playhead inside it',
-  (await deckHeld(id)) && over <= slack && looped.min >= looped.start - 0.02,
-  'bounds [' + looped.start.toFixed(2) + ', ' + (looped.start + looped.len).toFixed(2) + '] · observed '
-    + looped.min.toFixed(2) + '–' + looped.max.toFixed(2) + ' · over by ' + (over * 1000).toFixed(0)
-    + 'ms against a ' + (looped.tick * 1000).toFixed(0) + 'ms tick');
-/* THE WRAP COSTS WHAT THE PLATFORM CHARGES. loopWrap's arithmetic — carry the
-   overshoot so cycles cannot compound — is proved in the unit tests, where it is
-   exact. What cannot be fixed from here is the SEEK: re-pointing a streaming
-   media element flushes its buffer and restarts its decoder, and that costs real
-   time during which the playhead does not move. Measured on this software
-   renderer it runs from ~0 to ~450 ms per wrap depending on how hard the machine
-   is breathing, which lands the cycle anywhere from 968 ms to 1.4 s for a 968 ms
-   loop. So this is tracked as a number, not asserted as a contract: asserting it
-   would be asserting the host's seek latency.
-
-   Buying it back would mean decoding loops through an AudioBufferSource, which
-   is genuinely sample-accurate — and which the rest of the app deliberately does
-   not do, because streaming elements are what keep iOS's decoder budget and
-   background-audio blessing intact. That trade is the app's, not this loop's. */
-const excess = looped.period - looped.len;
-O('and its cycles do not walk late as it repeats',
-  looped.wraps >= 4 && excess < looped.len * 0.06,
-  looped.wraps + ' wraps, a median ' + (looped.period * 1000).toFixed(0) + 'ms apart for a '
-    + (looped.len * 1000).toFixed(0) + 'ms loop · ' + (excess * 1000).toFixed(0)
-    + 'ms of it the element seek, against a ' + (looped.tick * 1000).toFixed(0) + 'ms tick');
+const lh = looped.h || { lapDiff: 1, holes: -1, laps: 0, period: 0, spread: 0, iv: [] };
+R('a loop holds the music inside it — every lap after the out-point is the same audio, no hole, the deck untouched',
+  (await deckHeld(id)) && looped.taped && looped.gaps === 0 && lh.lapDiff < 0.02 && lh.holes === 0 && looped.seeks === 0,
+  (looped.taped ? 'on the deck\'s tape' : 'NOT on the tape (re-seek fallback)') + ' · lap against lap ' + (lh.lapDiff * 100).toFixed(2)
+    + '% of peak · holes ' + lh.holes + ' · seeks while held ' + looped.seeks + ' · recorder gaps ' + looped.gaps);
+/* THE CYCLE IS THE CYCLE. Measured on the re-seek loop this ran 968 ms to
+   1.4 s for a 968 ms loop: each wrap cost whatever the decoder took to come
+   back, 0–450 ms on this renderer, and no arithmetic on the playhead could buy
+   it back. The loop now wraps inside the deck's tape, between two samples on
+   the audio thread, so the onsets in the recording come round every N frames
+   exactly — the spread across the laps is the onset detector's, not the loop's,
+   and the claim is held to two milliseconds against a 968 ms cycle. */
+R('and its cycles do not walk late as it repeats',
+  lh.laps >= 4 && Math.abs(lh.period - looped.len / looped.rate) < 0.002 && lh.spread < 0.002,
+  lh.laps + ' laps heard, a median ' + (lh.period * 1000).toFixed(1) + 'ms apart for a '
+    + (looped.len / looped.rate * 1000).toFixed(1) + 'ms loop, spread ' + (lh.spread * 1000).toFixed(1)
+    + 'ms · onsets ' + lh.iv.slice(0, 10).join('/') + 'ms');
 
 /* AND THE BOOTH MAY NOT TAKE A RATE IT DOES NOT OWN. release() puts playbackRate
    back, which is right after a brake and wrong during a seam — the mixer sets
@@ -773,8 +824,8 @@ R('hot cue: pressed mid-beat, the jump waits for the line', !cue.bad && (!cue.gr
   cue.bad ? 'no cue' : 'phase at press ' + cue.phaseAtPress.toFixed(2) + ' beat · waited=' + cue.waited);
 // a jump may now go up to half a frame EARLY on a slow frame clock (carrying
 // the lead, exactly as it carries lateness), so "aimed" may be a little negative
-/* …measured against the clock the jump can actually fire on, the same way the
-   loop checks are: a jump taken at the top of a frame is within half a frame of
+/* …measured against the clock the jump can actually fire on (the frame tick,
+   timed during the loop above): a jump taken at the top of a frame is within half a frame of
    its line at best (it goes early rather than a whole frame late — see
    FX.jumpTick), so the promise is "within 30 ms, or within a frame's half on a
    renderer too slow to offer 30". On a real GPU the frame is 16 ms and this is
