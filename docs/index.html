@@ -11028,6 +11028,14 @@ function ensureCtx(){
     // pauses the element; reflect it, and recover cleanly when play returns.
     d.a.addEventListener('pause', () => {
       if (d.priming || i !== AE.active || AE.xfading || d._healing || d._swapping) return;   // a self-heal reload's or a src-swap's pause is not the listener's
+      /* A PAUSE THE ELEMENT HAS ALREADY BEEN PLAYED OUT OF IS STALE. The event
+         is queued, not dispatched: a deck paused and started again in one task
+         — a pre-rolled cue let go at fire() and placed the old way, or parked
+         by a skip that then puts the next record on that very deck — hears its
+         'pause' after it is on air and rolling, and read as the system's it
+         flipped a playing transport to paused for a frame (long enough for the
+         mixer to tear a seam down). What the system pauses stays paused. */
+      if (!d.a.paused) return;
       if (player.playing && !d.a.ended){
         player.playing = false; updatePlayIcon(); player.renderList();
         // forensics: a pause nobody in this app asked for gets named, so "it
@@ -11309,6 +11317,9 @@ const DECKS = {
   isLive(i){
     if (!AE.decks || !(i === 0 || i === 1)) return false;
     if (i === AE.active) return true;
+    // the auto-DJ's pre-rolled cue is rolling, silent, and the mixer's alone: it
+    // is no hand's record, so neither the watchdog nor an 'ended' judges it (MIXER.cueing)
+    if (typeof MIXER !== 'undefined' && MIXER.cueing(AE.decks[i])) return false;
     if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual') && AE.decks[i] === MIXER.outDeck) return true;
     if (this.slots[i].owner === 'hand') return true;
     return xfaderGains(this.fader.x, this.fader.curve)[i] > 0.01;
@@ -11392,7 +11403,7 @@ const DECKS = {
     try { d.a.pause(); } catch (e){}
     if (typeof MIXER !== 'undefined') MIXER._clearPreloadListener(d);
     if (typeof VINYL !== 'undefined') VINYL.drop(slot);   // a record changing on this deck takes its platter away
-    d._warmed = true; d._seekTo = cue;
+    d._warmed = true; d._seekTo = cue; d._cueAt = null;     // a hand's park, never a cue's
     try { if (d.a.preload !== 'auto') d.a.preload = 'auto'; } catch (e){}
     const src = (typeof PREFETCH !== 'undefined') ? PREFETCH.playable(track) : track.url;
     d.norm = normLin(track);
@@ -11428,6 +11439,7 @@ const DECKS = {
     if (typeof MIXER !== 'undefined') MIXER._clearPreloadListener(d);
     if (typeof VINYL !== 'undefined') VINYL.drop(slot);
     try { d.a.removeAttribute('src'); d.a.load(); } catch (e){}
+    d._cueAt = null;
     this._gainTo(d, 0);
     s.trackIdx = -1; s.owner = 'free'; s.pitch = 1; s.synced = false; s.cue = 0;
     s.silentFor = 0; s.cueHeld = false; s.stuckFor = 0;
@@ -11497,6 +11509,9 @@ const DECKS = {
     if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return false;
     if (this.retiring(slot)) return false;
     this.hand();
+    // a hand on the cued deck has it: the cue is parked again first, so CUE
+    // meets the paused deck it always met, and the record is not rolled under the hand
+    if (!onAir && typeof MIXER !== 'undefined' && MIXER.cueing(d)) MIXER._uncue('hand on the cue', { veto: true });
     if (held === true){
       if (!onAir){
         if (!AE.graphLive) return false;
@@ -11538,6 +11553,7 @@ const DECKS = {
     if (!AE.decks || !AE.graphLive || !(slot === 0 || slot === 1)) return false;
     const s = this.slots[slot], d = AE.decks[slot], m = 1 - slot, dm = AE.decks[m];
     this.hand();
+    if (typeof MIXER !== 'undefined' && MIXER.cueing(d)) MIXER._uncue('hand on sync', { veto: true });   // SYNC on the cued deck: the hand has it (see cue())
     if (s.synced){ s.synced = false; s.pitch = 1; SPEED.apply(); return false; }
     if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return false;
     if (this.retiring(slot)) return false;              // its phase take would seek a record still fading out
@@ -11572,9 +11588,11 @@ const DECKS = {
     AE.decks.forEach((d, i) => {
       if (!d.fader) return;
       if (AE.xfading && i !== AE.active) return;
-      if (g[i] >= 0.999 && d._faderRampTo > now) return;
+      // a pre-rolled cue is silent on its fader whatever the handle says (MIXER._cueRoll)
+      const gi = (typeof MIXER !== 'undefined' && MIXER.cueing(d)) ? 0 : g[i];
+      if (gi >= 0.999 && d._faderRampTo > now) return;
       d._faderRampTo = 0;
-      this.gainWrite(d.fader.gain, g[i], 0.006);
+      this.gainWrite(d.fader.gain, gi, 0.006);
     });
   },
   // the mixer paints x from its seam ('auto'); anything else moves the level
@@ -11602,6 +11620,10 @@ const DECKS = {
     }
     const f = this.fader;
     this.hand();
+    // a cue rolling under an armed plan is parked again before the hand moves
+    // anything: from here the deck is exactly the paused, parked deck a hand
+    // on the handle always met (the plan itself is let go on the next update)
+    if (typeof MIXER !== 'undefined') MIXER._uncue('hand on the handle');
     f.hand = true; f.handAt = performance.now(); f.glide = 0;   // a hand landing ends an AUTO glide
     if (typeof MIXER !== 'undefined' && MIXER.phase === 'running'){
       const outSlot = AE.decks.indexOf(MIXER.outDeck);
@@ -11659,7 +11681,7 @@ const DECKS = {
     if (f.mode === 'auto') return false;
     const manual = typeof MIXER !== 'undefined' && MIXER.phase === 'manual';
     const far = 1 - AE.active, fd = AE.decks[far];
-    const farRolling = !!(this.track(far) && fd && !fd.a.paused && !fd.a.ended);
+    const farRolling = !!(this.track(far) && fd && !fd.a.paused && !fd.a.ended && !(typeof MIXER !== 'undefined' && MIXER.cueing(fd)));
     const to = xfaderAutoTo({ manual, x: f.x, active: AE.active, farRolling });
     if (!f.hand && f.mode === 'rest' && Math.abs(f.x - to) < 1e-6) return false;
     if (!f.hand && !this.faderGrab(f.x)) return false;
@@ -11693,6 +11715,7 @@ const DECKS = {
     const nd = AE.decks[inSlot], od = AE.decks[1 - inSlot];
     const i = this.slots[inSlot].trackIdx;
     if (!player.tracks[i] || nd.a.paused || nd.a.ended) return false;
+    if (typeof MIXER !== 'undefined' && MIXER.cueing(nd)) return false;   // a silent cue is not a record a hand can push on air
     if (this.retiring(inSlot)) return false;                // its gain is still fading out: nothing commits a record that is leaving
     if (typeof MIXER !== 'undefined' && MIXER.phase === 'armed') MIXER.cancel('hand');   // the auto plan onto this deck is overtaken
     const retired = player.cur;
@@ -11912,7 +11935,8 @@ const DECKS = {
     const g = xfaderGains(this.fader.x, this.fader.curve);
     AE.decks.forEach((d, i) => {
       const s = this.slots[i], onAir = i === AE.active;
-      const rolling = !d.a.paused && !d.a.ended;
+      // a pre-rolled cue is the mixer's, silent on purpose: not a record left under a shut handle
+      const rolling = !d.a.paused && !d.a.ended && !(typeof MIXER !== 'undefined' && MIXER.cueing(d));
       s.silentFor = (rolling && !onAir && !auto && g[i] < 0.01) ? s.silentFor + dt : 0;
       if (faderIdleStop({ gain: auto ? 1 : g[i], silentFor: s.silentFor, onAir, hand: this.fader.hand, cueHeld: s.cueHeld,
                           after: this.idleStopSec > 0 ? this.idleStopSec : undefined })){
@@ -11972,7 +11996,7 @@ const DECKS = {
 window.__mb8Decks = () => ({
   active: AE.active, phase: (typeof MIXER !== 'undefined') ? MIXER.phase : '',
   slots: DECKS.slots.map((s, i) => ({ owner: s.owner, trackIdx: s.trackIdx, pitch: s.pitch, synced: s.synced, cue: s.cue,
-    silentFor: s.silentFor, paused: AE.decks ? AE.decks[i].a.paused : true,
+    silentFor: s.silentFor, paused: AE.decks ? AE.decks[i].a.paused : true, cueing: AE.decks ? MIXER.cueing(AE.decks[i]) : false,
     gain: AE.decks && AE.decks[i].gain ? AE.decks[i].gain.gain.value : -1,
     fader: AE.decks && AE.decks[i].fader ? AE.decks[i].fader.gain.value : -1,
     title: DECKS.track(i) ? DECKS.track(i).title : null })),
@@ -14798,6 +14822,7 @@ const SPEED = {
     // writing them here mid-blend would snap the glide and re-engage the stretcher
     const seam = typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual');
     if (AE.decks && !seam) AE.decks.forEach((d, i) => {
+      if (typeof MIXER !== 'undefined' && MIXER.cueing(d)) return;   // a rolling cue takes its rate from the seam (below)
       try {
         // each deck composes the listener's speed with its own pitch (SYNC),
         // and a synced deck rides vinyl: the stretcher's smear is what SYNC
@@ -14808,6 +14833,9 @@ const SPEED = {
         setPitchLock(d.a, this.keyLock && !(s && s.synced));
       } catch (e){}
     });
+    // …and a rolling cue is re-rated from the same speed and the on-air pitch,
+    // so both decks move together and its arrival is untouched (seamCueTarget)
+    if (typeof MIXER !== 'undefined' && !seam) MIXER._cueRate();
     const b = document.getElementById('btnSpeed');
     if (b){ b.textContent = this.rate + '×'; b.classList.toggle('on', this.rate !== 1); }
   },
@@ -20973,6 +21001,148 @@ function seamEntry(plan, tA, maxSlip){
   const slip = raw < -lead ? -lead : (raw > cap ? cap : raw);
   return Math.max(0, (p.startB || 0) + slip);
 }
+/* THE CUED DECK — a DJ's pre-roll, as arithmetic.
+   The lead-in buys B a second to get going, and a media element's resume
+   runs 210-680 ms under a busy main thread; where the incoming track enters
+   near its own top the lead is capped by the runway, and the tail of that
+   resume lands inside the blend as a soft entry. A DJ does not start the
+   record when the fader moves. They start it early, in the headphones, from
+   a point that carries it onto the downbeat exactly as the fader opens — and
+   when the moment comes there is nothing left to do but push.
+   So, where the incoming track has material before its entry, B is PARKED
+   (the warm's pre-seek lands it here, one ranged stream as ever) a few
+   seconds short of where the seam will need it, let go SILENTLY while the
+   seam is still armed, and steered onto the plan's grid with its tempo
+   alone — nobody can hear the pitch of a deck at zero gain. fire() then
+   finds it rolling and aligned, makes no placement seek and calls no play(),
+   and the latch has a few milliseconds to take instead of a resume to wait
+   for. Every number below is a function of the plan and two playheads, so
+   the whole thing is time-invariant: notice the moment late and both decks
+   have advanced together, which is the same property seamEntry() uses from
+   the other side.
+     SEAM_CUE_S    how long the cue rolls before the seam, nominally (s, wall)
+     SEAM_CUE_MIN  the least pre-roll worth taking; less and the lead-in is as good
+     SEAM_CUE_TOL  how close B must be at fire to skip the placement — under the
+                   take's own seek threshold (seamTake), so the residual is
+                   pulled in by tempo, never seeked
+     SEAM_CUE_LAT  the first guess at play()'s latency, before a seam has measured one */
+const SEAM_CUE_S = 2.5;
+const SEAM_CUE_MIN = 1.2;
+const SEAM_CUE_TOL = 0.030;
+const SEAM_CUE_LAT = 0.30;
+// WHERE B SHOULD BE for A at tA — the plan's own grid relation, phase-true.
+// Through the armed window both decks play at the seam's f = 0 rates (A at
+// glideRates' rateA, which is 1 there, B at rateB, both times the same pitch
+// carry and listener speed), so B covers rateB of its seconds for every one of
+// A's. That ratio is exactly what makes seamPhaseErr read zero; seamEntry's
+// one-for-one slip is the approximation a seek can afford and a roll cannot.
+function seamCueTarget(plan, tA){
+  const p = plan || {};
+  if (p.type !== 'beatmix' || !isFinite(tA) || !(p.bpmA > 0) || !(p.bpmB > 0)) return NaN;
+  const g = glideRates(p.bpmA, p.bpmB, 0);
+  return (p.startB || 0) + (tA - (p.startA || 0)) * (g.rateB / g.rateA);
+}
+// WHERE TO PARK the incoming deck, or null for no cue (the old parking, a
+// lead-in before the entry, stands). The entry is where B must be as the seam
+// FIRES (the lead-in short of its downbeat, on the phase-true map); the park is
+// SEAM_CUE_S of A's time before that, shortened to what the file has before
+// the entry and to what the clock has before the seam (o.tA, with a second to
+// settle the park and o.lat for play() to answer). Less than SEAM_CUE_MIN of
+// it is not worth a cue. A MIX NOW plan fires a bar from now and keeps the
+// parking it always had. o: { tA, rA (A's playback rate), window, min, lat }.
+function seamCuePoint(plan, o){
+  const p = plan || {}, s = o || {};
+  if (p.type !== 'beatmix' || p.now) return null;
+  const rA = s.rA > 0 ? s.rA : 1;
+  const exitAt = (p.startA || 0) - seamLeadFor(p);
+  const entry = seamCueTarget(p, exitAt);
+  if (!isFinite(entry)) return null;
+  const g = glideRates(p.bpmA, p.bpmB, 0), per = g.rateB / g.rateA;      // B's seconds per one of A's
+  const lat = (s.lat == null ? SEAM_CUE_LAT : s.lat) * rA;
+  let w = (s.window == null ? SEAM_CUE_S : s.window) * rA;               // in A's seconds
+  if (isFinite(s.tA)) w = Math.min(w, exitAt - s.tA - lat - rA);
+  w = Math.min(w, entry / per);                                          // never before the top of B's file
+  if (!(w >= (s.min == null ? SEAM_CUE_MIN : s.min) * rA)) return null;
+  return Math.max(0, entry - w * per);
+}
+// IS IT TIME TO LET GO OF THE RECORD? B is parked (paused) at o.at; A is at
+// o.tA, moving at o.rA, and the seam fires when A reaches o.exitAt. play()
+// takes about o.lat seconds to answer, so B is let go when its target, that
+// far ahead, has reached the park — then it begins moving exactly where the
+// grid wants it. One of:
+//   wait   not yet (`in`: wall seconds until it is)
+//   roll   now, from where it is parked — no seek at all
+//   late   its moment has passed (a seek on A, a seam re-cued a bar later, a
+//          tab that came back): move it on to `to`, then let go
+//   miss   too little time left to be worth it: the seam places B as it always has
+// Returns { act, to, left } — left is wall seconds until the seam fires.
+function seamCueDue(plan, o){
+  const p = plan || {}, s = o || {};
+  const rA = s.rA > 0 ? s.rA : 1;
+  const exitAt = s.exitAt != null ? s.exitAt : (p.startA || 0) - seamLeadFor(p);
+  const lat = s.lat == null ? SEAM_CUE_LAT : s.lat;
+  const min = s.min == null ? SEAM_CUE_MIN : s.min;
+  const tol = s.tol == null ? SEAM_CUE_TOL : s.tol;
+  const left = (exitAt - s.tA) / rA;
+  const to = seamCueTarget(p, s.tA + lat * rA);
+  if (!isFinite(to) || !isFinite(s.at) || !isFinite(left)) return { act: 'miss', to: NaN, left: 0 };
+  if (left < min + lat) return { act: 'miss', to, left };
+  if (to < s.at - 0.004){
+    const g = glideRates(p.bpmA, p.bpmB, 0);
+    return { act: 'wait', to, left, in: (s.at - to) / (rA * g.rateB / g.rateA) };
+  }
+  if (to <= s.at + tol) return { act: 'roll', to, left };
+  return { act: 'late', to, left };
+}
+// STEERING THE ROLLING CUE, once a read. errSec is where B should be minus
+// where it is (positive: B behind). B is silent, so its tempo may be leaned on
+// far harder than the seam's own take allows (a half-speed swing is still
+// zero gain), re-decided on every read. But a pull is a RATE, left standing
+// until the next read comes — and under a renderer that holds the main thread
+// for a second (a room compiling) a pull sized to close the gap in a quarter
+// second carries straight through it and out the other side: a 200 ms start
+// overshot by 360 ms, simulated, which is past the point a pull may handle.
+// So the gap is closed over half a second at the least, and over three of the
+// reads as they are actually arriving (o.dt, the observed interval) when they
+// come slower than that — the seam's own take keeps the same rule. A stall of
+// a second then overshoots by less than the error it started from. Only a miss
+// no pull should be trusted with — a seek on A, a start a third of a second
+// off — is a seek, and only while there is time to roll on afterwards; past
+// that the cue is dropped and the seam places B as it always did.
+// Returns { act: 'seek' | 'pull' | 'hold' | 'drop', pull }.
+function seamCueStep(errSec, o){
+  const s = o || {};
+  const left = s.left == null ? Infinity : s.left;
+  const big = s.big == null ? 0.30 : s.big;
+  const done = s.done == null ? 0.002 : s.done;
+  const tau = s.tau != null ? s.tau : Math.max(0.5, 3 * (+s.dt > 0 ? +s.dt : 0));
+  const maxPull = s.maxPull == null ? 0.5 : s.maxPull;
+  const maxSeeks = s.maxSeeks == null ? 2 : s.maxSeeks;
+  const min = s.min == null ? SEAM_CUE_MIN : s.min;
+  if (!isFinite(errSec)) return { act: 'hold', pull: 0 };
+  const e = Math.abs(errSec);
+  if (e > big) return (left >= min && (s.seeks | 0) < maxSeeks) ? { act: 'seek', pull: 0 } : { act: 'drop', pull: 0 };
+  if (e <= done) return { act: 'hold', pull: 0 };
+  return { act: 'pull', pull: Math.max(-maxPull, Math.min(maxPull, errSec / tau)) };
+}
+// DOES THE CUE HOLD at the moment the seam fires? B genuinely rolling (its
+// playhead moving, not a stall, not paused, a stream under it) and within
+// SEAM_CUE_TOL of where the grid wants it. Anything else and fire() takes the
+// placement path exactly as it always has — a cue is an optimisation, never a
+// second way for a seam to go wrong.
+function seamCueHolds(o){
+  const s = o || {};
+  const tol = s.tol == null ? SEAM_CUE_TOL : s.tol;
+  return !!s.rolling && isFinite(s.err) && Math.abs(s.err) <= tol;
+}
+// play()'s latency, learned the way _startLat is: a slow blend of what each
+// cue measured, bounded so one pathological start cannot teach the next one
+// to let go a second early.
+function seamCueLearn(prev, measured){
+  const p = isFinite(prev) && prev > 0 ? prev : SEAM_CUE_LAT;
+  if (!isFinite(measured) || measured <= 0) return p;
+  return Math.max(0.05, Math.min(0.8, p * 0.7 + measured * 0.3));
+}
 /* THE ROOM CHANGES HANDS WITH THE MUSIC. A seam is the one moment a set
    has that is bigger than a bar line — a new track, a new key, a new
    tempo — and the visual director used to sleep through it, changing rooms
@@ -23089,6 +23259,15 @@ const MIXER = {
   _lastRateA: 1, _lastRateB: 1,
   _pA: 1,                        // the on-air record's pitch at fire (a hand's SYNC), carried home across the seam
   _clkA: makeMediaClock(), _clkB: makeMediaClock(),
+  /* THE CUED DECK's runtime (seamCuePoint and its family, @mix). `_cue` exists
+     only while B is rolling silently for a seam that has not fired — it is the
+     one reason the idle element may be unpaused under an armed plan, and
+     cueing() is how everything else asks. `_cueT` is its own poll; `_cueLat`
+     play()'s latency, learned per session; `_cueDone` says this plan's cue has
+     run its course (fired, missed, refused) and `_cueRolls` bounds how often
+     one plan may try; `_cueVetoRec` is a record a hand touched on the idle
+     deck, which is never rolled out from under that hand. */
+  _cue: null, _cueT: null, _cueLat: SEAM_CUE_LAT, _cueDone: false, _cueRolls: 0, _cueVetoRec: null,
 
   available(){ return allTracks().some(t => t.mix && t.mix.mixable >= 0.5); },
 
@@ -23117,6 +23296,10 @@ const MIXER = {
     this._stopSampler();
     if (this._fireT){ clearInterval(this._fireT); this._fireT = null; }
     this._fireAt = null;
+    // a cue rolling for the plan being let go of is stopped and parked again
+    // first — paused where the warm left it, at its own rate, both nodes still
+    // at zero — so everything below meets the deck exactly as it always has
+    this._uncue('cancel:' + (reason || ''));
     if (this.phase === 'idle'){ syncMixHud(); return; }
     if (typeof SEGUE !== 'undefined') SEGUE.cueSeam(null);
     const blending = this.phase === 'running' || this.phase === 'manual';
@@ -23225,6 +23408,7 @@ const MIXER = {
       if (held){ this.cancel('hand'); return; }
       const exitAt = this.exitTime(d.a.duration, this.plan, player.tracks[player.cur]);
       this._warmB(exitAt - t);                   // the second stage of the warm, once, when A can spare the pipe
+      this._cueWatch(d, t, exitAt);              // the cued deck: B let go silently ahead of the seam (_cueTick)
       /* THE SEAM FIRES FROM A FRESH READ. Here, inside the animation frame, A's
          currentTime was cached at the top of the frame (the beat clock read it
          first) — up to a frame's work stale, and fire() places B from it, so
@@ -23307,6 +23491,7 @@ const MIXER = {
       plan = { type: 'fade', seconds: 4, why: 'screen off — coarse timers' };
     this.plan = plan;
     this.next = i;
+    this._cueReset(B);
     this._preload(B, plan, held);
     this.phase = 'armed';
     syncMixHud();
@@ -23343,8 +23528,17 @@ const MIXER = {
     // second seek is a second decoder flush at the least forgiving moment there
     // is — the deck then spends the lead-in refilling rather than rolling. Same
     // point, warmed once, so a punctual seam's placement costs nothing.
-    const seekTo = plan.type === 'beatmix' ? Math.max(0, plan.startB - seamLeadFor(plan)) : 0;
+    /* …OR WHERE THE CUE WILL ROLL FROM. A plan that can take a pre-rolled cue
+       (seamCuePoint: runway before B's entry, time before the seam, the graph
+       live) parks B a few seconds further back instead, and the same single
+       warm lands it there — so the cue starts from bytes the deck already
+       holds, with no seek at all, and fire() has nothing left to place. A
+       hand's record (seekOnly) is never rolled by the auto-DJ and keeps the
+       park it always had. */
+    const cueAt = seekOnly ? null : this._cuePark(plan);
+    const seekTo = cueAt != null ? cueAt : plan.type === 'beatmix' ? Math.max(0, plan.startB - seamLeadFor(plan)) : 0;
     nd._seekTo = seekTo;
+    nd._cueAt = cueAt;
     if (seekOnly){
       nd._warmed = true;
       if (nd.a.readyState >= 1){ if (Math.abs(nd.a.currentTime - seekTo) > 0.05){ try { nd.a.currentTime = seekTo; } catch (e){} } }
@@ -23464,6 +23658,201 @@ const MIXER = {
     }
   },
 
+  /* ---- THE CUED DECK (seamCuePoint, @mix) -------------------------------
+     B rolled silently through the armed window so the seam has nothing to
+     start. The arithmetic is pure and tested; what lives here is the part
+     that touches an element, and its first rule is that nobody else may
+     mistake the result for music. While a cue rolls the idle element is
+     unpaused, so every reader that used to take "not paused" as "a hand's
+     record is playing" asks cueing() first: the booth's transport lamps and
+     its PLAY, the platters, the brake and the beat jumps, the idle stop, the
+     watchdog (through DECKS.isLive), the AUTO glide's far end and the hand's
+     commit. Everything that follows the AIR — beat clock, media session,
+     history, persistence, the waveform's on-air badge — follows AE.active,
+     which a cue never moves. */
+  cueing(d){ return !!this._cue && (d == null || this._cue.d === d); },
+  // a fresh plan, a fresh cue: the veto stays only while it is still the record the hand touched
+  _cueReset(B){
+    this._cueStop();
+    this._cueDone = false; this._cueRolls = 0;
+    if (this._cueVetoRec && this._cueVetoRec !== B) this._cueVetoRec = null;
+  },
+  // where _preload parks B for this plan, or null for the old park
+  _cuePark(plan){
+    const d = activeDeck();
+    if (!AE.graphLive || !AE.ctx || !d || !isFinite(d.a.currentTime)) return null;
+    return seamCuePoint(plan, { tA: d.a.currentTime, rA: d.a.playbackRate || 1, lat: this._cueLat });
+  },
+  /* MAY A CUE ROLL (or keep rolling) on this deck, right now? Only for an
+     armed beatmix on the live graph with the transport playing and the
+     screen on (a hidden tab's timers are too coarse to steer by — it fires
+     the old way); only on the auto-DJ's own record, warmed, parked where this
+     plan put it, on the source the plan names; never under a hand — on the
+     handle, on either platter, holding a loop — and never on a record a hand
+     touched while it was cued.
+     WARMED MEANS LANDED. _warmB leaves `_warmed` false for as long as B's copy
+     is on its way into memory (deckWarmRoute 'fetch') and sets it only as it
+     seats that copy or gives up on it for the stream — and from then on never
+     touches the deck again. So a cue can never play() a deck whose copy is
+     still in flight (where _seat, which takes only a paused deck, would fall
+     back to streaming and the record would cross the pipe twice), and nothing
+     the warm does can swap a source out from under a cue that is rolling. */
+  _cueOk(nd){
+    const p = this.plan, od = activeDeck();
+    if (!this.on || this.phase !== 'armed' || !p || p.type !== 'beatmix' || !nd || !od || nd === od) return false;
+    if (!AE.graphLive || !AE.ctx || AE.ctx.state !== 'running' || !nd.gain || !nd.fader || document.hidden) return false;
+    if (!player.playing || AE.mic.on || player.repeat === 'one' || AE.xfading || od.a.paused || od.a.ended) return false;
+    const s = DECKS.slots[AE.decks.indexOf(nd)];
+    if (!s || s.owner === 'hand' || DECKS.fader.hand || DECKS.fader.mode !== 'rest'
+      || xfaderHeld(DECKS.fader.hand, DECKS.fader.x, AE.active)) return false;
+    const B = player.tracks[this.next];
+    if (!B || B === this._cueVetoRec || !nd._warmed || nd._cueAt == null || !this._sameSrc(nd.a, B.url)) return false;
+    if (typeof VINYL !== 'undefined' && VINYL.for){
+      const h0 = VINYL.for(0), h1 = VINYL.for(1);
+      if ((h0 && h0.engaged) || (h1 && h1.engaged)) return false;
+    }
+    if ((typeof FX !== 'undefined' && FX.loop) || (typeof LOOPER !== 'undefined' && LOOPER.on)) return false;
+    return true;
+  },
+  // update()'s part, once a frame: wake the poll a little before the cue can be
+  // due (it is a timer of its own, so the read it lets go on is fresh), and
+  // stand a rolling cue down the moment it may no longer roll
+  _cueWatch(d, t, exitAt){
+    const nd = AE.decks[1 - AE.active];
+    if (this._cue){ if (!this._cueOk(nd)) this._uncue('stood down'); return; }
+    if (this._cueT || this._cueDone || this._cueRolls >= 2 || !this._cueOk(nd)) return;
+    if ((exitAt - t) / (d.a.playbackRate || 1) > SEAM_CUE_S + this._cueLat + 1.5) return;
+    this._cueT = setInterval(() => this._cueTick(), 8);
+  },
+  /* THE CUE'S POLL. Parked: is it time to let go (seamCueDue)? Rolling: one
+     fresh pair of reads, one steering decision (seamCueStep), the rate set
+     from it. A deck that has not moved since the last read is a stall or a
+     seek still landing, and is evidence of nothing — it is not steered. */
+  _cueTick(){
+    const od = activeDeck(), nd = AE.decks && AE.decks[1 - AE.active], p = this.plan;
+    if (!this._cueOk(nd)){ this._uncue('stood down'); return; }
+    const tA = od.a.currentTime, tB = nd.a.currentTime;          // the first reads of this task: fresh (see run())
+    const rA = od.a.playbackRate || 1;
+    const exitAt = this.exitTime(od.a.duration, p, player.tracks[player.cur]);
+    const c = this._cue, now = performance.now();
+    if (!c){
+      if (this._cueRolls >= 2){ this._cueDone = true; this._cueStop(); return; }
+      // a park still landing waits for it — the seek in flight, or the one a
+      // fresh source (a seated copy) is still to make once its metadata lands
+      if (!nd.a.paused || nd.a.seeking || nd._preloadOnce) return;
+      const due = seamCueDue(p, { tA, rA, at: tB, lat: this._cueLat, exitAt });
+      if (due.act === 'miss'){ this._cueDone = true; this._cueStop(); return; }
+      if (due.act === 'wait'){ if (due.in > SEAM_CUE_S + 2) this._cueStop(); return; }   // far off (A was taken back): update() wakes it again
+      // READY MEANS READY, from the cue: B owns everything from where it will
+      // roll to the end of the blend before it rolls at all — the cue spends
+      // bytes the warm already fetched, and never opens a race for more
+      const from = due.act === 'late' ? due.to : tB;
+      const entry = seamCueTarget(p, exitAt);
+      if (!seamStreamReady({ type: 'beatmix', readyState: nd.a.readyState, buffered: nd.a.buffered, from,
+                             need: Math.max(0, entry - from) + Math.max(1, p.seconds || 2) + 0.5 + seamLeadFor(p) })) return;
+      this._cueRoll(nd, due.act === 'late' ? due.to : null);
+      return;
+    }
+    // somebody else stopped it (nothing of ours pauses a cue but _uncue): theirs from here
+    if (nd.a.paused || nd.a.ended){ this._uncue('stopped under the cue', { veto: true }); return; }
+    if (tB === c.lastB){
+      if (!c.moved && now - c.playAt > 1500){ this._uncue('never started'); this._cueDone = true; }
+      return;
+    }
+    // how far apart the reads are actually arriving (the seam's take keeps the same estimate)
+    if (c.moved && c.movedAt) c.dtEst = c.dtEst ? c.dtEst * 0.7 + Math.min(0.5, (now - c.movedAt) / 1000) * 0.3 : Math.min(0.5, (now - c.movedAt) / 1000);
+    c.lastB = tB; c.movedAt = now;
+    if (!c.moved){ c.moved = true; this._cueLat = seamCueLearn(this._cueLat, (now - c.playAt) / 1000); }
+    const err = seamCueTarget(p, tA) - tB;
+    c.err = err;
+    // …which sizes the pull (seamCueStep: never quicker than a few of them, nor than half a second)
+    const left = (exitAt - tA) / rA;
+    const st = seamCueStep(err, { left, seeks: c.seeks, dt: c.dtEst });
+    // (the reason carries its numbers: the probes print why a cue was let go)
+    const lost = () => this._uncue('lost: ' + Math.round(err * 1000) + ' ms off, ' + left.toFixed(2) + ' s to the seam, ' + c.seeks + ' seeks');
+    if (st.act === 'drop'){ lost(); return; }
+    if (st.act === 'seek'){
+      // a seek on A (or a start a third of a second off): one jump, inside the
+      // bytes the park holds — behind the park is ground the warm never
+      // fetched, and the cue lets go rather than open a second stream for it
+      const to = seamCueTarget(p, tA + 0.08 * rA);
+      if (!(to >= (nd._cueAt || 0) - 0.05)){ lost(); return; }
+      c.seeks++; c.pull = 0; this._cueRate();
+      try { nd.a.currentTime = to; } catch (e){}
+      c.lastB = nd.a.currentTime;
+      return;
+    }
+    c.pull = st.act === 'pull' ? st.pull : 0;
+    this._cueRate();
+  },
+  // let go of the record: silent on both nodes first, then rolling at the seam's start rate
+  _cueRoll(nd, to){
+    this._cueRolls++;
+    /* SILENT ON BOTH NODES, through the arbiter. The mixer's gain is zero
+       already on an armed idle deck — unless a hand's old trim was left on a
+       deck the auto-DJ has since taken back — and the crossfader's fader is
+       whatever the handle law gives an idle deck a hair off home. Both are
+       held where they stand and taken to zero (DECKS.gainWrite: never a write
+       over a live curve), and applyFaderGains keeps the fader there for as
+       long as the cue rolls. The element is paused until play() below, so
+       the param's last few milliseconds of travel carry no sample at all. */
+    DECKS.gainWrite(nd.gain.gain, 0, 0.002);
+    DECKS.gainWrite(nd.fader.gain, 0, 0.002);
+    nd._faderRampTo = 0;
+    // the blend rides vinyl (see fire()); the cue rides it from its first sample, so fire() changes nothing
+    setPitchLock(nd.a, false);
+    const c = this._cue = { d: nd, playAt: performance.now(), moved: false, movedAt: 0, lastB: nd.a.currentTime,
+      seeks: 0, pull: 0, err: null, fireErr: null, rate: 0 };
+    if (to != null && isFinite(to)){ try { nd.a.currentTime = Math.max(0, to); } catch (e){} c.lastB = nd.a.currentTime; }
+    this._cueRate();
+    nd.a.play().catch(err => {
+      if (this._cue !== c) return;                               // already let go of (an AbortError of our own pause)
+      this._uncue(err && err.name === 'AbortError' ? 'aborted' : 'refused');
+      this._cueDone = true;
+    });
+    window.__mixCueRolls = (window.__mixCueRolls || 0) + 1;      // the probes count the cues let go
+  },
+  // the seam's start rate for B (as fire() writes it), times the steering pull
+  _cueRate(){
+    const c = this._cue, p = this.plan;
+    if (!c || !p || p.type !== 'beatmix') return;
+    const r = glideRates(p.bpmA, p.bpmB, 0).rateB * seamPitchCarry(DECKS.pitch(AE.active), 0) * SPEED.rate * (1 + (c.pull || 0));
+    if (Math.abs(r - c.rate) > 0.0002){ try { c.d.a.playbackRate = r; } catch (e){} c.rate = r; }
+  },
+  // fire()'s question: is the cue rolling, and on the grid? (seamCueHolds)
+  _cueHolds(p, od, nd){
+    const c = this._cue;
+    if (!c || c.d !== nd || !p || p.type !== 'beatmix') return false;
+    const tA = od.a.currentTime, tB = nd.a.currentTime;
+    const moving = c.moved && (tB !== c.lastB || performance.now() - c.movedAt < 80);
+    c.fireErr = seamCueTarget(p, tA) - tB;
+    return seamCueHolds({ rolling: moving && !nd.a.paused && !nd.a.ended && !nd.a.seeking && nd.a.readyState >= 3, err: c.fireErr });
+  },
+  /* LET GO OF THE CUE: the deck is paused, put back where the warm parked it
+     (o.park === false leaves it for fire()'s placement), and given back its
+     own rate and the listener's key lock, as cancel() gives every deck; its
+     fader comes back under the handle's law. Its gain was zero throughout
+     and stays so. o.veto: a hand had it — that record is not rolled again. */
+  _uncue(why, o){
+    this._cueStop();
+    const c = this._cue;
+    if (!c) return false;
+    this._cue = null;
+    const d = c.d, i = AE.decks ? AE.decks.indexOf(d) : -1;
+    try { d.a.pause(); } catch (e){}
+    if (!(o && o.park === false) && isFinite(d._seekTo)){ try { d.a.currentTime = d._seekTo; } catch (e){} }
+    if (i >= 0){
+      const r = SPEED.rate * DECKS.pitch(i);
+      try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){}
+      setPitchLock(d.a, SPEED.keyLock && !DECKS.slots[i].synced);
+    }
+    if (o && o.veto) this._cueVetoRec = this._nextRec;
+    DECKS.applyFaderGains();
+    window.__mixUncued = why || 'uncue';                        // the probes read why the last one let go
+    return true;
+  },
+  _cueStop(){ if (this._cueT){ clearInterval(this._cueT); this._cueT = null; } },
+
   /* MIX NOW — the listener said "next": blend from HERE. The seam starts on
      the playing track's next bar line (phrase arithmetic on the constant
      grid), the incoming enters on its own mix-in downbeat, sixteen beats of
@@ -23506,6 +23895,7 @@ const MIXER = {
     if (this.phase === 'armed') this.cancel('replan');
     this.plan = plan;
     this.next = i;
+    this._cueReset(B);
     this._preload(B, plan);
     this.phase = 'armed';
     toast(T('On the bar — <b>{title}</b> · {beats} beats · {keys}', { title: escapeHTML(B.title), beats: plan.beats, keys: escapeHTML(plan.keys) }));
@@ -23532,6 +23922,15 @@ const MIXER = {
     const nd = AE.decks[1 - AE.active];
     const B = player.tracks[this.next];
     if (!B){ this.cancel(); return; }
+    /* THE CUED DECK, if there is one (seamCueHolds): B already rolling,
+       silent, within a few milliseconds of the grid. Then there is nothing to
+       place and nothing to start — the seek and the play() below are skipped,
+       and the latch takes the residual by tempo inside the lead-in. A cue that
+       does not hold (a stall, a late roll, a seek on A) is stopped where it is
+       and the placement path takes the seam exactly as it always has. */
+    let cue = this._cueHolds(p, od, nd) ? this._cue : null;
+    this._cueStop();
+    if (this._cue && !cue) this._uncue('missed at fire', { park: false });
     this._warmB(0, true);                      // never judge readiness on a deck still at 'metadata'
     // READY MEANS READY. The incoming deck must own the whole window it is
     // about to play — not merely the frame under its playhead — or the blend
@@ -23544,17 +23943,28 @@ const MIXER = {
     // together, and demoting THAT to a crossfade would be its own wrong note)
     if (p.type === 'beatmix' && !seamStreamReady({ type: p.type, readyState: nd.a.readyState,
                            buffered: nd.a.buffered,
-                           // the window starts where B will actually be rolled from
-                           from: seamEntry(p, od.a.currentTime),
+                           // the window starts where B will actually be rolled from (a cue: where it already is)
+                           from: cue ? nd.a.currentTime : seamEntry(p, od.a.currentTime),
                            need: Math.max(1, p.seconds || 2) + 0.5 + seamLeadFor(p) })){
+      // a cue cannot wait a bar rolling (a rolling deck spends the buffer the
+      // wait is buying): it is parked again, and RE-CUED for the new bar line
+      // if the stream comes good with time to roll (_cueTick, 'late')
+      if (cue){ this._uncue('deferred'); cue = null; }
       const later = seamDeferBar(p, od.a.duration);
       if (later){
         this.plan = later;                 // still armed; update() re-fires a bar on
         this._fireAt = null;               // …at the NEW bar line: update() re-aims preFrame
+        this._cueDone = false;             // …and the cue may roll again onto it
         syncMixHud();
         return;
       }
       p = this.plan = { type: 'fade', seconds: 3, why: 'stream not ready in time' };
+    }
+    if (cue){
+      // consumed: from here B is simply the incoming deck, and the seam's own sampler steers it
+      this._cueFired = { err: cue.fireErr, rolledMs: Math.round(performance.now() - cue.playAt), seeks: cue.seeks };
+      this._cue = null; this._cueDone = true;
+      window.__mixCued = (window.__mixCued || 0) + 1;   // the probes count the seams that fired on a cue
     }
     this.overlap = p.type === 'gapless' ? 0.06 : p.seconds;
     // ONE ORIGIN FOR THE WHOLE SEAM, on the clock that plays it. Every ramp
@@ -23584,12 +23994,13 @@ const MIXER = {
        keeps going, so a deck placed exactly on the grid arrives exactly that
        late. The sampler measures that first error on every seam (_startLat), so
        B is placed that much further in and the lock usually has nothing to take. */
-    try {
+    // (a cue is already there: no placement, and its first error is no start latency to learn from)
+    if (!cue) try {
       nd.a.currentTime = p.type === 'beatmix'
         ? seamEntry(p, od.a.currentTime) + (this._startLat || 0) * (glideRates(p.bpmA, p.bpmB, 0).rateB || 1) * seamPitchCarry(this._pA, 0)
         : 0;
     } catch (e){}
-    this._firstErr = true;
+    this._firstErr = !cue;
     this._bT = nd.a.currentTime;      // the latch watches for this to move
     if (p.type === 'beatmix'){
       /* THE BLEND RIDES VINYL. Measured, not assumed (tools/sync_trace.mjs):
@@ -23648,7 +24059,7 @@ const MIXER = {
         }
       } catch (e){}
     }
-    nd.a.play().catch(err => {
+    if (!cue) nd.a.play().catch(err => {
       // AbortError = our own cancel/replan interrupted the load — the
       // listener asked for something else; nothing is wrong. Only a real
       // refusal (autoplay policy, unblessed element) on a STILL-RUNNING
@@ -24050,6 +24461,8 @@ const MIXER = {
     const plan = this.plan, sceneHeld = !!this._sceneHeld;
     this._sceneHeld = false;
     this._stopSampler();
+    this._cueStop(); this._cue = null;                 // (fire consumed any cue; nothing of it may outlive the seam)
+    this._cueVetoRec = null;                           // the record a hand touched is on air now, or gone
     const od = this.outDeck, nd = AE.decks[AE.active];
     const retired = this.outTrack ? player.tracks.indexOf(this.outTrack) : -1;
     if (typeof DECKS !== 'undefined') DECKS.settle({ retired, resetPitch: true, force: by === 'hand' });
@@ -24113,6 +24526,11 @@ const MIXER = {
 setInterval(() => {
   if (document.hidden) MIXER.update(performance.now() / 1000, 0.5);
 }, 500);
+/* …and a pre-rolled cue never rolls through a hidden tab. Its poll would be
+   throttled to a look a second, and a steering pull left on for a second is
+   half a second of drift on a deck nobody can hear: it is parked the instant
+   the tab hides, and the seam fires the old way on the coarse tick above. */
+document.addEventListener('visibilitychange', () => { if (document.hidden) MIXER._uncue('hidden'); });
 /* and the booth's clocks survive a hidden tab the same way: the gate's slice
    queue, the beat-synced LFOs, the brake and the performer are refilled from a
    coarse timer when there are no frames (FX.tick is idempotent on the audio
@@ -27009,8 +27427,11 @@ const FX = {
     return (m && m.bpm > 0) ? { grid: m.grid || 0, bpm: m.bpm, have: true } : { grid: 0, bpm: this.bpm(), have: false };
   },
   // is this deck rolling — the transport's word for the record on air, the element's for a hand's
-  _rolling(d){ return !!d && (d === activeDeck() ? player.playing : !d.a.paused); },
+  // (a silent pre-rolled cue is the mixer's, not a hand's record rolling: MIXER.cueing)
+  _rolling(d){ return !!d && (d === activeDeck() ? player.playing : (!d.a.paused && !(typeof MIXER !== 'undefined' && MIXER.cueing(d)))); },
   _seek(d, to){
+    // a hand seeking the cued deck (a beat jump, a hot cue) has it: parked again first, not rolled under the hand
+    if (typeof MIXER !== 'undefined' && MIXER.cueing(d)) MIXER._uncue('hand seek', { veto: true });
     const L = this.loop, onAir = d === activeDeck();
     // the tape holds the record on air only: a seek on the other deck leaves the loop be
     const keep = onAir && L && !L.roll ? L.beats : 0;
@@ -28212,7 +28633,8 @@ function makeVinylHand(i){
       return !!(AE.graphLive && AE.ctx && this.node && this.kind === 'worklet');
     },
     // this deck's element rolling — not the transport's word, which only the record on air has
-    rolling(){ const d = this.deck(); return !!(d && !d.a.paused && !d.a.ended); },
+    // (a silent pre-rolled cue is not a turning record: the platter waits for PLAY, as on a parked deck)
+    rolling(){ const d = this.deck(); return !!(d && !d.a.paused && !d.a.ended && !(typeof MIXER !== 'undefined' && MIXER.cueing(d))); },
     seam(){ return typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual'); },
     // what the processor says, every twenty milliseconds while it has the room
     _onReport(r){
@@ -29252,7 +29674,8 @@ function wireDeckTransport(){
   const play = slot => {
     DECKS.hand(); DECKS.focus = slot;
     const d = AE.decks && AE.decks[slot];
-    if (d && DECKS.track(slot) && !d.a.paused && !d.a.ended){ DECKS.pause(slot); return true; }
+    // a silent pre-rolled cue reads as the parked deck it stands in for: PLAY starts it, by hand (DECKS.play drops the plan)
+    if (d && DECKS.track(slot) && !d.a.paused && !d.a.ended && !MIXER.cueing(d)){ DECKS.pause(slot); return true; }
     if (!DECKS.track(slot)){ BOOTH.holdState(slot, T('nothing to play — LOAD a pick, or a pad')); return false; }
     if (!DECKS.play(slot)){
       BOOTH.holdState(slot, seam(slot) ? T('busy — a blend is running') : T('direct-to-output — no second deck here'));
@@ -30203,6 +30626,8 @@ function wireDeckWave(){
       if (drag.scrub){
         // dragging the wave left pulls the music forward under the needle, as on any deck — here by seeking
         const d = AE.decks[drag.deck], to = drag.t0 - (ev.clientX - r.left - drag.x0) / drag.pps;
+        // a hand scrubbing the cued deck has it, as FX._seek takes it: parked, and never rolled under that hand
+        if (typeof MIXER !== 'undefined' && MIXER.cueing(d)) MIXER._uncue('hand scrub', { veto: true });
         const top = isFinite(d.a.duration) && d.a.duration > 0.3 ? d.a.duration - 0.25 : Infinity;
         try { d.a.currentTime = Math.max(0, Math.min(top, to)); } catch (e){}
         return;
@@ -30308,7 +30733,7 @@ const BOOTH = {
     else if (what === 'nudge') this.nudgeFader(DECKS.fader.x + arg);
     else if (what === 'cut'){
       // a cut to a deck with nothing rolling is silence: say what would fill it instead
-      const d = AE.decks && AE.decks[arg], rolling = !!(d && DECKS.track(arg) && !d.a.paused && !d.a.ended);
+      const d = AE.decks && AE.decks[arg], rolling = !!(d && DECKS.track(arg) && !d.a.paused && !d.a.ended && !MIXER.cueing(d));
       if (arg !== AE.active && !rolling){ this.holdState(arg, T('nothing to play — LOAD a pick, or a pad')); return; }
       DECKS.fader.glide = 0;
       if (DECKS.cutTo(arg)) this.handDone(arg); else if (!AE.graphLive || AE.xfading) toast(this.faderWhy());
@@ -30541,7 +30966,7 @@ const BOOTH = {
     return out;
   },
   _jog(ctx, cx, cy, r, deck, tr, rgb, pulse, dts, slot){
-    const playing = deck && !deck.a.paused && isFinite(deck.a.duration) && deck.a.duration > 0;
+    const playing = deck && !deck.a.paused && !MIXER.cueing(deck) && isFinite(deck.a.duration) && deck.a.duration > 0;
     let rate = playing ? (deck.a.playbackRate || SPEED.rate) / SPEED.rate : 0;
     // each platter is its own record in a hand: it turns at its platter's own
     // rate while the vinyl layer has it — backwards through a scratch, down to
@@ -31276,7 +31701,7 @@ const BOOTH = {
     }
     for (let i = 0; i < 2; i++){
       const L = i ? 'B' : 'A', d = AE.decks ? AE.decks[i] : null, s = DECKS.slots[i], tr = DECKS.track(i);
-      const rolling = !!(d && tr && !d.a.paused && !d.a.ended);
+      const rolling = !!(d && tr && !d.a.paused && !d.a.ended && !MIXER.cueing(d));   // a silent cue lights as the parked deck it is
       const play = el['deckPlay' + L];
       if (play){
         lamp(play, rolling);

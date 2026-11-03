@@ -9,6 +9,30 @@ planner verdict occurs in queue order:
   gamma → delta (beatless pad)         fade — the piano rule
   delta → e1                           fade — delta has no grid
   e1 → e2 (same album, sequential)     gapless — the artist's intent
+  alpha (124 · 8A) → tau (126 · E minor) beatmix WITH RUNWAY — the cued deck
+
+The last pair exists for the pre-rolled cue (MIXER._cueRoll, seamCuePoint).
+Every other incoming record here enters on a downbeat half a second in, the
+lead-in takes all of that, and a cue correctly declines on every seam — so
+until tau, no fixture could drive that path end to end. tau is a record with
+a DJ's intro: hats and its chord from the top, the kick only from bar five.
+
+Its runway comes the way a real catalog gets one, not by editing a number.
+The pipeline's mix-in is the lattice's FIRST downbeat — the beat tracker
+counts the grid from the top, through any intro — so tau's own mix-in sits
+half a second in like everybody else's. What moves an entry later is a pair
+fix: the mix tuner's offset, saved, exported as mixfix.json and graduated to
+canon by make_catalog (catalog.mixfix). The fixture ships exactly that file —
+alpha→tau enters sixteen beats in, on tau's first kick — so the planner sees
+a beatmix whose incoming record has about seven seconds of material before
+its entry, through the same code a published fix takes.
+
+tau is APPENDED: its album sorts after every other one, so make_catalog seats
+it last and every probe that reads the crate by position (booth_probe,
+handover_probe) or builds its own queue by title (mix_acceptance,
+xfader_probe, deck_probe, vinyl_probe) sees exactly the rows it always did.
+Only the crate's row count moves, and mix_acceptance counts the catalog
+rather than a literal. The fix is keyed alpha|tau and touches no other pair.
 
   python3 tools/make_mix_fixture.py DEST
 """
@@ -43,6 +67,48 @@ pad = 0.3 * np.sin(2 * np.pi * 220 * t) * (0.6 + 0.4 * np.sin(2 * np.pi * 0.07 *
 put("Deck Delta", "01-delta.mp3", pad)
 put("Album E", "01-e-one.mp3", synth_beat_track(124.0, dur=20.0, key_pcs=A_MINOR))
 put("Album E", "02-e-two.mp3", synth_beat_track(124.0, dur=20.0, key_pcs=A_MINOR, offset=0.7))
+
+
+def synth_intro_track(bpm, dur, intro_beats, key_pcs, offset=0.5, sr=44100):
+    """synth_beat_track's record with a DJ's intro: the hat on every beat and
+    the chord from the top — so the beat tracker has real onsets to count the
+    grid by, all the way through — and the kick only from beat `intro_beats`
+    (a downbeat, so the bass that names the downbeat agrees with the grid)."""
+    n = int(dur * sr)
+    t = np.arange(n) / sr
+    x = np.zeros(n)
+    spb = 60.0 / bpm
+    beat, tt = 0, offset
+    while tt < dur - 0.1:
+        i0 = int(tt * sr)
+        ln = min(int(0.1 * sr), n - i0)
+        env = np.exp(-np.arange(ln) / (0.012 * sr))
+        if beat >= intro_beats:
+            x[i0:i0 + ln] += (1.0 if beat % 4 == 0 else 0.55) * env * np.sin(
+                2 * np.pi * 70 * np.arange(ln) / sr)
+        x[i0:i0 + ln // 4] += 0.2 * env[:ln // 4] * np.random.default_rng(beat).standard_normal(ln // 4)
+        tt += spb
+        beat += 1
+    for pc in key_pcs:
+        f0 = 220.0 * 2 ** (pc / 12)
+        x += 0.12 * np.sin(2 * np.pi * f0 * t)
+        x += 0.05 * np.sin(2 * np.pi * f0 * 2 * t)
+    return 0.85 * x / (np.abs(x).max() + 1e-9)
+
+
+TAU_INTRO = 16                      # beats of intro before tau's first kick: four bars
+put("Deck Tau", "01-tau.mp3", synth_intro_track(126.0, dur=34.0, intro_beats=TAU_INTRO, key_pcs=E_MINOR))
+
+# the canon pair fix that gives alpha→tau its runway (see the docstring): the
+# entry moves TAU_INTRO beats on from tau's first downbeat, onto its first kick.
+# Keyed by the masters' sha256, as make_catalog keys every track.
+import hashlib
+import json
+def sha(p):
+    return hashlib.sha256((DEST / "masters" / p).read_bytes()).hexdigest()
+(DEST / "mixfix.json").write_text(json.dumps({"grids": {}, "pairs": {
+    sha("Deck Alpha/01-alpha.mp3") + "|" + sha("Deck Tau/01-tau.mp3"):
+        {"type": "beatmix", "beats": 8, "offsetBeats": TAU_INTRO}}}, indent=1))
 
 # the real pipeline, exactly as publish.sh runs it
 subprocess.run([sys.executable, str(ROOT / "make_catalog.py"), "masters",

@@ -173,9 +173,12 @@ const crate = await page.evaluate(() => {
     second: rows[1] && rows[1].querySelector('.nm').textContent,
     secondTag: rows[1] && rows[1].querySelector('.matchtag').textContent,
     keychips: rows.filter(r => r.querySelector('.keychip').textContent !== '—').length,
+    // every track is the CATALOG's count, not a literal: the fixture grows a pair
+    // when a path needs one (tau, the cued deck's runway) and this row count with it
+    total: allTracks().length,
   };
 });
-R('crate opens on C with every track', crate.open && crate.n === 6, crate.n + ' rows');
+R('crate opens on C with every track', crate.open && crate.n === crate.total && crate.n >= 6, crate.n + ' rows of ' + crate.total);
 // beta is playing by now (the mix handed over) — its safest next is alpha
 R('match sort: the playing track leads, its safest next is a real beatmix',
   crate.first === crate.playing && crate.firstTag === 'playing' && /mix/.test(crate.secondTag),
