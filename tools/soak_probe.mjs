@@ -350,7 +350,9 @@ const S = await page.evaluate(() => {
   const s = window.__soak;
   return { ev: s.ev, sil: s.sil, frz: s.frz, jumps: s.jumps, heals: s.heals, loads: s.loads, hands: s.hands.map(h => ({ ...h, to: h.to === Infinity ? 1e9 : h.to })),
     lt: s.lt, ticks: s.ticks, heard: s.heard, tapErr: s.tapErr || null, minRms: s.minRms,
-    mixes: window.__mixCompleted || 0, cur: player.tracks[player.cur] && player.tracks[player.cur].title };
+    mixes: window.__mixCompleted || 0, cur: player.tracks[player.cur] && player.tracks[player.cur].title,
+    // seams that fired on a pre-rolled cue (MIXER._cueRoll) — none where the entries have no runway
+    cued: window.__mixCued || 0, uncued: window.__mixUncued || null };
 });
 await page.evaluate(() => { player.pause && player.pause(); });
 await browser.close();
@@ -371,7 +373,7 @@ const healsOnAir = S.loads.filter(l => /_judge|check/.test(l.by));
 const byUrl = {};
 for (const l of net){ const k = l.path; (byUrl[k] = byUrl[k] || { size: l.size, bytes: 0, reqs: 0, aborted: 0 }); byUrl[k].bytes += l.bytes; byUrl[k].reqs++; if (l.aborted) byUrl[k].aborted++; }
 
-console.log(`\nsession: ${S.mixes} seams completed · ended on ${S.cur} · ${S.ticks} tap ticks · quietest heard block ${S.minRms < 1 ? (20 * Math.log10(S.minRms)).toFixed(1) + ' dBFS' : '-'}`);
+console.log(`\nsession: ${S.mixes} seams completed (${S.cued} on a pre-rolled cue${S.uncued ? ', last cue let go: ' + S.uncued : ''}) · ended on ${S.cur} · ${S.ticks} tap ticks · quietest heard block ${S.minRms < 1 ? (20 * Math.log10(S.minRms)).toFixed(1) + ' dBFS' : '-'}`);
 console.log('network:');
 for (const [k, v] of Object.entries(byUrl))
   console.log(`  ${k}  ${(v.bytes / 1e6).toFixed(2)} MB of ${(v.size / 1e6).toFixed(2)} MB (${(v.bytes / v.size).toFixed(2)}×) in ${v.reqs} request(s), ${v.aborted} aborted`);
