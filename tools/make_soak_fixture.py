@@ -16,7 +16,18 @@ Every track carries a sustained chord from its first sample to its last, so a
 dropout in the output is a run of silence that cannot be the music's own.
 
   python3 tools/make_soak_fixture.py DEST [seconds-per-track]
+  SOAK_RUNWAY_BEATS=16 python3 tools/make_soak_fixture.py DEST   # the cued deck
+
+SOAK_RUNWAY_BEATS (opt-in; the stock soak is untouched without it) gives both
+seams runway: a canon pair fix (mixfix.json, graduated by make_catalog as a
+published one is) enters the incoming record that many beats past its first
+downbeat, so B has material before its entry and the pre-rolled cue
+(MIXER._cueRoll) can roll it silently onto the seam. Without it every entry
+here sits half a second in, the lead-in takes all of that, and the cue
+correctly declines — the soak then measures the placement path alone.
 """
+import json
+import os
 import re
 import shutil
 import subprocess
@@ -49,6 +60,19 @@ for album, name, bpm, off, pcs in (("Soak North", "01-north.wav", 124.0, 0.5, A_
 subprocess.run([sys.executable, str(ROOT / "make_catalog.py"), "masters",
                 "--base", "audio", "--artist", "Aethra Kairos",
                 "--label", "ERRERlabs"], cwd=DEST, check=True)
+
+RUNWAY = int(os.environ.get("SOAK_RUNWAY_BEATS", "0") or 0)
+if RUNWAY > 0:
+    # the catalog keys a record by its web file's hash, known only once built:
+    # read them back, write the fix, and let make_catalog graduate it to canon
+    cat = json.loads((DEST / "docs" / "catalog.json").read_text())
+    sha = {t["title"]: t["sha256"] for a in cat["albums"] for t in a["tracks"]}
+    fix = {"type": "beatmix", "beats": 8, "offsetBeats": RUNWAY}
+    (DEST / "mixfix.json").write_text(json.dumps({"grids": {}, "pairs": {
+        sha["north"] + "|" + sha["south"]: fix, sha["south"] + "|" + sha["west"]: fix}}, indent=1))
+    subprocess.run([sys.executable, str(ROOT / "make_catalog.py"), "masters",
+                    "--base", "audio", "--artist", "Aethra Kairos",
+                    "--label", "ERRERlabs"], cwd=DEST, check=True)
 
 for f in (ROOT / "docs").iterdir():
     if f.is_file():

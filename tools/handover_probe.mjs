@@ -292,6 +292,28 @@ R('playback never left the blessed element',
   hand.moves === 0 && after.active === hand.sessionDeck,
   'deck ' + hand.sessionDeck + ' throughout · ' + hand.moves + ' deck changes');
 
+/* NEXT IS NEVER SWALLOWED. On the element-direct path the mixer owns no
+ * transition, so a NEXT pressed on a beatmixable pair must change the record
+ * then and there. It used to be accepted as a "mix now", toast "On the bar", and
+ * be cancelled by the mixer's own 'direct' rule a frame later: the button did
+ * nothing at all. */
+const nx = await page.evaluate(async () => {
+  const i = player.tracks.findIndex(t => t.title === 'alpha'), j = player.tracks.findIndex(t => t.title === 'beta');
+  if (i < 0 || j < 0) return null;
+  player.repeat = 'off'; player.shuffle = false; MIXER.setOn(true);
+  player._committedNext = j; player.playIndex(i);
+  const t0 = performance.now();
+  while (performance.now() - t0 < 15000 && !(player.playing && activeDeck().a.currentTime > 0.5)) await new Promise(r => setTimeout(r, 100));
+  player._committedNext = j;
+  const before = player.tracks[player.cur].title;
+  player.next();
+  await new Promise(r => setTimeout(r, 1500));
+  return { before, after: player.tracks[player.cur].title, mixer: MIXER.phase };
+});
+R('NEXT on a beatmixable pair changes the record (never swallowed as a blend the phone cannot run)',
+  !!nx && nx.before === 'alpha' && nx.after === 'beta',
+  nx ? nx.before + ' → ' + nx.after + ' · mixer ' + nx.mixer : 'fixture lacks alpha/beta');
+
 if (errs.length){
   console.log('\n  page errors:');
   for (const e of errs.slice(0, 6)) console.log('   ' + e.slice(0, 200));
