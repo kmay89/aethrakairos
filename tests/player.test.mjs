@@ -12068,38 +12068,60 @@ test('seamCueDue: let go so B begins moving exactly on the grid — and the arri
   assert.equal(S.seamCueDue({ type: 'fade' }, { tA: 1, at: 0 }).act, 'miss');
   assert.equal(S.seamCueDue(p, { tA: 10, at: NaN }).act, 'miss');
 });
-test('seamCueStep: steer a silent deck by tempo; seek only a miss no pull could close in time; drop when out of time', () => {
+test('seamCueStep: steer a silent deck by tempo; seek only a miss no pull should be trusted with; drop when out of time', () => {
   assert.deepEqual(S.seamCueStep(0.001, { left: 2 }), { act: 'hold', pull: 0 }, 'on the grid: leave it alone');
   const behind = S.seamCueStep(0.05, { left: 2 });
   assert.equal(behind.act, 'pull'); assert.ok(behind.pull > 0, 'B behind → faster');
   assert.ok(S.seamCueStep(-0.05, { left: 2 }).pull < 0, 'B ahead → slower');
-  assert.equal(S.seamCueStep(0.2, { left: 2 }).pull, 0.5, 'a silent deck may be leaned on hard — and no harder than half');
-  assert.ok(Math.abs(S.seamCueStep(0.02, { left: 2 }).pull - 0.08) < 1e-12, 'a quarter second to close the gap');
+  assert.equal(S.seamCueStep(0.29, { left: 2 }).pull, 0.5, 'a silent deck may be leaned on hard — and no harder than half');
+  assert.ok(Math.abs(S.seamCueStep(0.02, { left: 2 }).pull - 0.04) < 1e-12, 'half a second to close the gap, at the least');
+  assert.ok(Math.abs(S.seamCueStep(0.09, { left: 2, dt: 0.3 }).pull - 0.1) < 1e-12, 'reads 300 ms apart: three of them to close it');
+  assert.ok(Math.abs(S.seamCueStep(0.02, { left: 2, dt: 0.01 }).pull - 0.04) < 1e-12, 'fast reads never make it quicker than the floor');
   // a start a third of a second off, or A seeked: one jump while there is time to roll on afterwards
   assert.equal(S.seamCueStep(0.4, { left: 2, seeks: 0 }).act, 'seek');
   assert.equal(S.seamCueStep(-3.0, { left: 2, seeks: 1 }).act, 'seek');
   assert.equal(S.seamCueStep(0.4, { left: 2, seeks: 2 }).act, 'drop', 'seeks are bounded');
   assert.equal(S.seamCueStep(0.4, { left: S.SEAM_CUE_MIN - 0.1 }).act, 'drop', 'no time to roll on: the seam places B');
   assert.equal(S.seamCueStep(NaN, {}).act, 'hold');
-  // CLOSED LOOP, under a busy main thread: reads every 8-40 ms, the rate
-  // landing a render buffer after it is written, a start 200 ms late. The cue
-  // must be on the grid well inside its window, never overshooting by more
-  // than it started with — the law is re-decided on every read.
-  let err = 0.2, rate = 0, t = 0, worst = 0, landed = null;
-  const rng = S.mulberry32(7);
-  while (t < S.SEAM_CUE_S){
-    const dt = 0.008 + rng() * 0.032;
-    err -= rate * dt;                                       // B gains `rate` of a second per second on its target
-    t += dt;
-    const st = S.seamCueStep(err, { left: S.SEAM_CUE_S - t });
-    assert.notEqual(st.act, 'seek', 'a 200 ms start is pulled, not seeked');
-    rate = st.pull * (126 / 124);                           // the pull scales B's own rate
-    if (err < 0) worst = Math.max(worst, -err);
-    if (landed == null && Math.abs(err) < S.SEAM_CUE_TOL) landed = t;
+  /* CLOSED LOOP, three ways the main thread can treat the cue's reads, the
+     interval estimate kept as _cueTick keeps it and the rate landing after the
+     read that set it. A pull is a rate left standing until the next read, so
+     the question each time is the same: on the grid by the fire point (the
+     window less play()'s latency), and never carried further past it than the
+     error it started from. */
+  const sim = (e0, dtOf, seed) => {
+    const rng = S.mulberry32(seed);
+    let e = e0, pull = 0, t = 0, dtEst = 0, over = 0, i = 0, seeks = 0;
+    const win = S.SEAM_CUE_S - 0.3;
+    while (t < win){
+      const dt = dtOf(rng, i++);
+      e -= pull * (126 / 124) * dt; t += dt;
+      dtEst = dtEst ? dtEst * 0.7 + Math.min(0.5, dt) * 0.3 : Math.min(0.5, dt);
+      const st = S.seamCueStep(e, { left: win - t, seeks, dt: dtEst });
+      if (st.act === 'seek'){ seeks++; e = 0.05; pull = 0; continue; }   // a seek lands with a fresh start's error
+      pull = st.act === 'pull' ? st.pull : 0;
+      if (Math.sign(e) !== Math.sign(e0)) over = Math.max(over, Math.abs(e));
+    }
+    return { e, over, seeks };
+  };
+  for (const seed of [7, 11, 29, 41, 57]){
+    for (const e0 of [0.2, -0.09, 0.28]){
+      // a free main thread: reads every 8-40 ms
+      const fast = sim(e0, r => 0.008 + r() * 0.032, seed);
+      assert.equal(fast.seeks, 0, 'a start up to ~0.3 s off is pulled, never seeked');
+      assert.ok(Math.abs(fast.e) < 0.004 && fast.over < 0.005, `fast reads, ${e0} s off (seed ${seed}): ${(fast.e * 1000).toFixed(1)} ms at fire, overshoot ${(fast.over * 1000).toFixed(1)} ms`);
+      // a free main thread that stops dead for a whole second mid-pull (a room compiling at the seam)
+      const stall = sim(e0, (r, i) => i === 6 ? 1.0 : 0.008 + r() * 0.02, seed);
+      assert.ok(stall.over < Math.abs(e0), `a one-second stall, ${e0} s off (seed ${seed}): carried ${(stall.over * 1000).toFixed(0)} ms past — less than it started with`);
+      assert.ok(Math.abs(stall.e) < S.SEAM_CUE_TOL, `…and on the grid by fire: ${(stall.e * 1000).toFixed(1)} ms`);
+      // the renderer starving it throughout: reads 60-600 ms apart. A long gap after short ones is the
+      // stall again, carried past by a fraction of the start; and most of the gap always closes — what
+      // is left over the tolerance is fire()'s fallback to place
+      const starved = sim(e0, r => 0.06 + r() * 0.54, seed);
+      assert.ok(starved.over < Math.abs(e0) * 0.5, `starved reads, ${e0} s off (seed ${seed}): carried ${(starved.over * 1000).toFixed(0)} ms past`);
+      assert.ok(Math.abs(starved.e) < Math.abs(e0) * 0.3, `…and most of it closed: ${(starved.e * 1000).toFixed(1)} ms left`);
+    }
   }
-  assert.ok(landed != null && landed < 1.0, 'inside the fire tolerance after ' + landed + ' s');
-  assert.ok(Math.abs(err) < 0.003, 'on the grid at fire: ' + err);
-  assert.ok(worst < 0.02, 'overshoot bounded: ' + worst);
 });
 test('seamCueHolds and seamCueLearn: fire skips the placement only for a cue that is rolling and on the grid', () => {
   assert.ok(S.SEAM_CUE_TOL < 0.040, 'the tolerance sits under the take\'s seek threshold — the residual is pulled, never seeked');

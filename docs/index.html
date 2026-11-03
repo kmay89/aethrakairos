@@ -21097,18 +21097,25 @@ function seamCueDue(plan, o){
 // STEERING THE ROLLING CUE, once a read. errSec is where B should be minus
 // where it is (positive: B behind). B is silent, so its tempo may be leaned on
 // far harder than the seam's own take allows (a half-speed swing is still
-// zero gain): the gap is closed over about a quarter second and re-decided on
-// every read, so it cannot overshoot however the reads arrive. Only a miss no
-// pull could close in time — a seek on A, a start a third of a second off —
-// is a seek, and only while there is time to roll on afterwards; past that
-// the cue is dropped and the seam places B as it always did.
+// zero gain), re-decided on every read. But a pull is a RATE, left standing
+// until the next read comes — and under a renderer that holds the main thread
+// for a second (a room compiling) a pull sized to close the gap in a quarter
+// second carries straight through it and out the other side: a 200 ms start
+// overshot by 360 ms, simulated, which is past the point a pull may handle.
+// So the gap is closed over half a second at the least, and over three of the
+// reads as they are actually arriving (o.dt, the observed interval) when they
+// come slower than that — the seam's own take keeps the same rule. A stall of
+// a second then overshoots by less than the error it started from. Only a miss
+// no pull should be trusted with — a seek on A, a start a third of a second
+// off — is a seek, and only while there is time to roll on afterwards; past
+// that the cue is dropped and the seam places B as it always did.
 // Returns { act: 'seek' | 'pull' | 'hold' | 'drop', pull }.
 function seamCueStep(errSec, o){
   const s = o || {};
   const left = s.left == null ? Infinity : s.left;
   const big = s.big == null ? 0.30 : s.big;
   const done = s.done == null ? 0.002 : s.done;
-  const tau = s.tau == null ? 0.25 : s.tau;
+  const tau = s.tau != null ? s.tau : Math.max(0.5, 3 * (+s.dt > 0 ? +s.dt : 0));
   const maxPull = s.maxPull == null ? 0.5 : s.maxPull;
   const maxSeeks = s.maxSeeks == null ? 2 : s.maxSeeks;
   const min = s.min == null ? SEAM_CUE_MIN : s.min;
@@ -23752,18 +23759,24 @@ const MIXER = {
       if (!c.moved && now - c.playAt > 1500){ this._uncue('never started'); this._cueDone = true; }
       return;
     }
+    // how far apart the reads are actually arriving (the seam's take keeps the same estimate)
+    if (c.moved && c.movedAt) c.dtEst = c.dtEst ? c.dtEst * 0.7 + Math.min(0.5, (now - c.movedAt) / 1000) * 0.3 : Math.min(0.5, (now - c.movedAt) / 1000);
     c.lastB = tB; c.movedAt = now;
     if (!c.moved){ c.moved = true; this._cueLat = seamCueLearn(this._cueLat, (now - c.playAt) / 1000); }
     const err = seamCueTarget(p, tA) - tB;
     c.err = err;
-    const st = seamCueStep(err, { left: (exitAt - tA) / rA, seeks: c.seeks });
-    if (st.act === 'drop'){ this._uncue('lost'); return; }
+    // …which sizes the pull (seamCueStep: never quicker than a few of them, nor than half a second)
+    const left = (exitAt - tA) / rA;
+    const st = seamCueStep(err, { left, seeks: c.seeks, dt: c.dtEst });
+    // (the reason carries its numbers: the probes print why a cue was let go)
+    const lost = () => this._uncue('lost: ' + Math.round(err * 1000) + ' ms off, ' + left.toFixed(2) + ' s to the seam, ' + c.seeks + ' seeks');
+    if (st.act === 'drop'){ lost(); return; }
     if (st.act === 'seek'){
       // a seek on A (or a start a third of a second off): one jump, inside the
       // bytes the park holds — behind the park is ground the warm never
       // fetched, and the cue lets go rather than open a second stream for it
       const to = seamCueTarget(p, tA + 0.08 * rA);
-      if (!(to >= (nd._cueAt || 0) - 0.05)){ this._uncue('lost'); return; }
+      if (!(to >= (nd._cueAt || 0) - 0.05)){ lost(); return; }
       c.seeks++; c.pull = 0; this._cueRate();
       try { nd.a.currentTime = to; } catch (e){}
       c.lastB = nd.a.currentTime;
