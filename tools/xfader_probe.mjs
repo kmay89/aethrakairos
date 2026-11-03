@@ -283,6 +283,10 @@ R('[ nudges the handle five percent; \\ recentres it and the detent flashes, the
   JSON.stringify({ nudged, centred }));
 await page.click('#xfAuto');
 await page.waitForTimeout(700);
+// the lamp is repainted by the booth's frame (BOOTH._syncHud), so a starved renderer can paint it a
+// frame after the glide lands: wait (up to 3 s) for the end state the check claims, not a fixed instant
+await page.waitForFunction(() => DECKS.fader.mode === 'rest' && !DECKS.fader.hand && document.getElementById('xfAuto').classList.contains('on'),
+  null, { timeout: 3000 }).catch(() => {});
 const home = await page.evaluate(() => ({ x: DECKS.fader.x, mode: DECKS.fader.mode, hand: DECKS.fader.hand, active: AE.active,
   lamp: document.getElementById('xfAuto').classList.contains('on'), fB: AE.decks[1].fader.gain.value }));
 R('AUTO glides the handle home to the record on air and relights', home.x === 1 && home.mode === 'rest' && !home.hand && home.active === 1 && home.lamp && Math.abs(home.fB - 1) < 0.02,
@@ -327,6 +331,21 @@ const fix = await page.evaluate(async () => {
   a.home = DECKS.fader.x === AE.active && DECKS.fader.mode === 'rest'; a.fOn = AE.decks[AE.active].fader.gain.value;
   // (b) a seam yielded and parked mid-way, then MIX switched off: the outgoing record is handed to the hand, still playing
   for (let k = 0; k < 40 && MIXER.phase !== 'armed'; k++) await sleep(100);
+  /* the pair must be one that BEATMIXES — this is a check of a running seam's
+     yield. Which record is on air here depends on how section 10 ended, and the
+     fixture's 152 bpm record blends with nothing: there MIX NOW rightly performs
+     its quick fade and the next seam is the new record's natural one, seconds
+     away. So the draw is pointed at a partner the planner beatmixes from here. */
+  {
+    const A0 = player.tracks[player.cur], t0 = activeDeck().a.currentTime;
+    const blends = B => !!B && B !== A0 && planMixNow(mixOf(A0), mixOf(B), t0,
+      { durA: activeDeck().a.duration, quickFade: 0.8, lead: BEATMIX_LEAD }).type === 'beatmix';
+    if (!(MIXER.phase === 'armed' && MIXER.plan && MIXER.plan.type === 'beatmix' && blends(player.tracks[MIXER.next]))){
+      let j = player.tracks.findIndex(blends);
+      if (j < 0){ const B = allTracks().find(blends); if (B){ player.tracks.push(B); j = player.tracks.length - 1; } }
+      if (j >= 0){ if (MIXER.phase === 'armed') MIXER.cancel('probe'); player._committedNext = j; }
+    }
+  }
   const now = MIXER.tryMixNow();
   for (let k = 0; k < 120 && MIXER.phase !== 'running'; k++) await sleep(100);
   for (let k = 0; k < 100 && !(MIXER.lastF > 0.15); k++) await sleep(50);
