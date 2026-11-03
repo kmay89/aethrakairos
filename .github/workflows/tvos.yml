@@ -76,7 +76,7 @@ jobs:
 
   # Eyes before shipping: boot a tvOS Simulator, install the app, launch it,
   # and photograph what a viewer actually sees. The launch frame proves the
-  # focus engine is alive (the welcome's BEGIN chip renders its focus ring
+  # focus engine is alive (the welcome's PLAY chip renders its focus ring
   # only when focused) — the exact regression that reached hardware three
   # times while every compile check stayed green. Since stage 4 of the dance
   # layer the job also FILMS six rooms under the drive-demo metronome (the
@@ -144,7 +144,7 @@ jobs:
           sleep 14
           mkdir -p shots
           xcrun simctl io "$UDID" screenshot shots/01-launch-welcome.png
-          echo "The welcome should show BEGIN carrying its focus ring (ice outline, lifted)."
+          echo "The welcome should show PLAY carrying its focus ring (ice outline, lifted)."
           # Live rooms, via the CI camera hooks: -introSeen YES skips the
           # welcome (read natively by @AppStorage), --field starts with the
           # shelves down, --start-room opens on a named room. Two frames:
@@ -246,6 +246,19 @@ jobs:
             sleep 10
             xcrun simctl io "$UDID" screenshot "shots/room-quartet-$N.png"
             echo "room-quartet-$N: rolls $ROLLS"
+            N=$((N + 1))
+          done
+          # GLASS, all three faces: r0 in thirds deals THE CAGE, THE CUBE or
+          # THE STAR — look for clear rods bright at the edge, lit beads, and
+          # the nested frames falling toward a warm core on void.
+          N=0
+          for ROLLS in 0.15,0.3,0.3 0.5,0.6,0.6 0.85,0.2,0.2; do
+            xcrun simctl terminate "$UDID" com.aethrakairos.tv 2>/dev/null || true
+            sleep 2
+            xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --start-room glass --drive-demo --rolls "$ROLLS"
+            sleep 10
+            xcrun simctl io "$UDID" screenshot "shots/room-glass-$N.png"
+            echo "room-glass-$N: rolls $ROLLS"
             N=$((N + 1))
           done
           # MOTION FILM — the TV's dance readout (stage 4 of the dance layer).
@@ -707,6 +720,234 @@ jobs:
         with:
           name: sim-shots
           path: shots/
+          retention-days: 7
+
+  # The front of the house, photographed fast: the welcome on a fresh install
+  # and the shelves (-introSeen YES) a few seconds after the library lands,
+  # each printed into the log as a 960 px JPEG so a design pass can be judged
+  # in minutes rather than after the room films. The welcome is also scanned
+  # for PLAY's focus ring.
+  ui-shots:
+    name: welcome and shelves screenshots
+    if: inputs.channel != 'testflight'
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select newest stable Xcode on the runner
+        run: |
+          XCODE="$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Build for the tvOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project tvos/AethraKairos.xcodeproj \
+            -scheme AethraKairosTV \
+            -destination 'generic/platform=tvOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tail -5
+
+      - name: Photograph the welcome and the shelves
+        run: |
+          UDID="$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          tv = [d for runtime, devs in devices.items() if "tvOS" in runtime for d in devs]
+          def rank(d):
+              name = d.get("name", "")
+              return 0 if "1080p" in name else 1 if name == "Apple TV" else 2
+          tv.sort(key=rank)
+          if tv:
+              print(tv[0]["udid"])
+          ')"
+          [ -n "$UDID" ] || { echo "::error::No tvOS simulator on this runner."; exit 1; }
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          APP="$(find "$RUNNER_TEMP/dd/Build/Products" -maxdepth 2 -name '*.app' -type d | head -1)"
+          [ -n "$APP" ] || { echo "::error::Built .app not found."; exit 1; }
+          xcrun simctl install "$UDID" "$APP"
+          mkdir -p ui
+          xcrun simctl launch "$UDID" com.aethrakairos.tv
+          sleep 16
+          xcrun simctl io "$UDID" screenshot ui/welcome.png
+          xcrun simctl terminate "$UDID" com.aethrakairos.tv || true
+          xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES
+          sleep 22
+          xcrun simctl io "$UDID" screenshot ui/shelves.png
+          pip3 install --quiet pillow 2>/dev/null || pip3 install --quiet --break-system-packages pillow 2>/dev/null || true
+          python3 - << 'PY' || echo "pixel scan unavailable"
+          from PIL import Image
+          im = Image.open('ui/welcome.png').convert('RGB')
+          w, h = im.size
+          px = im.load()
+          ice = sum(1 for y in range(0, h, 2) for x in range(0, w, 2)
+                    if abs(px[x, y][0]-110) < 50 and abs(px[x, y][1]-231) < 45 and abs(px[x, y][2]-255) < 45)
+          print(f"ICE PIXELS (1/4 sampled): {ice}  ({w}x{h})")
+          print("VERDICT:", "FOCUS RING VISIBLE" if ice > 150 else "NO FOCUS RING")
+          PY
+          for NAME in welcome shelves; do
+            sips -Z 960 "ui/$NAME.png" --out "ui/$NAME.jpg" -s format jpeg -s formatOptions 60 >/dev/null
+            echo "== BEGIN BASE64 JPEG ($NAME) =="
+            base64 -i "ui/$NAME.jpg" | fold -w 300
+            echo "== END BASE64 JPEG ($NAME) =="
+          done
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: ui-shots
+          path: ui/
+          retention-days: 7
+
+  # Endurance before shipping: the listener's report was "it crashes after a
+  # song or a few songs", and every check above runs for seconds. This job
+  # PLAYS the real library in the simulator for twelve minutes under --soak:
+  # the nonstop mix starts the moment the catalog lands, and the transport is
+  # hurried (each track jumps to 28 s before its end, every fourth skips), so
+  # a seam or a hard switch fires every ~30 s, ~25 track changes in all, across
+  # the catalog's mix of 44.1 kHz and 48 kHz files. It fails if the app dies
+  # (the host process vanishes or a crash report appears) and prints the
+  # crash report, the app's own log lines, the sample rates each deck loaded
+  # and the memory footprint every 30 s.
+  soak:
+    name: simulator soak (plays through track changes)
+    if: inputs.channel != 'testflight'
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select newest stable Xcode on the runner
+        run: |
+          XCODE="$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Give the runner an audio output (best effort)
+        run: |
+          # A hosted Mac has no sound card, and a simulator with no output
+          # device cannot start AVAudioEngine — the soak would then test
+          # downloads and pictures but never the decks. BlackHole is a virtual
+          # output device; coreaudiod is restarted to pick it up. If any of
+          # this fails the soak still runs and its log says the engine stayed
+          # stopped.
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install --cask blackhole-2ch || echo "::warning::BlackHole did not install"
+          sudo killall -9 coreaudiod 2>/dev/null || true
+          sleep 3
+          system_profiler SPAudioDataType 2>/dev/null | sed -n '1,40p' || true
+
+      - name: Build for the tvOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project tvos/AethraKairos.xcodeproj \
+            -scheme AethraKairosTV \
+            -destination 'generic/platform=tvOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tail -5
+
+      - name: Play for twelve minutes
+        run: |
+          UDID="$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          tv = [d for runtime, devs in devices.items() if "tvOS" in runtime for d in devs]
+          def rank(d):
+              name = d.get("name", "")
+              return 0 if "1080p" in name else 1 if name == "Apple TV" else 2
+          tv.sort(key=rank)
+          if tv:
+              print(tv[0]["udid"])
+          ')"
+          if [ -z "$UDID" ]; then
+            RUNTIME="$(xcrun simctl list runtimes --json | python3 -c '
+          import json, sys
+          rts = [r for r in json.load(sys.stdin)["runtimes"] if r.get("platform") == "tvOS" and r.get("isAvailable")]
+          print(rts[-1]["identifier"] if rts else "")
+          ')"
+            [ -n "$RUNTIME" ] || { echo "::error::No tvOS simulator runtime on this runner."; exit 1; }
+            UDID="$(xcrun simctl create soak-atv 'Apple TV 4K (3rd generation) (at 1080p)' "$RUNTIME" 2>/dev/null \
+                    || xcrun simctl create soak-atv 'Apple TV 4K (3rd generation)' "$RUNTIME")"
+          fi
+          echo "Simulator: $UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          APP="$(find "$RUNNER_TEMP/dd/Build/Products" -maxdepth 2 -name '*.app' -type d | head -1)"
+          [ -n "$APP" ] || { echo "::error::Built .app not found."; exit 1; }
+          xcrun simctl install "$UDID" "$APP"
+          mkdir -p soak
+          REPORTS="$HOME/Library/Logs/DiagnosticReports"
+          ls "$REPORTS" 2>/dev/null | grep -i aethra > soak/reports-before.txt || true
+          xcrun simctl spawn "$UDID" log stream --style compact \
+            --predicate 'eventMessage CONTAINS "AethraKairos"' > soak/app.log 2>&1 &
+          LOGPID=$!
+          sleep 2
+          xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --soak
+          sleep 5
+          PID="$(pgrep -f 'AethraKairosTV.app/AethraKairosTV' | head -1 || true)"
+          echo "app pid: ${PID:-none}"
+          ALIVE=yes
+          T=0
+          SOAK_SECONDS=720
+          while [ "$T" -lt "$SOAK_SECONDS" ]; do
+            sleep 15
+            T=$((T + 15))
+            if [ -z "$PID" ] || ! kill -0 "$PID" 2>/dev/null; then
+              ALIVE=no
+              echo "::error::the app process is gone ${T} s into the soak"
+              break
+            fi
+            if [ $((T % 60)) -eq 0 ]; then
+              echo "t=${T}s alive; $(grep -c 'soak: track' soak/app.log || true) tracks so far"
+            fi
+          done
+          xcrun simctl io "$UDID" screenshot soak/final.png 2>/dev/null || true
+          sleep 2
+          kill "$LOGPID" 2>/dev/null || true
+          ls "$REPORTS" 2>/dev/null | grep -i aethra > soak/reports-after.txt || true
+          NEW="$(comm -13 <(sort soak/reports-before.txt) <(sort soak/reports-after.txt) || true)"
+          echo "===== the soak, in the app's own words ====="
+          grep -E 'soak:|REWIRING|rewiring|exception|engine|recovery|media services|cannot open|deferring|skip crossfade|art step' soak/app.log | tail -250 || true
+          echo "===== summary ====="
+          echo "tracks reached:  $(grep -c 'soak: track' soak/app.log || true)"
+          echo "deck loads:      $(grep -c 'loads .* Hz' soak/app.log || true)"
+          echo "  at 44100 Hz:   $(grep -c 'loads 44100 Hz' soak/app.log || true)"
+          echo "  at 48000 Hz:   $(grep -c 'loads 48000 Hz' soak/app.log || true)"
+          echo "live rewires:    $(grep -c 'REWIRING LIVE' soak/app.log || true)"
+          echo "caught raises:   $(grep -c 'AVFAudio raised' soak/app.log || true)"
+          echo "skip crossfades: $(grep -c 'skip crossfade' soak/app.log || true)"
+          echo "art steps:       $(grep -c 'art step' soak/app.log || true)  (last: $(grep 'art step' soak/app.log | tail -1 | sed 's/.*art step/art step/'))"
+          echo "engine running in reports: $(grep -c 'engine running' soak/app.log || true) / $(grep -c 'soak: footprint' soak/app.log || true)"
+          echo "process alive at the end: $ALIVE"
+          CRASHED=no
+          if [ -n "$NEW" ]; then
+            CRASHED=yes
+            for f in $NEW; do
+              echo "===== crash report: $f ====="
+              cp "$REPORTS/$f" soak/ 2>/dev/null || true
+              head -c 20000 "$REPORTS/$f" || true
+              echo
+            done
+          fi
+          if [ "$ALIVE" != yes ] || [ "$CRASHED" = yes ]; then
+            echo "::error::the app did not survive the soak"
+            exit 1
+          fi
+          if ! grep -q 'engine running' soak/app.log; then
+            echo "::warning::the audio engine never ran in the simulator (no output device?) — the decks were not exercised"
+          fi
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: soak
+          path: soak/
           retention-days: 7
 
   testflight:

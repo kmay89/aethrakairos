@@ -596,6 +596,14 @@ enum Rooms {
         Room(key: "quartet", name: "QUARTET", fragmentFunction: "room_quartet",
              tasteEnergy: 0.2, tasteCalm: 0, tasteBeat: 0.5, tasteTreble: 0,
              tasteMid: 0.4, tasteBass: 0.4, tasteEntropy: -0.2, heavy: false),
+
+        // ---- the glasshouse ----
+
+        // GLASS (Shaders45): a polyhedron of clear rods and lit beads, nested
+        // three frames deep, the glass marched through and Fresnel-lit.
+        Room(key: "glass", name: "GLASS", fragmentFunction: "room_glass",
+             tasteEnergy: 0, tasteCalm: 0.6, tasteBeat: 0, tasteTreble: 0.6,
+             tasteEntropy: -0.4, heavy: true),
     ]
 
     /// The calm room the reduced-motion door opens into — found by key,

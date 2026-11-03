@@ -4421,6 +4421,17 @@ body.booth-open .trk .ld{display:inline-block}
     concentric rings with now at the top and the future running clockwise. On the microphone or a file
     nobody has separated, the strands are the live sound's own recent past, and the future is honestly dark.</p>
     <!-- ==== END ROOM MANUAL: QUARTET ==== -->
+    <!-- ==== ROOM MANUAL: GLASS ==== -->
+    <h3>The glasshouse</h3>
+    <p class="lede">Scene 125 is <b>GLASS</b> — a polyhedron built the way a glassblower would
+    build it: every edge a clear tube, every vertex a lit bead, the whole cage nested three frames
+    deep so the eye falls through it toward a warm core. The glass is honest optics in miniature:
+    each ray is marched <i>through</i> every tube it meets, and at each surface Schlick's Fresnel
+    decides how much of the studio it reflects — nearly invisible face-on, bright at the grazing
+    edge, exactly as real glass is. THE CAGE is the dodecahedron, THE CUBE the infinity cube, THE
+    STAR the icosidodecahedron; the beads flash on the beat and the inner frames breathe on the
+    bass. Touch the field and the cage turns toward your hand.</p>
+    <!-- ==== END ROOM MANUAL: GLASS ==== -->
     <h3>The fractal field</h3>
     <p class="lede">Scene 7 is RIBBONS — six spectral ribbons that dissolve into mist as the music's
     entropy rises (double-tap the field to shatter them yourself). Scene 8 raymarches a distance field and rolls <b>three ten-sided dice</b> every time
@@ -5075,6 +5086,8 @@ function touchAffinity(sceneIdx, act, r, mood){
                'flows',   // FLUID — a hand in the water stirs it
                // ↑ fluid · quartet ↓
                'gathers', // QUARTET — a hand gathers the band
+               // ↑ quartet · glass ↓
+               'flows',   // GLASS — a hand turns the cage toward itself
                ];   // …the lattice and the film ripple, the
                            // mandala spins, the bubbles pull, a hand on the SKY winds the
                            // stars, the SHOW gathers its sparks, the SET is a well, a
@@ -5388,6 +5401,8 @@ function ghostPattern(sceneIdx, act, r, mood){
                'paint',   // FLUID — the ghost paints in the water
                // ↑ fluid · quartet ↓
                'lissa',   // QUARTET — the ghost conducts in figures
+               // ↑ quartet · glass ↓
+               'lissa',   // GLASS — the ghost walks the cage in figures
                ];   // …SHEETS walks the lattice, MANDALA curves,
                            // OIL paints, BUBBLES drift, the SKY is drifted through slowly,
                            // the SHOW bounces like its shells, the SET is walked in curves,
@@ -6612,7 +6627,8 @@ const SCENE_KEYS = ['spiral', 'helix', 'band', 'starburst', 'nebula', 'tunnel', 
                     'minkowski', 'boltzmann',
                     'shuffle', 'stellarator', 'flux', 'carom', 'ballpit', 'masonry', 'wake', 'brachisto', 'iris', 'kutta', 'aurora', 'cochlea', 'coriolis', 'seismic', 'tides', 'vortex', 'plateau', 'escapement', 'hubble',
                     'nave', 'plotter', 'spectral',
-                    'fluid', 'quartet'];
+                    'fluid', 'quartet',
+                    'glass'];
 
 /* WHAT EACH ROOM IS FOR, as an appetite for the live features.
 
@@ -6798,6 +6814,8 @@ const SCENE_TASTE = {
   fluid: { energy: 0.6, beat: 0.5, bass: 0.4, entropy: 0.3, calm: -0.2 },   // water wants to be stirred: energy to dance to, onsets to splash on, bass to whirl
   // ↑ fluid · quartet ↓
   quartet: { beat: 0.5, bass: 0.4, mid: 0.4, energy: 0.2, entropy: -0.2 },   // the band, seen: a kit to bead, a bassline and a voice to draw, an arrangement clear enough to read
+  // ↑ quartet · glass ↓
+  glass: { calm: 0.6, treble: 0.6, entropy: -0.4 },   // clear glass wants clear air and sparkle
 };
 
 /* One room's appetite, scored against one moment. Also does duty as the mood's
@@ -8201,6 +8219,8 @@ const SCENE_SIGS = {
   fluid: { kind: 'ribbon', h: 200, arms: 3 },   // three ribbons of ink, curling
   // ↑ fluid · quartet ↓
   quartet: { kind: 'ribbon', h: 170, arms: 4 },   // four strands, one per player
+  // ↑ quartet · glass ↓
+  glass: { kind: 'ring', h: 300, twist: 1 },   // a cage of rods and beads
 };
 function sceneSig(key){
   return SCENE_SIGS[key] || { kind: 'ring', h: 210, arms: 4 };
@@ -11386,12 +11406,20 @@ const DECKS = {
     d._warmed = true; d._seekTo = cue; d._cueAt = null;     // a hand's park, never a cue's
     try { if (d.a.preload !== 'auto') d.a.preload = 'auto'; } catch (e){}
     const src = (typeof PREFETCH !== 'undefined') ? PREFETCH.playable(track) : track.url;
-    if (typeof PREFETCH !== 'undefined' && src !== track.url) PREFETCH.spend();
     d.norm = normLin(track);
     s.trackIdx = i; s.owner = 'hand'; s.cue = cue; s.pitch = 1; s.synced = false;
     s.silentFor = 0; s.cueHeld = false; s.stuckFor = 0;
     this._gainTo(d, d.norm);                           // audible only as far as the handle says
     AE._loadAt(d.a, src, cue, () => {});
+    /* A WARMED COPY IS SPENT ONLY ONCE THE ELEMENT HOLDS IT. spend() sweeps,
+       and the sweep revokes every copy no deck is reading — so spending it
+       before _loadAt assigned the src revoked it under the deck, the load
+       failed, and a good record was marked broken and skipped. Tagged as
+       MIXER._seat tags it, so _sameSrc still knows the record by its URL. */
+    if (typeof PREFETCH !== 'undefined' && src !== track.url){
+      d.a._warmOf = track.url; d.a._warmSrc = d.a.src;
+      PREFETCH.spend();
+    }
     try { d.a.playbackRate = SPEED.rate; } catch (e){}
     setPitchLock(d.a, SPEED.keyLock);
     this.applyFaderGains();
@@ -13273,7 +13301,7 @@ const player = {
     if (track === this.demoTrack) this.demoTrack = null;
     this.history = this.history.filter(h => h !== i).map(h => h > i ? h - 1 : h);
     if (wasCur){
-      if (AE.decks) AE.decks.forEach(d => { if (d.a.src === track.url){ d.a.pause(); d.a.src = ''; } });
+      if (AE.decks) AE.decks.forEach(d => { if (d.a.src === track.url || (typeof MIXER !== 'undefined' && MIXER._sameSrc(d.a, track.url))){ d.a.pause(); d.a.src = ''; } });
       this.playing = false; this.cur = -1;
       if (this.tracks.length) this.playIndex(Math.min(i, this.tracks.length - 1));
       else this.stopAll();
@@ -13626,11 +13654,31 @@ const PREFETCH = {
      download that was halfway there, and started it again. Measured, before the
      split: 61 requests and 120 MB served for a warm that never once landed. */
   id: null, url: '', _want: null, _ac: null, _busy: false, _fail: 0, _spent: [],
+  /* A FAILED COPY WAITS BEFORE IT ASKS AGAIN. The mixer asks every frame, so
+     without a pause one dropped connection was three failures inside a
+     second, and _fail switched the copy off for the rest of the session. */
+  _failAt: -1e9, RETRY_MS: 5000,
+  /* A RECORD THAT WILL NOT COPY IS NOT ASKED AGAIN. The mixer asks every frame
+     (MIXER._warmB), so a file over CAP, or one the server refuses, would be
+     re-requested on every frame until the session-wide _fail gave up on every
+     record after it. Remembered per track instead: that one streams, the next
+     one still gets its copy. (A dropped connection is not remembered — that
+     is the network's answer, and _fail already keeps count of it.) */
+  _no: new Set(),
 
   // is a warmed copy of THIS track ready? Anything else gets the network URL,
   // so a stale or missing prefetch can never send playback somewhere wrong.
   playable(track){
     return (track && this.id != null && track.id === this.id && this.url) ? this.url : (track ? track.url : '');
+  },
+  // the mixer's two questions (MIXER._warmB): is THIS record in hand, or on its way?
+  holds(track){ return !!(track && this.id != null && track.id === this.id && this.url); },
+  fetching(track){ return !!(track && this._busy && this._want === track.id); },
+  // seconds until the copy in flight lands, at the rate it has actually been arriving (Infinity: unknown)
+  eta(track){
+    if (!this.fetching(track) || !(this._len > 0) || !(this._got > 0)) return Infinity;
+    const el = (performance.now() - this._t0) / 1000;
+    return el > 0 ? Math.max(0, this._len - this._got) / (this._got / el) : Infinity;
   },
   // Metered connections are not ours to spend. Save-Data is an explicit request
   // and 2g/3g is a plain statement about the pipe; on either, the stall is the
@@ -13639,6 +13687,7 @@ const PREFETCH = {
     if (!track || !track.url || track.local || track.demo) return false;
     if (/^(blob|data):/i.test(track.url)) return false;
     if (this._fail >= 3) return false;               // this network is not having it
+    if (this._no.has(track.id)) return false;        // this record is not having it
     const c = navigator.connection;
     if (c && (c.saveData || /^(slow-)?2g$/.test(c.effectiveType || ''))) return false;
     return true;
@@ -13682,10 +13731,12 @@ const PREFETCH = {
   },
   async want(track){
     if (!this.allowed(track)) return;
+    if (performance.now() - this._failAt < this.RETRY_MS) return;
     if (this.id === track.id && this.url) return;          // already holding it
     if (this._want === track.id && this._busy) return;     // already fetching it — do NOT restart
     this.drop();
     this._busy = true;
+    this._len = 0; this._got = 0;                  // the last copy's progress is not this one's: eta() unknown until our headers land
     const id = track.id;
     this._want = id;
     const ac = new AbortController();
@@ -13694,7 +13745,8 @@ const PREFETCH = {
       const r = await fetch(track.url, { signal: ac.signal });
       if (!r.ok) throw new Error('http ' + r.status);
       const len = +(r.headers.get('content-length') || 0);
-      if (len > this.CAP) throw new Error('too big');
+      if (len > this.CAP){ try { ac.abort(); } catch (e2){} throw new Error('too big'); }   // never left downloading unread
+      this._len = len; this._got = 0; this._t0 = performance.now();
       const parts = await this._drain(r, ac);
       if (ac.signal.aborted) return;
       const blob = new Blob(parts, { type: r.headers.get('content-type') || '' });
@@ -13706,7 +13758,12 @@ const PREFETCH = {
       if (typeof BYTES !== 'undefined') BYTES.put(track.url, blob);
     } catch (e){
       // AbortError is our own doing (the draw moved on) and is not a failure
-      if (!(e && e.name === 'AbortError')) this._fail++;
+      if (!(e && e.name === 'AbortError')){
+        // a file too big or refused outright is this record's answer, not the
+        // network's: it is remembered for this record and costs nothing else
+        if (e && /^(too big|http 4)/.test(e.message || '')) this._no.add(id);
+        else { this._fail++; this._failAt = performance.now(); }
+      }
       this.url = ''; this.id = null;
     } finally {
       if (this._ac === ac){ this._ac = null; this._busy = false; this._want = null; }
@@ -13718,11 +13775,13 @@ const PREFETCH = {
     const reader = r.body.getReader();
     const parts = []; let size = 0;
     for (;;){
-      if (ac.signal.aborted){ try { reader.cancel(); } catch (e){} return parts; }
+      // (cancel() on a stream the abort already errored REJECTS — caught, or it surfaces as an unhandled page error)
+      if (ac.signal.aborted){ try { reader.cancel().catch(() => {}); } catch (e){} return parts; }
       const { done, value } = await reader.read();
       if (done) break;
       parts.push(value); size += value.byteLength;
-      if (size > this.CAP){ try { reader.cancel(); } catch (e){} throw new Error('too big'); }
+      if (this._ac === ac) this._got = size;
+      if (size > this.CAP){ try { reader.cancel().catch(() => {}); } catch (e){} throw new Error('too big'); }
       await this._pace(ac, value.byteLength);
     }
     return parts;
@@ -13764,12 +13823,15 @@ const PREFETCH = {
     player._committedNext = i;                     // the draw we warmed is the draw that plays
     return player.tracks[i];
   },
-  /* Only the element-direct path pays for this. Where the graph is live the
-     mixer arms 90 s out and loads the incoming deck itself, and a second full
-     fetch of the same bytes would be pure waste. */
+  /* Only the element-direct path is scheduled from here. Where the graph is
+     live the mixer arms 90 s out and asks for the incoming record itself
+     (MIXER._warmB → want), once A no longer needs the pipe. */
   tick(){
-    if (typeof AE === 'undefined' || AE.graphLive) return;
-    if (this._spent.length) this._sweep();          // a finished track's copy goes once its deck moves on
+    if (typeof AE === 'undefined') return;
+    // a finished track's copy goes once its deck moves on — on every path:
+    // where the graph is live the mixer seats copies on the idle deck too
+    if (this._spent.length) this._sweep();
+    if (AE.graphLive) return;
     if (typeof player === 'undefined' || !player.playing) return;
     const d = typeof activeDeck === 'function' ? activeDeck() : null;
     if (!d || !isFinite(d.a.duration) || d.a.duration <= 0) return;
@@ -20813,6 +20875,40 @@ function seamWarmDue(o){
   const exitIn = o ? +o.exitIn : NaN;
   return isFinite(exitIn) && exitIn < Math.max(SEAM_WARM_S, (o && +o.seconds || 0) + 10);
 }
+/* WHERE THE INCOMING DECK'S BYTES COME FROM. A paused element is the worst
+   place to keep a record waiting. Measured on a throttled link
+   (tools/soak_probe.mjs): the browser buffers a few megabytes of the idle
+   deck, closes the connection, and when the seam calls play() asks for the
+   file again FROM BYTE ZERO — so the incoming record went on air cold off the
+   network, waited at its own entry, could run dry mid-blend, and every record
+   crossed the pipe 1.7 times. So once A holds everything to its own end (the
+   pipe is free), B's record is fetched ONCE, whole, into memory (PREFETCH:
+   paced, capped, shared with the booth's decoders through BYTES) and seated on
+   the idle deck as an object URL; from then on nothing at the seam touches the
+   network at all. The stream warm stays for the case it was built for: the
+   exit is in reach, or fire() is asking, and no copy has landed — then the
+   network window, now, and the half-fetched copy is called off so the two
+   never split the pipe at the least forgiving moment.
+   A copy already on its way is not thrown away at the backstop, though, if
+   it will land with SEAM_COPY_MARGIN_S to spare (eta: seconds until it lands,
+   from its own measured rate) — on a slow link that is most of a download
+   saved, and the stream would only have split the same pipe with it.
+     seat    a copy is in hand: put it on the deck
+     stream  out of runway, or no copy can be made: the old preload='auto' warm
+     fetch   the pipe is free and a copy can be made: fetch it (idempotent)
+     wait    headers only, as the arm left it */
+const SEAM_COPY_MARGIN_S = 4;
+function deckWarmRoute(o){
+  const s = o || {};
+  if (s.landed) return 'seat';
+  if (s.force) return 'stream';
+  if (seamWarmDue({ aDone: false, exitIn: s.exitIn, seconds: s.seconds })){
+    const eta = +s.eta;
+    return (s.ramOk && isFinite(eta) && eta >= 0 && eta < +s.exitIn - SEAM_COPY_MARGIN_S) ? 'fetch' : 'stream';
+  }
+  if (!s.aDone) return 'wait';
+  return s.ramOk ? 'fetch' : 'stream';
+}
 // Is the incoming deck REALLY ready to carry this seam? `readyState >= 2`
 // (HAVE_CURRENT_DATA) promises only the single frame under the playhead —
 // enough to start, never enough to play through, which is exactly how a
@@ -23489,6 +23585,8 @@ const MIXER = {
   _sameSrc(a, url){
     if (!url) return false;
     if (a.src === url) return true;
+    // the record warmed into memory and seated (_seat) IS this record
+    if (a._warmOf === url && a._warmSrc && a.src === a._warmSrc) return true;
     try { return a.src === new URL(url, location.href).href; } catch (e){ return false; }
   },
   /* THE SECOND STAGE, exactly once per arm. The decision is seamWarmDue's
@@ -23501,10 +23599,49 @@ const MIXER = {
     if (!nd || nd._warmed || !d) return;
     const t = d.a.currentTime, dur = d.a.duration;
     const aDone = isFinite(dur) && dur > 0 && seamBuffered(d.a.buffered, t, dur - t - 0.5);
-    if (!force && !seamWarmDue({ aDone, exitIn, seconds: this.plan ? this.plan.seconds : 0 })) return;
+    // the copy in memory is for the auto-DJ's own draw, on the deck it loaded
+    // (a hand's record streams as the hand loaded it)
+    const B = this.next != null ? player.tracks[this.next] : null;
+    const ram = !!(B && typeof PREFETCH !== 'undefined' && DECKS.slots[1 - AE.active].owner !== 'hand'
+      && this._sameSrc(nd.a, B.url) && PREFETCH.allowed(B));
+    const route = deckWarmRoute({ landed: ram && PREFETCH.holds(B), force, aDone, exitIn,
+      seconds: this.plan ? this.plan.seconds : 0, ramOk: ram, eta: ram ? PREFETCH.eta(B) : Infinity });
+    if (route === 'wait') return;
+    if (route === 'fetch'){ PREFETCH.want(B); return; }
     nd._warmed = true;
+    if (route === 'seat' && this._seat(nd, B)) return;
+    if (ram && PREFETCH.fetching(B)) PREFETCH.drop();      // never two copies of one record on the pipe
     try { if (nd.a.preload !== 'auto') nd.a.preload = 'auto'; } catch (e){}
     if (nd.a.readyState >= 1){ try { nd.a.currentTime = nd._seekTo || 0; } catch (e){} }
+  },
+  /* THE COPY, SEATED. The idle deck is paused and silent, so the swap is
+     unheard: the object URL replaces the network one, the warm's pre-seek is
+     replayed once the metadata (from memory, at once) has landed, and the
+     listener's rate and key lock are written again — load() puts an element's
+     rate back to its default. spend() hands the URL to the element, which
+     keeps it until no deck reads it any more (PREFETCH._inUse). _warmOf lets
+     _sameSrc still recognise the record by its catalog URL. */
+  _seat(nd, B){
+    const url = PREFETCH.holds(B) ? PREFETCH.url : '';
+    if (!url || !nd.a.paused) return false;
+    this._clearPreloadListener(nd);
+    try { nd.a.preload = 'auto'; } catch (e){}
+    nd.a.src = url;
+    nd.a._warmOf = B.url; nd.a._warmSrc = nd.a.src;
+    PREFETCH.spend();
+    const once = () => {
+      nd.a.removeEventListener('loadedmetadata', once);
+      nd._preloadOnce = null;
+      try { nd.a.currentTime = nd._seekTo || 0; } catch (e){}
+    };
+    nd._preloadOnce = once;
+    nd.a.addEventListener('loadedmetadata', once);
+    try { nd.a.load(); } catch (e){}
+    // the slot's own pitch (a hand's SYNC on the armed deck) rides on the listener's rate, as SPEED.apply composes it
+    const si = AE.decks.indexOf(nd), sl = DECKS.slots[si], r = SPEED.rate * DECKS.pitch(si);
+    try { if (nd.a.playbackRate !== r) nd.a.playbackRate = r; } catch (e){}
+    setPitchLock(nd.a, SPEED.keyLock && !(sl && sl.synced));
+    return true;
   },
 
   _clearPreloadListener(d){
@@ -24763,7 +24900,7 @@ window.addEventListener('appinstalled', () => {
    whole policy lives in the pure, tested updateGate(): SHOW mode is never
    yanked, a snooze holds, "after this track" fires at the boundary.
    IndexedDB (queue, hearts, history, journeys) is never part of an update. */
-const MB8_BUILD = 'e9382e1d3a';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
+const MB8_BUILD = '9a444f0792';   // stamped by tools/stamp_version.py (via publish.sh / the stamp workflow)
 let swReg = null, updateRequested = false, silentHandover = false;
 const UPDATE = {
   source: '',            // 'worker' | 'shell' — how the new release arrived
@@ -25454,7 +25591,10 @@ window.addEventListener('online', () => {
   toast(T('Back online'));
   // a stream that starved while the pipe was down reconnects on the next beat,
   // not twelve seconds from now
-  if (typeof WATCHDOG !== 'undefined' && player.playing) WATCHDOG.s.starve = STARVE_RELOAD_S - 1;
+  // (one memory per deck since the decks went two: every deck that was starving)
+  if (typeof WATCHDOG !== 'undefined' && player.playing)
+    WATCHDOG.s.forEach(m => { if (m && m.starve > 0) m.starve = Math.max(m.starve, STARVE_RELOAD_S - 1); });
+  if (typeof PREFETCH !== 'undefined'){ PREFETCH._fail = 0; PREFETCH._failAt = -1e9; }   // the network that refused copies is back
   checkForUpdate();                // a reconnect is the best moment to look
 });
 
@@ -67059,6 +67199,228 @@ function buildQuartet(){
 }
 /* ==== END ROOM REGION: QUARTET ==== */
 
+/* ==== ROOM REGION: GLASS — builder owns everything between these fences ==== */
+/* =========================================================
+   SCENE 125 · GLASS — the lattice you can see through
+
+   A polyhedron built the way a glassblower would build it:
+   every edge a clear tube, every vertex a lit bead, and the
+   whole cage nested inside itself so the eye falls through
+   frame after frame toward a warm core. Nothing here is a
+   texture — the tubes are signed distances folded through the
+   polyhedral mirror group (one edge and one bead stand for all
+   of them), and the glass is honest optics in miniature: the
+   ray is marched THROUGH each tube, entering and leaving, and
+   at every surface Schlick's Fresnel decides how much of the
+   studio it reflects, so the tubes are nearly invisible face-on
+   and bright at the grazing edge, exactly as glass is. THE CAGE
+   is the dodecahedron, THE CUBE the infinity cube, THE STAR the
+   icosidodecahedron — each three frames deep. The TV's twin is
+   Shaders45.metal (room_glass, namespace rm_gl).
+   ========================================================= */
+function buildGlass(){
+  const group = new THREE.Group();
+  const varU = {
+    uVarA:  { value: Math.random() },
+    uModeGl:{ value: 0 },
+    uSpin:  { value: 0 },
+    uBreath:{ value: 0 },
+    uHand:  { value: new THREE.Vector4(0, 0, 0, 0) },
+    uAspect:{ value: 1 },
+    uSlice: { value: new THREE.Vector4(0, 0, 1, 1) },
+  };
+  const vert = `
+    varying vec2 vUv;
+    uniform vec4 uSlice;
+    void main(){ vUv = uSlice.xy + uv * uSlice.zw; gl_Position = vec4(position.xy, 0.9995, 1.0); }
+  `;
+  const frag = GLSL_MPHI + `
+    uniform float uTime, uBass, uMid, uTreble, uEnergy, uBeat, uOpacity;
+    uniform float uModeGl, uVarA, uAspect, uSpin, uBreath;
+    uniform vec4 uHand;
+    varying vec2 vUv;
+    float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    mat3 rotY(float a){ float c = cos(a), s = sin(a); return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c); }
+    mat3 rotX(float a){ float c = cos(a), s = sin(a); return mat3(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c); }
+
+    // the mirror group: N = 5 icosahedral, N = 4 octahedral (Knighty's fold)
+    vec3 gNc, gV, gE, gU1, gU2;
+    float gTube, gBead, gBund, gL;
+    mat3 gR[3];
+    float gS[3];
+    // one frame: fold into the fundamental domain, then ONE vertex stands
+    // for every vertex and ONE half-edge — a bundle of three glass rods
+    // running to the mirror, where its reflection meets it — for every edge
+    vec2 frame(vec3 p){
+      for (int i = 0; i < 5; i++){
+        p.xy = abs(p.xy);
+        p -= 2.0 * min(0.0, dot(p, gNc)) * gNc;
+      }
+      vec3 q = p - gV;
+      float along = clamp(-dot(q, gE), 0.0, gL);
+      vec3 w = q + along * gE;
+      vec2 c = vec2(dot(w, gU1), dot(w, gU2));
+      float tube = 1e5;
+      for (int k = 0; k < 3; k++){
+        float th = float(k) * 2.0943951 + 0.5;
+        tube = min(tube, length(c - gBund * vec2(cos(th), sin(th))));
+      }
+      tube -= gTube;
+      float bead = length(q) - gBead;
+      return tube < bead ? vec2(tube, 0.0) : vec2(bead, 1.0);
+    }
+    // three frames deep: x = distance, y = 0 tube / 1 bead, z = depth
+    vec3 mapG(vec3 p){
+      vec3 best = vec3(1e5, 0.0, 0.0);
+      for (int l = 0; l < 3; l++){
+        vec2 d = frame(gR[l] * p / gS[l]) * gS[l];
+        if (d.x < best.x) best = vec3(d, float(l));
+      }
+      return best;
+    }
+    vec3 nrmG(vec3 p){
+      const vec2 e = vec2(0.0025, -0.0025);
+      return normalize(e.xyy * mapG(p + e.xyy).x + e.yyx * mapG(p + e.yyx).x
+                     + e.yxy * mapG(p + e.yxy).x + e.xxx * mapG(p + e.xxx).x);
+    }
+    // the studio the glass reflects: dark, with softboxes — chord light only
+    vec3 studio(vec3 r){
+      vec3 c = ramp(0.60 + 0.08 * r.y) * 0.05;
+      c += ramp(0.82) * exp(-abs(r.y - 0.62) * 9.0) * 1.1;
+      c += ramp(0.35) * exp(-abs(r.x + 0.70) * 8.0) * smoothstep(-0.3, 0.7, r.y + 0.4) * 0.8;
+      c += ramp(0.70) * exp(-abs(r.x - 0.75) * 10.0) * smoothstep(-0.6, 0.4, -r.y) * 0.6;
+      c += vec3(1.0) * pow(max(dot(r, normalize(vec3(0.45, 0.55, 0.70))), 0.0), 60.0) * 1.6;
+      return c;
+    }
+    void main(){
+      vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+      float m = uModeGl;
+      float N = m > 0.5 && m < 1.5 ? 4.0 : 5.0;
+      float cs = cos(PI / N), ss = sqrt(max(0.75 - cs * cs, 0.0));
+      gNc = vec3(-0.5, -cs, ss);
+      vec3 pab = vec3(0.0, 0.0, 1.0);
+      vec3 pbc = normalize(vec3(ss, 0.0, 0.5));
+      vec3 pca = normalize(vec3(0.0, ss, cs));
+      // which vertex of the domain carries the bead decides the solid
+      gV = m < 1.5 ? pca : pab;
+      // the one live edge of that vertex: toward the y-mirror for the cage and
+      // the cube, toward the third mirror for the star
+      gE = m < 1.5 ? vec3(0.0, 1.0, 0.0) : gNc;
+      gL = dot(gV, gE);
+      gU1 = normalize(gV - gL * gE);
+      gU2 = cross(gE, gU1);
+      gBund = m > 1.5 ? 0.030 : 0.040;
+      gTube = m > 1.5 ? 0.013 : 0.017;
+      gBead = gBund + gTube * 2.3;
+      // the frames nest, each counter-turned; the bass breathes the inner ones
+      float br = uBreath;
+      gS[0] = 1.0;
+      gS[1] = 0.56 * (1.0 + br * 0.10);
+      gS[2] = 0.31 * (1.0 + br * 0.18);
+      float a = uVarA * 6.2831853;
+      gR[0] = mat3(1.0);
+      gR[1] = rotY(0.6 + a * 0.3 - uSpin * 0.9) * rotX(0.35);
+      gR[2] = rotY(-0.9 + uSpin * 1.7) * rotX(-0.5 + a * 0.1);
+
+      // the camera orbits; a hand turns the cage toward itself
+      float yaw = uSpin + a + uHand.x * uHand.z * 1.2;
+      float pit = 0.35 + 0.18 * sin(uSpin * 0.7) - uHand.y * uHand.z * 0.9;
+      mat3 cam = rotY(yaw) * rotX(pit) * rotY(0.52);
+      vec3 ro = cam * vec3(0.0, 0.0, 3.3);
+      vec3 rd = cam * normalize(vec3(p, -2.8));
+
+      vec3 col = vec3(0.0);
+      // one bounding sphere: most of the screen is void and pays nothing
+      float bb = dot(ro, rd), cc = dot(ro, ro) - 1.21;
+      float disc = bb * bb - cc;
+      if (disc > 0.0){
+        float sq = sqrt(disc);
+        float t = max(-bb - sq, 0.0), tEnd = -bb + sq;
+        float trans = 1.0, side = 1.0;
+        vec3 warm = ramp(0.12 + uVarA * 0.1);
+        for (int i = 0; i < 96; i++){
+          vec3 pos = ro + rd * t;
+          vec3 h = mapG(pos);
+          float d = h.x * side;
+          if (d < 0.0012){
+            vec3 n = nrmG(pos) * side;
+            float cosi = clamp(-dot(rd, n), 0.0, 1.0);
+            float F = 0.04 + 0.96 * pow(1.0 - cosi, 5.0);
+            vec3 refl = studio(reflect(rd, n));
+            float depth = h.z;
+            if (h.y > 0.5){
+              // a bead: a lit glass marble, banded like cane
+              float band = pow(0.5 + 0.5 * sin(dot(n, normalize(vec3(0.3, 1.0, 0.2))) * 9.0 + uTime * 0.6), 3.0);
+              vec3 bc = ramp(0.86 - depth * 0.30 + uVarA * 0.05);
+              float lit = 0.8 + uBeat * 0.6 + uTreble * 0.3;
+              vec3 e = bc * (0.30 + 0.9 * band) * lit;
+              e = mix(e, vec3(1.0), 0.35 * band * cosi * cosi);
+              col += trans * (e * (0.35 + 0.65 * cosi) + refl * F * 1.4 + bc * pow(1.0 - cosi, 3.0) * 0.5);
+              trans *= 0.45;
+            } else {
+              // a tube: clear glass — the studio at the grazing edge, a whisper of tint
+              vec3 tint = ramp(0.78 - depth * 0.28);
+              float rim = pow(1.0 - cosi, 2.0);
+              col += trans * (refl * F * (side > 0.0 ? 1.3 : 0.8) + tint * (0.03 + rim * 0.30));
+              trans *= side > 0.0 ? 0.90 : 0.94;
+            }
+            side = -side;
+            t += 0.004;
+          } else {
+            float st = max(d * 0.85, 0.004);
+            // the warm core the frames fall toward
+            float r2 = dot(pos, pos);
+            col += trans * warm * (exp(-r2 * 30.0) * 2.2 + exp(-r2 * 6.0) * 0.25) * st * (1.0 + uBass * 1.2);
+            t += st;
+          }
+          if (t > tEnd || trans < 0.03) break;
+        }
+      }
+      col += (hash21(vUv * 700.0 + uTime) - 0.5) * 0.010;
+      gl_FragColor = vec4(inkRolloff(col), uOpacity);
+    }
+  `;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: matU(varU), vertexShader: vert, fragmentShader: frag,
+    transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false; mesh.renderOrder = 5;
+  group.add(mesh); group.visible = false; scene.add(group);
+
+  const MODES = [
+    { name: 'THE CAGE', m: 0 },
+    { name: 'THE CUBE', m: 1 },
+    { name: 'THE STAR', m: 2 },
+  ];
+  const st = { mode: MODES[0] };
+  const api = {
+    name: 'GLASS', key: 'glass', group, heavy: true,
+    update(dt){
+      if (!group.visible) return;
+      const f = AE.f || {};
+      const s = STAGE.sliceUniform(varU.uSlice);
+      varU.uAspect.value = s.aspect;
+      // the cage turns with the phrase; the inner frames breathe on the bass
+      varU.uSpin.value += dt * (0.10 + (f.energy || 0) * 0.16);
+      varU.uBreath.value += ((f.bass || 0) - varU.uBreath.value) * Math.min(1, dt * 3);
+      const force = (U.uPtr.value.z || 0) * (U.uPtrF.value.y || 0);
+      varU.uHand.value.set(U.uPtr.value.x, U.uPtr.value.y,
+        varU.uHand.value.z + ((force > 0.08 ? force : 0) - varU.uHand.value.z) * Math.min(1, dt * 4), 0);
+    },
+    roll(){
+      st.mode = MODES[Math.floor(Math.random() * MODES.length)];
+      varU.uModeGl.value = st.mode.m;
+      varU.uVarA.value = Math.random();
+      api.name = 'GLASS · ' + st.mode.name;
+      return api.name;
+    },
+  };
+  api.roll();
+  return api;
+}
+/* ==== END ROOM REGION: GLASS ==== */
+
 /* ================================================================
    INIT + RENDER LOOP
    ================================================================ */
@@ -67106,7 +67468,8 @@ function initThree(){
               buildMinkowski(), buildBoltzmann(),
               buildShuffle(), buildStellarator(), buildFlux(), buildCarom(), buildBallpit(), buildMasonry(), buildWake(), buildBrachisto(), buildIris(), buildKutta(), buildAurora(), buildCochlea(), buildCoriolis(), buildSeismic(), buildTides(), buildVortex(), buildPlateau(), buildEscapement(), buildHubble(),
               buildNave(), buildPlotter(), buildSpectral(),
-              buildFluid(), buildQuartet());
+              buildFluid(), buildQuartet(),
+              buildGlass());
   /* EACH ROOM COLLECTS ITS APPETITE. A scene's `name` is a live label — OP-ART,
      PARLOR, HALO and the FRACTAL FIELD all rewrite theirs on every re-roll to
      announce which variation is up — so identity is the `key` its builder

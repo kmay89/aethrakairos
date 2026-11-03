@@ -1,11 +1,21 @@
+# --- dependencies and build output ---
 node_modules/
-__pycache__/
-*.pyc
 package-lock.json
 package.json
+build/
+__pycache__/
+*.pyc
+
+# --- local working material (never published) ---
 masters/
 synthetic-deploy/
-tests/_tmp_*/
-node_modules
 keys/
-build/
+tests/_tmp_*/
+
+# --- OS and editor clutter ---
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/

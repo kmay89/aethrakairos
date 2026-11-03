@@ -33,15 +33,34 @@ struct VisualizerView: View {
     @ObservedObject var player: Player
     var roomStep: Int                    // bumped ±1 by remote swipes upstream
     @Binding var roomName: String        // published back for the HUD label
+    /// True while nobody can see the field: the app is not the active scene
+    /// (backgrounded with the music still playing, the system's own overlay
+    /// up) or an opaque full-screen cover sits over it. The MTKView stops
+    /// drawing — no GPU work is submitted from the background, and the stage
+    /// screen is never fighting a hidden field for the same GPU.
+    var paused: Bool
+    /// True while the field is backdrop (the welcome and the shelves cover it):
+    /// it draws at 30 fps, and the GPU it frees keeps the glass above at 60.
+    var lowPower: Bool
+    /// True only when the app is truly in the background: the offscreen art
+    /// goes back to the system. A merely paused field (Siri, the system
+    /// overlay, the console or the stage over it) keeps its targets, so
+    /// coming back is instant instead of a frame spent reallocating ~150 MB.
+    var purge: Bool
 
-    init(player: Player, roomStep: Int, roomName: Binding<String>) {
+    init(player: Player, roomStep: Int, roomName: Binding<String>, paused: Bool = false,
+         lowPower: Bool = false, purge: Bool = false) {
         self.player = player
         self.roomStep = roomStep
         self._roomName = roomName
+        self.paused = paused
+        self.lowPower = lowPower
+        self.purge = purge
     }
 
     var body: some View {
-        MetalSurface(player: player, roomStep: roomStep, roomName: $roomName)
+        MetalSurface(player: player, roomStep: roomStep, roomName: $roomName, paused: paused,
+                     lowPower: lowPower, purge: purge)
             .ignoresSafeArea()
     }
 }
@@ -52,6 +71,9 @@ private struct MetalSurface: UIViewRepresentable {
     let player: Player
     let roomStep: Int
     @Binding var roomName: String
+    let paused: Bool
+    let lowPower: Bool
+    let purge: Bool
 
     func makeCoordinator() -> VizRenderer {
         VizRenderer(player: player, roomName: $roomName)
@@ -60,12 +82,13 @@ private struct MetalSurface: UIViewRepresentable {
     func makeUIView(context: Context) -> MTKView {
         let view = MTKView()
         view.device = MTLCreateSystemDefaultDevice()
-        view.preferredFramesPerSecond = 60
+        view.preferredFramesPerSecond = lowPower ? 30 : 60
         view.colorPixelFormat = .bgra8Unorm
         // even a dropped frame shows the void, never a flash of anything else
         view.clearColor = MTLClearColor(red: 5.0 / 255.0, green: 6.0 / 255.0,
                                         blue: 14.0 / 255.0, alpha: 1.0)
         view.framebufferOnly = true
+        view.isPaused = paused
         view.delegate = context.coordinator
         context.coordinator.configure(view: view)
         return view
@@ -75,6 +98,16 @@ private struct MetalSurface: UIViewRepresentable {
         // SwiftUI may rebuild this struct; keep the renderer's binding fresh
         context.coordinator.roomName = $roomName
         context.coordinator.roomStepChanged(to: roomStep)
+        let fps = lowPower ? 30 : 60
+        if uiView.preferredFramesPerSecond != fps { uiView.preferredFramesPerSecond = fps }
+        if uiView.isPaused != paused {
+            uiView.isPaused = paused
+        }
+        // a field in the BACKGROUND holds no offscreen art: the five render
+        // targets (~150 MB at 1440p) go back to the system, and draw()
+        // rebuilds them on the first frame back, exactly as after a size
+        // change. Only the background: a pause under an overlay keeps them.
+        if purge { context.coordinator.releaseTargets() }
     }
 }
 
@@ -195,6 +228,14 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// so motion breathes with the track and speed changes never teleport
     /// time-driven geometry.
     private var musicalTime: Double = 0
+    /// The rooms read `time` as a Float, and a Float past a few thousand
+    /// seconds steps in milliseconds: hours into a night every time-driven
+    /// motion would start to judder. So the clock starts over at a room
+    /// handover once it passes an hour (the incoming room is dealt a fresh
+    /// face anyway), and the departing room keeps its own clock — this shift
+    /// — for the length of the blend, so nothing on screen jumps.
+    private var outgoingTimeShift: Double = 0
+    private static let musicalTimeWrap: Double = 3600
 
     // the story arc, eased
     private var actEased: Double = 0
@@ -318,6 +359,8 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         "fluid": 3,
         // ↑ fluid · quartet ↓
         "quartet": 2,     // gathers, the web's QUARTET touch
+        // ↑ quartet · glass ↓
+        "glass": 3,       // flows, the web's GLASS touch
     ]
 
     private var specScratch = [Float](repeating: 0, count: 256)
@@ -641,13 +684,117 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// linear sampler under bloom and grain, the difference is invisible
     /// and the frame time drops 2-4x. A 1080p TV renders native.
     private func internalSize(for drawable: CGSize) -> CGSize {
+        guard drawable.height > 0 else { return drawable }
         let cap: CGFloat = heavyOnStage ? 1080 : 1440
-        guard drawable.height > cap, drawable.height > 0 else { return drawable }
-        let sc = cap / drawable.height
-        return CGSize(width: (drawable.width * sc).rounded(), height: cap)
+        let base = min(drawable.height, cap)
+        let lines = max(360, (base * Self.artSteps[min(max(artStep, 0), Self.artSteps.count - 1)]).rounded())
+        guard lines < drawable.height else { return drawable }
+        let sc = lines / drawable.height
+        return CGSize(width: (drawable.width * sc).rounded(), height: lines)
     }
 
     private var heavyOnStage = false
+
+    /* THE FRAME GOVERNOR. A frame the GPU cannot finish in its slot is shown
+       a refresh late, and a run of them alternates 16 and 33 ms: judder,
+       however beautiful each frame is. The rooms differ by an order of
+       magnitude in cost (and a handover draws two at once), so a fixed art
+       size is always wrong somewhere. Every command buffer reports its GPU
+       time; when the smoothed time sits over 90 % of the frame for most of a
+       second the art steps down one rung (1440 → 1260 → 1080 → 900 → 720
+       lines at most), and after eight calm seconds under 60 % it steps back
+       up. The GRADE upscales with its linear sampler under bloom and grain,
+       so a rung is softness nobody on a sofa sees; a dropped frame everyone
+       does. */
+    private let gpuClock = GPUFrameClock()
+    private static let artSteps: [CGFloat] = [1.0, 0.875, 0.75, 0.625, 0.5]
+    private var artStep = 0
+    private var overBudgetFor: Double = 0
+    private var underBudgetFor: Double = 0
+    private var lastArtChange: CFTimeInterval = 0
+    /// How long the art must run calm before it is allowed back UP a rung.
+    /// It doubles (to two minutes) whenever a step up is undone within 30 s —
+    /// a room that sits right at the edge would otherwise ping-pong a rung
+    /// every few seconds, and each change reallocates the chain — and halves
+    /// back after five minutes without a step down.
+    private var calmNeeded: Double = 8
+    private var lastStepUp: CFTimeInterval = -1_000
+    private var lastStepDown: CFTimeInterval = -1_000
+
+    /* THE PACED CLOCK. Animation advanced by the wall time between draw
+       calls, and a draw call's moment is the main thread's (a SwiftUI update
+       or a remote press shifts it by milliseconds) while the frame is SHOWN
+       on the display's vsync grid. Motion then stepped unevenly even at a
+       steady 60. Animation now advances in whole display intervals, and a
+       gentle correction keeps the paced clock within half a frame of the
+       wall, so nothing drifts over a night. */
+    private var pacedAccum: Double = 0
+    private var wallAccum: Double = 0
+
+    private func displayInterval(_ view: MTKView) -> Double {
+        let screenHz = view.window?.screen.maximumFramesPerSecond ?? 60
+        let hz = min(view.preferredFramesPerSecond, max(screenHz, 1))
+        return 1.0 / Double(max(hz, 1))
+    }
+
+    private func pacedStep(raw: Double, view: MTKView) -> Double {
+        let interval = displayInterval(view)
+        let r = min(max(raw, 0), 0.25)
+        var q = max(1, (r / interval).rounded()) * interval
+        wallAccum += r
+        pacedAccum += q
+        let drift = wallAccum - pacedAccum
+        let fix = max(-interval * 0.5, min(interval * 0.5, drift * 0.25))
+        q += fix
+        pacedAccum += fix
+        if wallAccum > 600 {
+            wallAccum -= 600
+            pacedAccum -= 600
+        }
+        return min(max(q, 0), 0.25)
+    }
+
+    private func governArt(dt: Double, now: CFTimeInterval) {
+        let (gpu, samples) = gpuClock.read()
+        guard samples >= 20 else { return }
+        // the budget is the 60 Hz slot (or the screen's own, if slower): the
+        // backdrop's 30 fps under the shelves must not talk the art up only
+        // to drop it again the moment the field is uncovered
+        let budget = 1.0 / 60.0
+        if now - lastStepDown > 300, calmNeeded > 8 {
+            calmNeeded = max(8, calmNeeded / 2)
+            lastStepDown = now - 150             // halve again only after another 2.5 min
+        }
+        if gpu > budget * 0.9 {
+            overBudgetFor += dt
+            underBudgetFor = 0
+        } else if gpu < budget * 0.6, gpu > 0.0005 {
+            // (a reading under half a millisecond is not a real frame — a
+            // device or simulator that reports no GPU time never talks the
+            // art up on it)
+            underBudgetFor += dt
+            overBudgetFor = 0
+        } else {
+            overBudgetFor = max(0, overBudgetFor - dt)
+            underBudgetFor = 0
+        }
+        if overBudgetFor > 0.75, artStep < Self.artSteps.count - 1, now - lastArtChange > 1.5 {
+            artStep += 1
+            if now - lastStepUp < 30 { calmNeeded = min(calmNeeded * 2, 120) }
+            lastStepDown = now
+        } else if underBudgetFor > calmNeeded, artStep > 0, now - lastArtChange > calmNeeded {
+            artStep -= 1
+            lastStepUp = now
+        } else {
+            return
+        }
+        lastArtChange = now
+        overBudgetFor = 0
+        underBudgetFor = 0
+        NSLog("AethraKairos: art step %d (%.0f %% of the cap), gpu %.1f ms, calm needed %.0f s", artStep,
+              Double(Self.artSteps[artStep]) * 100, gpu * 1000, calmNeeded)
+        gpuClock.reset()                  // the new size earns its own record
+    }
 
     private func rebuildTargets(size drawable: CGSize) {
         let size = internalSize(for: drawable)
@@ -658,11 +805,27 @@ final class VizRenderer: NSObject, MTKViewDelegate {
                                                             mipmapped: false)
         desc.usage = [.renderTarget, .shaderRead]
         desc.storageMode = .private
+        // let the old chain go FIRST: a resize between the 1440p and 1080p
+        // art sizes (a heavy room arriving or leaving) otherwise held both
+        // chains at once, ~230 MB at the peak
+        releaseTargets()
         texA = device.makeTexture(descriptor: desc)
         texB = device.makeTexture(descriptor: desc)
         texC = device.makeTexture(descriptor: desc)
         lensTex = device.makeTexture(descriptor: desc)   // the LENS output, same size
         echoTex = device.makeTexture(descriptor: desc)   // ECHO's memory, same size
+        echoLive = false
+    }
+
+    /// Lets the offscreen chain go while the view is paused. Command buffers
+    /// still in flight hold their own references, and draw() reallocates the
+    /// chain the moment it finds texA missing.
+    func releaseTargets() {
+        texA = nil
+        texB = nil
+        texC = nil
+        lensTex = nil
+        echoTex = nil
         echoLive = false
     }
 
@@ -706,6 +869,12 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         outgoingIndex = oldIndex
         transitionProgress = 0
         transitionStart = CACurrentMediaTime()
+        if musicalTime > Self.musicalTimeWrap {
+            outgoingTimeShift = musicalTime
+            musicalTime = 0
+        } else {
+            outgoingTimeShift = 0
+        }
 
         let calmNow = reduceMotion || VizSettings.shared.calm
         if calmNow {
@@ -970,7 +1139,10 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // frame dt below — on a slow renderer the clamp would run them at a
         // fraction of real time and a cut aimed at the drop would land late
         let wallDt = min(max(dt, 0), 1.0)
-        dt = min(max(dt, 0), 0.25)                     // a resumed app is not a time machine
+        // whole display intervals (a resumed app is not a time machine: the
+        // step is clamped to a quarter second inside)
+        dt = pacedStep(raw: dt, view: view)
+        governArt(dt: wallDt, now: now)
 
         // -- settings, read live on the main actor --
         director.autoOn = VizSettings.shared.autoRooms
@@ -1307,6 +1479,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
            roomPipelines.indices.contains(outgoingIndex),
            !xformPipelines.isEmpty {
             var ug = u
+            ug.time = Float(musicalTime + outgoingTimeShift)
             ug.roll0 = outgoingRolls.x
             ug.roll1 = outgoingRolls.y
             ug.roll2 = outgoingRolls.z
@@ -1386,7 +1559,19 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
 
+        // every frame held on screen for at least one display interval: a
+        // frame that finishes early never jumps the queue and is never shown
+        // for half a slot, so the cadence stays even. The tvOS Simulator's
+        // SDK has no paced present; CI's simulator builds take the plain one.
+        #if targetEnvironment(simulator)
         commandBuffer.present(drawable)
+        #else
+        commandBuffer.present(drawable, afterMinimumDuration: displayInterval(view))
+        #endif
+        let clock = gpuClock
+        commandBuffer.addCompletedHandler { cb in
+            clock.record(cb.gpuEndTime - cb.gpuStartTime)
+        }
         commandBuffer.commit()
     }
 
@@ -1658,6 +1843,36 @@ final class VizRenderer: NSObject, MTKViewDelegate {
 /// build can run behind the first frame (see VizRenderer.configure, and the
 /// stage screen's StageRenderer.configure, which shares it). Holds only Metal
 /// objects, which Metal documents as safe to use from any thread.
+/// The GPU's own word on how long each frame took, smoothed. Written from
+/// Metal's completion thread, read on the main thread: one lock, a few
+/// scalars, never held across anything.
+final class GPUFrameClock: @unchecked Sendable {   // every field behind the lock
+    private let lock = NSLock()
+    private var ewma: Double = 0
+    private var samples = 0
+
+    func record(_ seconds: Double) {
+        guard seconds.isFinite, seconds > 0, seconds < 1 else { return }
+        lock.lock()
+        ewma = samples == 0 ? seconds : ewma * 0.85 + seconds * 0.15
+        samples += 1
+        lock.unlock()
+    }
+
+    func read() -> (Double, Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (ewma, samples)
+    }
+
+    func reset() {
+        lock.lock()
+        ewma = 0
+        samples = 0
+        lock.unlock()
+    }
+}
+
 struct PipelineBuilder {
     let device: MTLDevice
     let library: MTLLibrary

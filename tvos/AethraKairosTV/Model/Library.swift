@@ -61,11 +61,6 @@ struct SavedJourney: Codable, Equatable, Identifiable {
     private var lastTransportWrite: TimeInterval?
     private var transportFlushScheduled = false
 
-    private static let encoder: JSONEncoder = {
-        let e = JSONEncoder()
-        e.dateEncodingStrategy = .secondsSince1970
-        return e
-    }()
     private static let decoder: JSONDecoder = {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .secondsSince1970
@@ -188,9 +183,23 @@ struct SavedJourney: Codable, Equatable, Identifiable {
         return try? decoder.decode(T.self, from: data)
     }
 
+    /// One serial queue for every write, so they land in the order made.
+    private static let io = DispatchQueue(label: "aethra.library.io", qos: .utility)
+
+    /// OFF THE MAIN THREAD. The transport snapshot is written every second
+    /// while music plays, and with the nonstop mix it carries the whole
+    /// library's queue (267 keys); the history is up to 400 events. Encoding
+    /// and an atomic file write on the main thread were a hitch in the field
+    /// once a second and at every track change. The value is a copy (every
+    /// type written here is a struct), encoded and written on a serial
+    /// utility queue — atomic or nothing, a torn file would be worse than a
+    /// stale one.
     private func write<T: Encodable>(_ value: T, to url: URL) {
-        // atomic or nothing: a torn file would be worse than a stale one
-        guard let data = try? Self.encoder.encode(value) else { return }
-        try? data.write(to: url, options: .atomic)
+        Self.io.async {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .secondsSince1970
+            guard let data = try? encoder.encode(value) else { return }
+            try? data.write(to: url, options: .atomic)
+        }
     }
 }
