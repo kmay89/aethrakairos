@@ -85,8 +85,16 @@ const load = await page.evaluate(async () => {
   const before = AE.decks[0].gain.gain.value;
   const t = player.tracks[1];
   const ok = DECKS.load(1, t);
-  await new Promise(r => setTimeout(r, 600));
+  /* the claim is WHERE the deck ends up, not how fast: wait for the load to
+     land (metadata in, the cue seek settled) rather than reading it at a fixed
+     600 ms, which raced the element's own events whenever the renderer had the
+     main thread (measured: a hand LOAD lands in 20-480 ms on a software GPU) */
   const d = AE.decks[1];
+  for (let w = 0; w < 60; w++){
+    if (d.a.readyState >= 1 && !d.a.seeking && Math.abs(d.a.currentTime - DECKS.slots[1].cue) < 0.3) break;
+    await new Promise(r => setTimeout(r, 50));
+  }
+  await new Promise(r => setTimeout(r, 150));
   return { ok, before, after: AE.decks[0].gain.gain.value, faderA: AE.decks[0].fader.gain.value, faderB: d.fader.gain.value,
     owner: DECKS.slots[1].owner, src: d.a.src.indexOf(encodeURI(t.url).split('/').pop()) >= 0, paused: d.a.paused,
     gainB: d.gain.gain.value, normB: d.norm, cue: DECKS.slots[1].cue, at: d.a.currentTime, active: AE.active, cur: player.cur };
@@ -323,6 +331,14 @@ const fix = await page.evaluate(async () => {
   for (let k = 0; k < 120 && MIXER.phase !== 'running'; k++) await sleep(100);
   for (let k = 0; k < 100 && !(MIXER.lastF > 0.15); k++) await sleep(50);
   const outSlot = AE.decks.indexOf(MIXER.outDeck), od = AE.decks[outSlot];
+  // no seam ever ran: say so with the mixer's state, rather than reading a deck that is not there
+  if (!od) return { a, noSeam: { now, phase: MIXER.phase, lastF: MIXER.lastF, plan: MIXER.plan && MIXER.plan.type, on: MIXER.on, playing: player.playing,
+    loop: !!(typeof FX !== 'undefined' && FX.loop), x: DECKS.fader.x, mode: DECKS.fader.mode,
+    // where the seam was waiting: A's clock against the plan's exit, and the incoming deck's readiness
+    aT: +activeDeck().a.currentTime.toFixed(2), aDur: +activeDeck().a.duration.toFixed(2), aPaused: activeDeck().a.paused, aSeeking: activeDeck().a.seeking,
+    startA: MIXER.plan && MIXER.plan.startA, fireAt: MIXER._fireAt, nRs: AE.decks[1 - AE.active].a.readyState, nSeeking: AE.decks[1 - AE.active].a.seeking,
+    cue: typeof MIXER.cueing === 'function' ? MIXER.cueing(AE.decks[1 - AE.active]) : null, looper: typeof LOOPER !== 'undefined' ? { on: LOOPER.on, pending: LOOPER.pending, backing: !!LOOPER.backing } : null,
+    hidden: document.hidden, repeat: player.repeat } };
   DECKS.faderGrab(); DECKS.faderMove(0.5);
   const hold = DECKS.faderRelease().act;
   const b = { now, outSlot, hold, manual: MIXER.phase, scene: typeof SEGUE !== 'undefined' ? !!SEGUE.seam : false };
@@ -347,6 +363,10 @@ const fix = await page.evaluate(async () => {
 R('a handle left at the far end with nothing rolling there is a hold, and the auto-DJ does not arm over the silenced record',
   fix.a.act === 'hold' && fix.a.x === fix.a.far && fix.a.mode === 'rest' && fix.a.on && fix.a.phase === 'idle', JSON.stringify(fix.a));
 R('…AUTO from there brings the handle home to the record on air, its fader open', fix.a.auto && fix.a.home && Math.abs(fix.a.fOn - 1) < 0.02, JSON.stringify(fix.a));
+if (fix.noSeam){
+  // the mix-now never became a running seam: every check that needs one fails, with the mixer's word on why
+  R('a running seam yielded and parked mid-way: a hold, the seam\'s room cue withdrawn', false, 'no seam ran: ' + JSON.stringify(fix.noSeam));
+} else {
 R('a running seam yielded and parked mid-way: a hold, the seam\'s room cue withdrawn', fix.b.now && fix.b.hold === 'hold' && fix.b.manual === 'manual' && !fix.b.scene, JSON.stringify(fix.b));
 R('…MIX switched off hands the outgoing record to the hand: still playing at its trim, the handle and its fader where the hand left them',
   fix.b.phase === 'idle' && fix.b.outRolling && fix.b.owner === 'hand' && Math.abs(fix.b.x - 0.5) < 1e-6 && fix.b.mode === 'rest'
@@ -357,6 +377,7 @@ R('…and keeps its tempo: neither record\'s rate moves when the mixer steps asi
 // (the same check run on the previous commit's player fails: both rates snap back to SPEED.rate)
 R('the transport paused under a held blend stops both records; the hand keeps its deck', fix.c.onPaused && fix.c.handPaused && fix.c.owner === 'hand' && !fix.c.playing,
   JSON.stringify(fix.c));
+}
 
 // ---- 12 · the transport's own crossfade is not the hand's to take; a record started under the handle takes the air
 const own = await page.evaluate(async () => {
