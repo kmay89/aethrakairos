@@ -337,6 +337,11 @@ const fix = await page.evaluate(async () => {
      its quick fade and the next seam is the new record's natural one, seconds
      away. So the draw is pointed at a partner the planner beatmixes from here. */
   {
+    /* a hand's record left on the idle deck by the sections before IS the next
+       (MIX NOW honours it, by design), and the one left here can be the 152 bpm
+       record nothing beatmixes with: take it off, so the draw below decides */
+    const idle = 1 - AE.active;
+    if (DECKS.slots[idle].owner === 'hand') DECKS.eject(idle);
     const A0 = player.tracks[player.cur], t0 = activeDeck().a.currentTime;
     const blends = B => !!B && B !== A0 && planMixNow(mixOf(A0), mixOf(B), t0,
       { durA: activeDeck().a.duration, quickFade: 0.8, lead: BEATMIX_LEAD }).type === 'beatmix';
