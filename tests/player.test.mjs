@@ -39,7 +39,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' driveCurve, drivePre, driveTiltDb, driveTrimDb, drivePinkRef, driveMakeup, FX_AUTO, makeFxAuto, fxAutoStep, fxAutoSweep,'  +
   ' FX_GAIN_DB, FX_BUDGET_DB, fxGainBudget, FX_PARK,'  +
   ' LOOP_XFADE, LOOP_RING_SEC, loopXfadeLen, loopHeadBlend, ringIndexOf, ringSlice,' +
-  ' loopPhaseAt, loopHandbackPos, loopInPoint, tapeLoopPos, loopMediaAt, loopAlignErr, loopDeckReady, loopHandbackAt,' +
+  ' loopPhaseAt, loopHandbackPos, loopInPoint, tapeLoopPos, loopMediaAt, loopAlignErr, loopDeckReady, loopHandbackAt, loopTempo, loopBeatsOf, tapeFadeRead,' +
   ' TAPE_RAMP, TAPE_GUARD, tapeXfade, tapeFits, makeLoopTape, tapeHolds, tapeLoopAt, tapeFadeFrom, tapeRefuse, loopTapeWrite, loopTapeCommand, loopTapeProcess,' +
   ' CUE_SLOTS, CUE_COLORS, cueSnap, autoCuePoints, AUTOCUE, cueJumpAt, cueJumpLand, beatJumpTarget, EQ_KILL_DB, EQ_BANDS, fxEqToggle, fxEqIsFlat,' +
   ' MIX_STYLES, MIX_STYLE_ORDER, resolveMixStyle, stylePlanOpts, styleAdjustPlan, styleExitBase,' +
@@ -12207,10 +12207,12 @@ test('the re-seek wrap never touches a deck whose tape holds the loop — not ev
   assert.equal(legacy.seeks, 1, 'no tape: the re-seek loop still holds it');
   assert.ok(Math.abs(legacy.ct - 8) < 1e-9);
   // and setLoop hands the loop to the deck's own tape, keeping the re-seek only for where there is none
-  const s0 = html.indexOf('  setLoop(beats, roll){'), s1 = html.indexOf('  /* THE LEGACY WRAP RUNS ON ITS OWN CLOCK.', s0);
+  const s0 = html.indexOf('  setLoop(beats, roll, landed){'), s1 = html.indexOf('  /* THE LEGACY WRAP RUNS ON ITS OWN CLOCK.', s0);
+  assert.ok(s0 > 0 && s1 > s0, 'FX.setLoop is where the test looks');
   const body = html.slice(s0, s1);
-  assert.ok(/LOOPER\.arm\(b\.start, b\.len, roll \? 'roll' : 'loop', slot\)/.test(body), 'armed on the record on air\'s own tape');
-  assert.ok(/LOOPER\.cancel\(\); this\._legacyPoll\(\);/.test(body), 'and the re-seek only where the tape cannot take it');
+  assert.ok(/const took = taped && LOOPER\.arm\(b\.start, b\.len, roll \? 'roll' : 'loop', slot\)/.test(body), 'armed on the record on air\'s own tape');
+  assert.ok(/if \(!took\) this\._legacyPoll\(\);/.test(body), 'and the re-seek only where the tape cannot take it');
+  assert.ok(/const taped = LOOPER\.ok\(slot\) && LOOPER\.open\(\) && !!LOOPER\.tapes\[slot\];/.test(body), 'taped only by this deck\'s own tape');
 });
 
 test('a commit lets a tape loop go at once on the deck it retires; a hand lets go and waits for the deck to be found', () => {
@@ -12228,6 +12230,150 @@ test('a commit lets a tape loop go at once on the deck it retires; a hand lets g
   const h0 = html.indexOf('  handBack(seekTo, opts){'), h1 = html.indexOf('  _backPoll(){', h0);
   assert.ok(h0 > 0 && /if \(opts && opts\.quiet\)\{ this\._finishBack\(now \+ LOOP_MIN_LEAD\); return LOOP_MIN_LEAD; \}/.test(html.slice(h0, h1)),
     'quiet: the crossover is written at once, nothing is polled');
+});
+
+// ---------------------------------------------------------------- the deck tape, second pass: what review found
+test('a loop re-cut just after a jump starts past the settle — never back across the jump (A)', () => {
+  const bpm = 120;                                             // 0.5 s a beat, grid at 0
+  // a deck that has only just jumped owes its tape LOOP_SETTLE: the in-point is the first line at least that far AHEAD
+  const a = S.loopInPoint(10.49, 0, bpm, 4, -0.1);
+  assert.ok(a.start >= 10.59 - 1e-9, 'past the settle, got ' + a.start);
+  assert.ok(Math.abs(a.start / 0.5 - Math.round(a.start / 0.5)) < 1e-9, 'on a grid line');
+  assert.ok(Math.abs(a.start - 11) < 1e-9, 'the first one: ' + a.start);
+  assert.ok(Math.abs(S.loopInPoint(10.0, 0, bpm, 4, -0.1).start - 10.5) < 1e-9, 'on a line, still owing the settle: the next one');
+  assert.ok(Math.abs(S.loopInPoint(10.2, 0, bpm, 4, -0.7).start - 11) < 1e-9, 'a longer debt, further on');
+  assert.ok(Math.abs(S.loopInPoint(10.0, 0, bpm, 4, -0.5).start - 10.5) < 1e-9, 'exactly a beat owed is exactly a beat on');
+  // and nothing else moves: no tape at all, plenty of tape, none, and a broken reading
+  assert.ok(Math.abs(S.loopInPoint(10.3, 0, bpm, 4, Infinity).start - 10) < 1e-9);
+  assert.ok(Math.abs(S.loopInPoint(10.3, 0, bpm, 4, 24).start - 10) < 1e-9);
+  assert.ok(Math.abs(S.loopInPoint(10.3, 0, bpm, 4, 0).start - 10.5) < 1e-9);
+  assert.ok(Math.abs(S.loopInPoint(10.3, 0, bpm, 4, NaN).start - 10.5) < 1e-9, 'NaN reads as no tape');
+});
+
+test('a loop is beats of the RECORD: at any rate the lap lasts that many beats of what the room hears (B)', () => {
+  const sr = 48000;
+  for (const r of [0.75, 1, 1.032, 1.25]){
+    const heard = 124 * r;                                     // the clock's tempo is the record's times the deck's rate
+    const len = S.beatLen(4, S.loopTempo(heard, r));           // song seconds, as setLoop sizes it now
+    const N = Math.round(len / r * sr);                         // …and the tape's frames, as LOOPER.arm cuts it
+    const want = Math.round(4 * 60 / heard * sr);               // four beats of what the room hears, in real frames
+    assert.ok(Math.abs(N - want) <= 1, `at ×${r}: ${N} frames vs ${want}`);
+    // the bug, for the record: sized at the heard tempo, the lap was 4/r beats
+    if (r !== 1) assert.ok(Math.abs(Math.round(S.beatLen(4, heard) / r * sr) - want) > 100, 'the old sizing was off at ×' + r);
+  }
+  assert.equal(S.loopTempo(150, 0), 150, 'a nonsense rate is 1×');
+  assert.equal(S.loopTempo(0, 1), 120, 'no tempo: the house default');
+  assert.equal(S.loopBeatsOf(2, 120), 4, 'two seconds at 120 is four beats');
+  assert.equal(S.loopBeatsOf(0.99, 120), 2, 'the nearest pad');
+  assert.equal(S.loopBeatsOf(100, 120), 16, 'clamped to the ladder');
+});
+
+test('a tempo moving under a held loop ends the run-on a doubling may use — it is never spliced in at the new density (D)', () => {
+  const T = tapeOpen(6 * TAPE_SR);
+  const pre = tapeRun(T, song, 0, 20);
+  const A = pre.f - 400, N = 800;
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 1 });
+  let r = tapeRun(T, song, pre.f, 10);
+  assert.equal(T.mode, 'loop');
+  const written = T.written;
+  S.loopTapeCommand(T, { op: 'speed', v: 1.04 });
+  assert.ok(T.lin <= written - Math.round(0.5 * TAPE_SR) || T.lin === A + N, 'dated back: the tick saw it late — lin ' + T.lin);
+  assert.ok(T.lin >= A + N, 'never before the out-point: the cut itself is not the run-on');
+  S.loopTapeCommand(T, { op: 'len', N: 1600 });
+  r = tapeRun(T, song, r.f, 200);
+  assert.equal(T.N, 800, 'the doubling was never taken from tape cut at another rate');
+  assert.equal(T.Nwant, 0, '…and it was let go of, so the pads can say so');
+  // the same rate again is not a change
+  const U = tapeOpen(6 * TAPE_SR);
+  const q = tapeRun(U, song, 0, 20);
+  S.loopTapeCommand(U, { op: 'arm', A: q.f - 400, N: 800, gen: 1 });
+  tapeRun(U, song, q.f, 10);
+  S.loopTapeCommand(U, { op: 'speed', v: 1 });
+  assert.equal(U.lin, Infinity, 'a speed that did not change marks nothing');
+});
+
+test('a jump or a stall inside the pass a loop is cut from is refused, never looped; a stale mark from before the arm does not count (E)', () => {
+  const T = tapeOpen(4 * TAPE_SR);
+  const pre = tapeRun(T, song, 0, 20);
+  const A = pre.f - 200, N = 1200, H = A + N;
+  S.loopTapeCommand(T, { op: 'lin', at: pre.f - 5000 });     // a mark from an older loop
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 4 });
+  assert.equal(T.lin, Infinity, 'arming forgets every mark from before it');
+  S.loopTapeCommand(T, { op: 'lin', at: pre.f + 300 });      // the deck stalls inside the first pass
+  // (and the deck really did stall: 200 frames of silence, then the song again, shifted)
+  const deck = f => f < pre.f + 300 ? song(f) : f < pre.f + 500 ? 0 : song(f - 200);
+  const r = tapeRun(T, deck, pre.f, 20);
+  assert.equal(T.mode, 'pass', 'refused at the out-point');
+  assert.equal(T.refusedGen, 4); assert.equal(T.why, 'jump');
+  assert.ok(r.out.every((v, i) => v === Math.fround(deck(pre.f + i))), 'and the room heard the deck, never a loop of the stall');
+  // without the mark the same pass is taken (the processor cannot see a stall itself: the main thread marks it)
+  const U = tapeOpen(4 * TAPE_SR);
+  const p2 = tapeRun(U, song, 0, 20);
+  S.loopTapeCommand(U, { op: 'arm', A: p2.f - 200, N: 1200, gen: 5 });
+  tapeRun(U, song, p2.f, 20);
+  assert.equal(U.mode, 'loop');
+});
+
+test('halving back to a length a doubling is still waiting on cancels the doubling — the loop never grows behind the pads (G)', () => {
+  const T = tapeOpen(6 * TAPE_SR);
+  const pre = tapeRun(T, song, 0, 20);
+  const A = pre.f - 300, N = 600;
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 1 });
+  let r = tapeRun(T, song, pre.f, 6);
+  S.loopTapeCommand(T, { op: 'len', N: 1200 });               // double: waits for the tape
+  assert.equal(T.Nwant, 1200);
+  S.loopTapeCommand(T, { op: 'len', N: 600 });                // and straight back
+  assert.equal(T.Nwant, 0, 'the same length cancels the doubling still waiting');
+  r = tapeRun(T, song, r.f, 300);
+  assert.equal(T.N, 600, 'and many laps later the loop is still the one the pads show');
+  // a doubling the run-on can never feed (a jump under the loop) is let go of, not held forever
+  const U = tapeOpen(6 * TAPE_SR);
+  const q = tapeRun(U, song, 0, 20);
+  S.loopTapeCommand(U, { op: 'arm', A: q.f - 300, N: 600, gen: 1 });
+  const q2 = tapeRun(U, song, q.f, 6);
+  S.loopTapeCommand(U, { op: 'lin', at: q2.f });
+  S.loopTapeCommand(U, { op: 'len', N: 2400 });
+  tapeRun(U, song, q2.f, 200);
+  assert.equal(U.N, 600); assert.equal(U.Nwant, 0, 'dropped once the tape can never hold it');
+});
+
+test('two changes of source inside one crossfade nest — the sound is never cut (H)', () => {
+  const worstStep = cmds => {
+    const T = tapeOpen(8 * TAPE_SR);
+    const pre = tapeRun(T, song, 0, 30);
+    const N = 3200;
+    S.loopTapeCommand(T, { op: 'arm', A: pre.f - 3300, N, gen: 1 });
+    let r = tapeRun(T, song, pre.f, 1);
+    // run until the head is at about 0.78 of the loop
+    while (T.pos < 0.78 * N || T.pos > 0.8 * N) r = tapeRun(T, song, r.f, 1);
+    let last = r.out[r.out.length - 1], worst = 0;
+    const r2 = tapeRun(T, song, r.f, 6, (f, Tt) => { for (const c of cmds) if (c.at === f - r.f) S.loopTapeCommand(Tt, c.m); });
+    for (const v of r2.out){ worst = Math.max(worst, Math.abs(v - last)); last = v; }
+    return worst;
+  };
+  const one = worstStep([{ at: 0, m: { op: 'len', N: 1600 } }]);
+  const two = worstStep([{ at: 0, m: { op: 'len', N: 1600 } }, { at: 0, m: { op: 'len', N: 800 } }]);
+  const apart = worstStep([{ at: 0, m: { op: 'len', N: 1600 } }, { at: 128, m: { op: 'len', N: 800 } }]);
+  let songStep = 0; for (let m = 0; m < 8000; m++) songStep = Math.max(songStep, Math.abs(song(m + 1) - song(m)));
+  assert.ok(one < songStep * 3, 'one halving is smooth: ' + one.toFixed(4));
+  assert.ok(two < songStep * 3, 'two in one block are smooth too, not a cut: ' + two.toFixed(4) + ' (music ' + songStep.toFixed(4) + ')');
+  assert.ok(apart < songStep * 3, '…and two a block apart: ' + apart.toFixed(4));
+});
+
+test('a roll the tape had not yet taken never moves the deck on release — it played straight through (F)', () => {
+  const t0 = html.indexOf('  /* `byCommit`: the loop is being let go by a DECK action'), t1 = html.indexOf('  loopTick(){', t0);
+  const run = (on, engaged) => {
+    const calls = [];
+    const LOOPER = { on, engaged: () => engaged, handBack(){ calls.push('handBack'); }, cancel(){ calls.push('cancel'); } };
+    let seeks = 0;
+    const deck = { a: { duration: 200, get currentTime(){ return 10; }, set currentTime(v){ seeks++; } } };
+    const fx = Object.assign({ auto: false, loop: { start: 9.5, len: 1, beats: 2, roll: true }, bpm: () => 120, hand(){} },
+      new Function('LOOPER', 'activeDeck', 'rollReturn', 'return {' + html.slice(t0, t1) + '};')(LOOPER, () => deck, S.rollReturn));
+    fx.clearLoop();
+    return { calls, seeks };
+  };
+  assert.deepEqual(run(false, true), { calls: ['cancel'], seeks: 0 }, 'pending on the tape: let go, the deck untouched');
+  assert.deepEqual(run(false, false), { calls: [], seeks: 1 }, 'the re-seek roll (no tape) still puts the deck back in real time');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

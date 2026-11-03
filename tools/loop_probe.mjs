@@ -170,6 +170,7 @@ await page.evaluate(async () => {
      lag that matches best is how far from the loop's own place the deck came back. */
   window.landing = (a, w, n, maxLag) => {
     const x = window.__rec.x, i = a - window.__rec.f0;
+    if (!(i - n - maxLag >= 0) || i + w + maxLag > x.length) return null;   // outside the recording is not a perfect landing
     let best = 0, bestE = Infinity, norm = 0;
     for (let j = 0; j < w; j++) norm += x[i + j] * x[i + j];
     for (let lag = -maxLag; lag <= maxLag; lag++){
@@ -253,7 +254,8 @@ R('the loop handed over to the deck\'s tape — on the record on air', neu.setup
 /* THE PERIOD IS THE PERIOD. The tape loops between two frame counts, so the
    cycle cannot drift — but it can be the WRONG length if the loop was sized
    wrong, and that is a loop that slides off the phrase over a minute. */
-const wantN = Math.round(neu.setup.len / neu.setup.rate * neu.setup.sr);
+// derived on its own terms, not from the code's arithmetic: two beats of the tempo the room hears (pinned at 120)
+const wantN = Math.round(LOOP_BEATS * 60 / 120 * neu.setup.sr);
 R('…and the cycle it loops is exactly the loop that was asked for, at the rate the deck is playing',
   neu.b.N === wantN && neu.b.rep && neu.b.rep.N === wantN,
   `${neu.b.N} frames (processor: ${neu.b.rep && neu.b.rep.N}) vs ${wantN} wanted — ${neu.setup.len.toFixed(4)} s at ×${neu.setup.rate}`);
@@ -370,17 +372,187 @@ R('…and doubling back takes the deck\'s own run-on: the ORIGINAL loop again, s
   resize.beats === 2 && resize.back < 0.005 && resize.same < 0.005 && resize.holes === 0 && resize.seeks === 0,
   `lap ${(resize.back * 100).toFixed(3)}% · against the loop before the halving ${(resize.same * 100).toFixed(3)}% · seeks ${resize.seeks}`);
 
+/* A LOOP AT ANOTHER RATE IS STILL ITS BEATS. The clock's tempo is the one the
+   room hears — the record's tempo times the deck's rate — and a loop sized at
+   it and then cut at the deck's rate held beats/rate beats: 1.6 at ×1.25, every
+   lap short, every downbeat early. Judged from the output: at ×1.25 the music
+   must repeat every two HEARD beats (the clock is pinned at 120, so a second),
+   a length derived here and not by the code under test. */
+const rated = await page.evaluate(async () => {
+  FX.clearLoop(); LOOPER.cancel();
+  SPEED.idx = 1; SPEED.apply();                          // the listener's ×1.25
+  activeDeck().a.currentTime = 1.0;
+  await new Promise(r => setTimeout(r, 900));
+  const d = activeDeck(), sr = AE.ctx.sampleRate;
+  window.recStart();
+  FX.setLoop(2, false);
+  const t = Date.now();
+  while (!LOOPER.on && Date.now() - t < 8000) await new Promise(r => setTimeout(r, 30));
+  const want = Math.round(2 * 60 / 120 * sr), N = LOOPER.N, rate = d.a.playbackRate;
+  await new Promise(r => setTimeout(r, 1300));
+  const a = window.frameNow();
+  await new Promise(r => setTimeout(r, 3200));
+  const b = window.frameNow();
+  await window.recStop();
+  FX.clearLoop();
+  SPEED.idx = 0; SPEED.apply();
+  await new Promise(r => setTimeout(r, 300));
+  return { rate, N, want, on: LOOPER.cycles > 0, heard: window.measure(a, b, want).lap, cut: window.measure(a, b, N).lap };
+});
+R('a loop at ×1.25 is two beats of what the room hears — judged from the output, it repeats every two heard beats',
+  Math.abs(rated.rate - 1.25) < 1e-6 && rated.heard < 0.005 && Math.abs(rated.N - rated.want) <= 1,
+  `the music repeats at ${rated.want} frames to ${(rated.heard * 100).toFixed(3)}% of peak · the tape cut ${rated.N} frames (${(rated.N / rated.want * 2).toFixed(2)} beats)`);
+
+/* A JUMP UNDER A HELD LOOP. A beat jump or a cue moves the loop with it: the
+   same length is latched again at the new place. Under a tape loop that loop
+   has to be cut from tape the deck recorded AT the new place — a seek is asked
+   at once and lands later, and a cut taken before it has landed reaches back
+   across the jump: the first stretch of every lap is the old place and the
+   seek's gap. So the new loop's lap is compared, piece by piece, with the song
+   itself played plainly through the same chain at the same place: the whole
+   lap must be one stretch of the song, head included. And a doubling must
+   still land on it afterwards. */
+const jumped = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const landed = async d => { let p = -1; for (let k = 0; k < 200; k++){ await sleep(15); const c = d.a.currentTime; if (!d.a.seeking && d.a.readyState >= 3 && p >= 0 && c > p) return; p = d.a.seeking ? -1 : c; } };
+  FX.clearLoop(); LOOPER.cancel();
+  const d = activeDeck(), sr = AE.ctx.sampleRate, r = d.a.playbackRate || 1;
+  d.a.currentTime = 1.0;
+  await landed(d); await sleep(700);
+  FX.setLoop(2, false);
+  let t = Date.now();
+  while (!LOOPER.on && Date.now() - t < 8000) await sleep(30);
+  await sleep(1300);
+  const g0 = LOOPER.gen;
+  window.recStart();
+  FX.beatJump(4);                                        // four beats on: two seconds at the pinned 120
+  t = Date.now();
+  while (!(LOOPER.gen !== g0 && LOOPER.on) && Date.now() - t < 8000) await sleep(20);
+  const relatched = LOOPER.gen !== g0 && LOOPER.on && LOOPER.deck === AE.active;
+  const N = LOOPER.N, H = LOOPER.A + LOOPER.N, start = FX.loop ? FX.loop.start : NaN, beats = FX.loop ? FX.loop.beats : 0;
+  await sleep(N / sr * 1000 * 1.3);
+  const a = window.frameNow();
+  await sleep(N / sr * 1000 + 150);
+  await window.recStop();
+  const lapRec = window.__rec;
+  // a doubling must still land on the re-latched loop
+  FX.resizeLoop(1);
+  t = Date.now();
+  while (LOOPER.N !== 2 * N && Date.now() - t < 5000) await sleep(20);
+  const doubled = LOOPER.N === 2 * N;
+  FX.clearLoop();
+  t = Date.now();
+  while ((LOOPER.backing || LOOPER.on) && Date.now() - t < 4000) await sleep(20);   // the handback's own seeks, done
+  // the song itself, plainly, at the same place
+  d.a.currentTime = Math.max(0, start - 0.6);
+  await landed(d); await sleep(250);
+  window.recStart();
+  await sleep(30);
+  const fR = window.frameNow(), cR = d.a.currentTime;
+  await sleep((N / sr + 1.0) * 1000);
+  await window.recStop();
+  const plain = window.__rec;
+  // where the lap's samples should sit in the plain recording, up to the deck's own latency (searched, ±50 ms)
+  const fS = fR + Math.round((start - cR) / r * sr), phaseA = ((a - H) % N + N) % N;
+  const want = j => fS + ((phaseA + j) % N);
+  const lapAt = j => lapRec.x[a + j - lapRec.f0], plainAt = f => plain.x[f - plain.f0];
+  const err = (pFrom, pTo, lag) => {
+    let e = 0, ref = 0, n = 0;
+    for (let j = 0; j < N; j++){
+      const p = (phaseA + j) % N; if (p < pFrom || p >= pTo) continue;
+      const q = plainAt(want(j) + lag), y = lapAt(j);
+      if (q === undefined || y === undefined) return Infinity;
+      e += (y - q) * (y - q); ref += q * q; n++;
+    }
+    return n && ref > 0 ? Math.sqrt(e / ref) : Infinity;
+  };
+  const L50 = Math.round(0.05 * sr);
+  let best = 0, bestE = Infinity;
+  for (let lag = -L50; lag <= L50; lag += 4){ const e = err(Math.round(0.35 * N), Math.round(0.95 * N), lag); if (e < bestE){ bestE = e; best = lag; } }
+  for (let lag = best - 4; lag <= best + 4; lag++){ const e = err(Math.round(0.35 * N), Math.round(0.95 * N), lag); if (e < bestE){ bestE = e; best = lag; } }
+  const head = err(Math.round(0.02 * sr), Math.round(0.25 * sr), best);
+  return { relatched, beats, doubled, tail: bestE, head, lag: best / sr * 1000, playing: player.playing };
+});
+R('a beat jump under a held loop latches it again from the new place — the whole lap is one stretch of the song, head included',
+  jumped.relatched && jumped.beats === 2 && jumped.tail < 0.05 && jumped.head < 0.05,
+  `against the song played plainly there: head ${(jumped.head * 100).toFixed(1)}%, body ${(jumped.tail * 100).toFixed(1)}% (rms of the difference), at ${jumped.lag.toFixed(1)} ms`);
+R('…and a doubling still lands on the loop latched after the jump', jumped.doubled, 'doubled=' + jumped.doubled);
+
+/* HALVE STRAIGHT BACK OVER A DOUBLING THE TAPE HAS NOT TAKEN YET. The doubling
+   waits for tape; pressed back to the same length before it lands, it must be
+   forgotten — or the loop grows to twice its length a few laps later while the
+   pads say one beat. Judged from the output, after the doubling would have
+   landed. */
+const back2 = await page.evaluate(async () => {
+  FX.clearLoop(); LOOPER.cancel();
+  activeDeck().a.currentTime = 1.0;
+  await new Promise(r => setTimeout(r, 900));
+  FX.setLoop(1, false);
+  const t = Date.now();
+  while (!LOOPER.on && Date.now() - t < 8000) await new Promise(r => setTimeout(r, 30));
+  const N1 = LOOPER.N, sr = AE.ctx.sampleRate;
+  FX.resizeLoop(1); FX.resizeLoop(-1);                   // double, and straight back before the tape could take it
+  window.recStart();
+  await new Promise(r => setTimeout(r, 1500));
+  const a = window.frameNow();
+  await new Promise(r => setTimeout(r, 2000));
+  const b = window.frameNow();
+  await window.recStop();
+  const out = { N1, N: LOOPER.N, beats: FX.loop ? FX.loop.beats : 0, lap: window.measure(a, b, N1).lap };
+  FX.clearLoop();
+  return out;
+});
+await page.waitForTimeout(400);
+R('doubled and straight back before the tape could take it: the loop stays the length the pads show',
+  back2.N === back2.N1 && back2.beats === 1 && back2.lap < 0.005,
+  `tape ${back2.N} frames vs ${back2.N1} · pads ${back2.beats} beat · the music repeats at one beat to ${(back2.lap * 100).toFixed(3)}%`);
+
+/* A JUMP INSIDE THE PASS A LOOP IS BEING CUT FROM. The deck is re-seeked a
+   millisecond on (as the watchdog's heal does) while the tape is still
+   recording the loop's first pass: that pass is no longer the song in order,
+   and it must never be cut into the tape — the loop is handed to the re-seek
+   path, on the in-point the hand pressed, and keeps looping there. */
+const broke = await page.evaluate(async () => {
+  FX.clearLoop(); LOOPER.cancel();
+  activeDeck().a.currentTime = 1.0;
+  await new Promise(r => setTimeout(r, 900));
+  const d = activeDeck();
+  FX.setLoop(4, false);                                  // a two-second first pass
+  await new Promise(r => setTimeout(r, 120));
+  const pending = LOOPER.pending, L = FX.loop;
+  d.a.currentTime = d.a.currentTime + 0.001;
+  window.__seeks = 0;
+  await new Promise(r => setTimeout(r, 3600));
+  const pos = d.a.currentTime;
+  const out = { pending, engaged: LOOPER.engaged(), loop: FX.loop === L, seeks: window.__seeks,
+    inside: L && pos >= L.start - 0.02 && pos <= L.start + L.len + 0.15 };
+  FX.clearLoop();
+  return out;
+});
+await page.waitForTimeout(400);
+R('a jump inside the pass a loop is being cut from is never cut into the tape — the re-seek loop holds the pressed in-point',
+  broke.pending && !broke.engaged && broke.loop && broke.seeks >= 1 && broke.inside,
+  `pending at the jump ${broke.pending} · on the tape after ${broke.engaged} · re-seek wraps ${broke.seeks} · inside the loop ${broke.inside}`);
+
 /* LETTING GO OF A LATCHED LOOP lands the deck inside it, where the loop was —
    the one splice the tape cannot make alone, because the deck ran on and has to
    be seeked back. The music after the handback continues the lap it left, so it
    is compared with that lap: the lag that matches best is how far from the
-   loop's own place the deck came back. */
+   loop's own place the deck came back.
+   AND IT MUST HAVE LET GO. Before the loop's next wrap a perfect handback and a
+   loop that never let go are the same samples — the comparison above cannot
+   tell them apart, and a probe that only looked there passed a tape that
+   ignored its exit. So the recording runs on past where a held loop would have
+   wrapped, and the music there must NOT repeat the lap before it: a deck that
+   took the music back plays on into the song (the demo's 124 BPM against the
+   grid pinned at 120, so a loop is never a period of the music). */
 const backs = [];
 for (let k = 0; k < 3; k++){
   const hb = await page.evaluate(async () => {
     FX.clearLoop(); LOOPER.cancel();
     activeDeck().a.currentTime = 1.0;
     await new Promise(r => setTimeout(r, 700));
+    LOOPER.backAt = NaN;                                // a trial that makes no handback must not read the last one's
     window.recStart();
     FX.setLoop(4, false);                               // two seconds: room for a handback inside one lap
     const t = Date.now();
@@ -391,15 +563,25 @@ for (let k = 0; k < 3; k++){
     FX.clearLoop();
     const t2 = Date.now();
     while ((LOOPER.backing || LOOPER.on) && Date.now() - t2 < 4000) await new Promise(r => setTimeout(r, 10));
+    if (!isFinite(LOOPER.backAt)){ await window.recStop(); return { land: null, gone: 0, sr, seeks: window.__seeks, on: LOOPER.on, playing: player.playing, none: true }; }
     const at = Math.round(LOOPER.backAt * sr);
-    await new Promise(r => setTimeout(r, 700));
+    const phase = ((at - (LOOPER.A + LOOPER.N)) % N + N) % N;
+    const W = at + (N - phase);                         // where a loop still held would wrap back to its in-point
+    while (window.frameNow() < W + Math.round(0.4 * sr)) await new Promise(r => setTimeout(r, 20));
     await window.recStop();
     const ramp = Math.round(0.015 * sr);           // the crossover (6 ms) and the limiter's lookahead (3 ms), well clear
     // judged only where the lap it continues was still inside the loop
-    const phase = ((at - (LOOPER.A + LOOPER.N)) % N + N) % N, room = N - phase - ramp - Math.round(0.06 * sr);
+    const room = N - phase - ramp - Math.round(0.06 * sr);
     const w = Math.min(Math.round(0.05 * sr), room);
     const land = w > 200 ? window.landing(at + ramp, w, N, Math.round(0.03 * sr)) : null;
-    return { land, w, seeks: window.__seeks, err: LOOPER.lastErr, late: LOOPER.backLate, sr, on: LOOPER.on, playing: player.playing };
+    // …and past the wrap, the deck played on into the song rather than round the lap again
+    const x = window.__rec.x, f0 = window.__rec.f0;
+    let dd = 0, pk = 0;
+    for (let f = W + Math.round(0.02 * sr); f < W + Math.round(0.3 * sr) && f - f0 < x.length; f++){
+      dd = Math.max(dd, Math.abs(x[f - f0] - x[f - N - f0])); pk = Math.max(pk, Math.abs(x[f - f0]));
+    }
+    const gone = pk > 0.01 ? dd / pk : 0;
+    return { land, w, gone, seeks: window.__seeks, err: LOOPER.lastErr, late: LOOPER.backLate, sr, on: LOOPER.on, playing: player.playing };
   });
   backs.push(hb);
 }
@@ -407,10 +589,14 @@ const lands = backs.filter(b => b.land).map(b => b.land.lag / b.sr * 1000);
 console.log('    handback landings, from the audio: ' + lands.map(v => v.toFixed(1) + ' ms').join(', ')
   + ' · fit ' + backs.filter(b => b.land).map(b => b.land.fit.toFixed(3)).join('/')
   + ' · the deck\'s own word ' + backs.map(b => b.err == null ? '–' : (b.err * 1000).toFixed(1) + ' ms').join('/')
-  + ' · seeks ' + backs.map(b => b.seeks).join('/'));
+  + ' · seeks ' + backs.map(b => b.seeks).join('/')
+  + ' · past the wrap ' + backs.map(b => (b.gone * 100).toFixed(0) + '%').join('/') + ' unlike the lap');
 R('letting go of a latched loop lands the deck where the loop was — within a seek\'s latency, never a lap out',
-  lands.length >= 2 && lands.every(v => Math.abs(v) <= 12) && backs.every(b => !b.on && b.playing && b.seeks >= 1 && b.seeks <= 4),
+  lands.length >= 2 && lands.every(v => Math.abs(v) <= 12) && backs.every(b => b.land == null || b.land.fit < 0.05)
+    && backs.every(b => !b.none && !b.on && b.playing && b.seeks >= 1 && b.seeks <= 4),
   lands.map(v => v.toFixed(1) + ' ms').join(', '));
+R('…and it really let go: past where a held loop would wrap, the music plays on instead of repeating the lap',
+  backs.every(b => b.gone > 0.05), backs.map(b => (b.gone * 100).toFixed(0) + '%').join(', ') + ' of peak away from the lap before');
 
 /* A ROLL IS STILL A ROLL. It stalls the music while the track runs on
    underneath, and now it does that literally: the deck is never touched, so on
