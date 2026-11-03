@@ -25,9 +25,10 @@
  * musical variation imitates — so it proves the rack is in the path of the
  * actual playing track, which is what the bench cannot prove.
  *
- *   transport  a loop must actually pull the playhead back, hold it on the
- *              beat grid, and a roll must return it to real time — the one
- *              difference that makes them two controls rather than one.
+ *   transport  a loop must actually hold the music it was cut from — judged
+ *              at the output, lap against lap, at its own period — and a roll
+ *              must return the playhead to real time: the one difference that
+ *              makes them two controls rather than one.
  *   safety     nothing here may stop, mute or strand playback, and the whole
  *              rack must return to bypass on release. A booth that leaves the
  *              master filtered after a track change is worse than no booth.

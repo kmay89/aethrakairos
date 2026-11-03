@@ -10770,13 +10770,12 @@ function ensureCtx(){
     rvSend.connect(rvHp); rvHp.connect(rvPre);
     rvLp.connect(rvWet); rvWet.connect(out);
 
-    /* ONE GATE BETWEEN THE DECKS AND THE ROOM, and it exists for exactly one
-       reason: the seamless loop (LOOPER) needs to take the room away from the
-       decks without touching them. Muting a deck's own gain would fight the
-       MIXER, which owns those gains across a seam, and would also silence the
-       tape the loop is recorded from. Closing it here leaves the decks playing,
-       leaves the recorder fed, and leaves nothing audible. Parked wide open, so
-       a listener who never loops pays one gain node of nothing. */
+    /* ONE GATE BETWEEN THE DECKS AND THE ROOM. It was built for the first
+       seamless loop, which took the room away from the decks here — and with
+       it the other deck, and everything the strip did after the tape. The loop
+       lives in each deck's own tape now (LOOPER) and nothing closes this gate;
+       it stays, parked wide open, as the one seat between the bus and the rack
+       that the analyser and the probes listen at. One gain node of nothing. */
     AE.busGate = AE.ctx.createGain();
     AE.bus.connect(AE.busGate);
     AE.busGate.connect(inn);
@@ -10804,10 +10803,9 @@ function ensureCtx(){
   MASTERLIM.install();
   /* the analyser watches the bus gate, before the rack: the visuals follow the
      music, not the effect on top of it — a closed filter must not make the room
-     go dark. AFTER the gate rather than before it, so that when a loop takes
-     the room the analyser follows the LOOP (which also feeds this node) rather
-     than the muted deck still running on underneath it — otherwise the visuals
-     would keep dancing to music nobody can hear. */
+     go dark. A held loop is part of its deck's own signal (the tape sits at the
+     head of the strip), so the room dances to the loop the ear is inside, never
+     to the muted deck still running on underneath it. */
   AE.busGate.connect(AE.analyser);
 
   // a shared ECHO unit for the "echo out": a fading deck's tail is sent into a
@@ -10919,6 +10917,8 @@ function ensureCtx(){
        jumped, and LOOPER.have() counts the tape from there. */
     for (const ev of ['seeking', 'seeked', 'waiting', 'playing', 'emptied', 'loadstart'])
       d.a.addEventListener(ev, () => { d._tapeT0 = AE.ctx ? AE.ctx.currentTime : 0; });
+    // …and a jump under a loop this deck's tape is holding ends the run-on a doubling may use
+    d.a.addEventListener('seeking', () => { if (typeof LOOPER !== 'undefined' && LOOPER.engaged() && LOOPER.deck === i) LOOPER.mark(0.5); });
     /* THE GUARD IS A ROLE, NOT A SLOT. "i === AE.active" used to be the only
        deck anybody listened to; with a hand able to play the other deck, a
        record can end or fail on a deck that is LIVE without being on air — a
@@ -26665,7 +26665,6 @@ const LOOPER = {
   A: 0, N: 0, gen: 0, rep: null,
   cycles: 0, seeks: 0, refused: 0, idle: 0,
   backing: null, _backT: 0, backAt: 0, waits: 0, backLate: 0, lastErr: null,
-  seekLag: 0,                      // how far behind its target a seeked deck comes back, in seconds of music: learned
 
   node(i){ const d = AE.decks && AE.decks[i]; return d && d.tape ? d.tape : null; },
   /* iOS plays element-direct — there is no graph to record and no strip to
@@ -26843,10 +26842,13 @@ const LOOPER = {
     const n = this.node(this.deck);
     if (n) try { n.port.postMessage({ op: 'speed', v: s }); } catch (e){}
   },
-  // the deck's song jumped under a held loop (the end guard): its run-on stops being the song in order here
-  mark(){
+  /* the deck's song jumped under a held loop (the end guard, a platter let go
+     where the record was): its run-on stops being the song in order here, and
+     a doubling may not reach past it. `back`: how long before now it may have
+     happened — a seek seen only through its event is dated late. */
+  mark(back){
     const n = this.node(this.deck);
-    if (n && AE.ctx) try { n.port.postMessage({ op: 'lin', at: Math.round(AE.ctx.currentTime * AE.ctx.sampleRate) }); } catch (e){}
+    if (n && AE.ctx) try { n.port.postMessage({ op: 'lin', at: Math.round((AE.ctx.currentTime - (back > 0 ? back : 0)) * AE.ctx.sampleRate) }); } catch (e){}
   },
 
   /* GIVE THE DECK BACK. A ROLL costs nothing: the deck ran on underneath the
@@ -26855,8 +26857,11 @@ const LOOPER = {
      lets go inside itself, the way a CDJ does, so the deck — which ran on too
      — is seeked back to where the loop will be, early, while the loop covers;
      the crossover waits for the deck to say it is there (_backPoll). Returns
-     the seconds until the planned handback. */
-  handBack(seekTo){
+     the seconds until the planned handback. `quiet`: nobody can hear this deck
+     (a commit has retired it under a fader already at zero), so it is put back
+     where the loop was and crossed over to at once, without waiting to be
+     found — a deck about to stop has nothing to align with. */
+  handBack(seekTo, opts){
     // a handover that has not become audible yet is not a handback, it is a
     // cancellation: the deck never stopped being the thing the room was hearing
     if (!this.on || !AE.ctx){ this.cancel(); return 0; }
@@ -26867,11 +26872,12 @@ const LOOPER = {
     let to = null;
     if (d){
       to = seekTo != null ? seekTo
-        : loopHandbackPos('loop', this.start, this.len, this.phaseAt(now), d.a.currentTime, LOOP_BACK_LEAD * r) + this.seekLag;
+        : loopHandbackPos('loop', this.start, this.len, this.phaseAt(now), d.a.currentTime, LOOP_BACK_LEAD * r);
       if (isFinite(to)){ try { d.a.currentTime = Math.max(0, to); this.seeks++; } catch (e){} }
       else to = null;
     }
-    this.backing = { at, to, deck: d, t0: now, waited: 0, reseeks: 0, prevE: null, prevT: 0, unready: false, lag: this.seekLag };
+    this.backing = { at, to, deck: d, t0: now, waited: 0, reseeks: 0, prevE: null, prevT: 0, unready: false };
+    if (opts && opts.quiet){ this._finishBack(now + LOOP_MIN_LEAD); return LOOP_MIN_LEAD; }
     this._backPoll();
     return LOOP_BACK_LEAD;
   },
@@ -26906,21 +26912,14 @@ const LOOPER = {
     if (T == null){ this._backT = setTimeout(() => this._backPoll(), LOOP_POLL_MS); return; }
     const err = loopAlignErr(e + (T - now) * r, this.mediaAt(T), this.len);
     if (!late && Math.abs(err) > LOOP_ALIGN && b.reseeks < 3){
-      /* A deck that came back a few milliseconds off where it was sent came back
-         late by the seek's own latency — the element resumes a moment after it
-         is asked — so the next aim allows for exactly that much, and so does
-         every handback after it (seekLag). A whole lap off is the loop having
-         wrapped meanwhile, and teaches nothing. */
-      if (Math.abs(err) < 0.1) b.lag = Math.max(-0.05, Math.min(0.08, b.lag - err));
       const at2 = now + LOOP_BACK_LEAD;
-      const to2 = Math.max(0, this.mediaAt(at2) - LOOP_BACK_LEAD * r + b.lag);
+      const to2 = Math.max(0, this.mediaAt(at2) - LOOP_BACK_LEAD * r);
       try { d.a.currentTime = to2; this.seeks++; } catch (e2){}
       b.at = at2; b.to = to2; b.t0 = now; b.waited = 0; b.prevE = null; b.reseeks++;
       this._backT = setTimeout(() => this._backPoll(), LOOP_POLL_MS);
       return;
     }
     if (Math.abs(err) > LOOP_ALIGN) this.backLate++;
-    else if (b.to != null) this.seekLag = b.lag;          // the aim that landed is the one to start from next time
     this.lastErr = err;
     this._finishBack(T);
   },
@@ -27723,7 +27722,7 @@ const FX = {
        deck is put where the music should continue from while the loop is still
        covering, and the two are crossed over on a frame, in the deck's tape. A
        roll needs no seek at all — the deck ran on underneath the whole time. */
-    if (LOOPER.on){ LOOPER.handBack(); if (byHand) this.hand(); return; }
+    if (LOOPER.on){ LOOPER.handBack(null, byHand ? null : { quiet: true }); if (byHand) this.hand(); return; }
     if (LOOPER.engaged()) LOOPER.cancel();
     // A ROLL RETURNS YOU TO REAL TIME. The track ran on underneath while the
     // music stalled, so releasing lands where it would have been — the phrase
@@ -30103,7 +30102,7 @@ const DECKWAVE = {
   },
   /* the deck's song time AS HEARD: through its platter's hand when the vinyl
      layer has it (each deck its own), and, for the record on air, through the
-     tape when a loop holds the room — the deck free-runs muted past the
+     tape when a loop holds the deck — the deck free-runs muted past the
      out-point, and the needle must not walk out of the loop the ear is inside */
   _timeOf(d, i, onAir){
     if (!d || !isFinite(d.a.currentTime)) return NaN;
@@ -30933,7 +30932,7 @@ const BOOTH = {
     const hMid = h - topH - botH;
     const accA = this.keyRGB(tA), accB = this.keyRGB(tB);
     // a lane's playhead: the record on air through the tape when a loop holds the
-    // room — the deck runs on muted past the out-point, the ear does not
+    // deck — the deck runs on muted past the out-point, the ear does not
     const fracOf = (d, i) => {
       if (!d || !isFinite(d.a.duration) || !(d.a.duration > 0)) return 0;
       let t = d.a.currentTime;

@@ -12213,6 +12213,23 @@ test('the re-seek wrap never touches a deck whose tape holds the loop — not ev
   assert.ok(/LOOPER\.cancel\(\); this\._legacyPoll\(\);/.test(body), 'and the re-seek only where the tape cannot take it');
 });
 
+test('a commit lets a tape loop go at once on the deck it retires; a hand lets go and waits for the deck to be found', () => {
+  const t0 = html.indexOf('  /* `byCommit`: the loop is being let go by a DECK action'), t1 = html.indexOf('  loopTick(){', t0);
+  const run = opts => {
+    const calls = [];
+    const LOOPER = { on: true, engaged: () => true, handBack(...a){ calls.push(a); }, cancel(){ calls.push('cancel'); } };
+    const fx = Object.assign({ auto: false, loop: { start: 8, len: 1, beats: 2, roll: false }, bpm: () => 120, hand(){} },
+      new Function('LOOPER', 'activeDeck', 'rollReturn', 'return {' + html.slice(t0, t1) + '};')(LOOPER, () => null, () => 0));
+    fx.clearLoop(opts);
+    return calls;
+  };
+  assert.deepEqual(run({ byCommit: true }), [[null, { quiet: true }]], 'the retired deck is under a fader at zero: crossed over to at once');
+  assert.deepEqual(run(), [[null, null]], 'a hand: the handback asks the deck where it is first');
+  const h0 = html.indexOf('  handBack(seekTo, opts){'), h1 = html.indexOf('  _backPoll(){', h0);
+  assert.ok(h0 > 0 && /if \(opts && opts\.quiet\)\{ this\._finishBack\(now \+ LOOP_MIN_LEAD\); return LOOP_MIN_LEAD; \}/.test(html.slice(h0, h1)),
+    'quiet: the crossover is written at once, nothing is polled');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 /* AND SAY SO IN THE EXIT CODE. Without this the suite printed its failures
    and exited 0, so `node tests/player.test.mjs` — the whole of the `unit`
