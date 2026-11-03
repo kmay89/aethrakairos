@@ -34,6 +34,11 @@
  *   S9  a CORS failure mid-track hands that record back direct from its spot
  *   S10 NEXT during a take calls it off; the music never stops
  *   S11 decks=direct, and an iOS the gate leaves out, behave as today
+ *   E1-E7 the hand-off's corners: NEXT during an emergency hand-back, a pause
+ *       during a hand-back (both kinds), the idle deck let go before an
+ *       emergency's twin, a paused record CORS refuses at the booth's open,
+ *       SPEED held from the start of a take, a booth that waited on SPEED
+ *   A2  ?worklets=0 seats no platter and loads no AudioWorklet module at all
  * Chromium cannot show: per-element blessing, the lock screen, the real tap
  * and mute lags, AirPlay, WebKit's drift between two captured elements, iOS
  * memory — that is the device checklist's.
@@ -47,7 +52,7 @@ import { join, extname, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const args = process.argv.slice(2);
-const ONLY = process.env.MB8_ONLY || '';          // main | variants | taint | lost | gated | worklets: one bench, while iterating
+const ONLY = process.env.MB8_ONLY || '';          // main | variants | taint | lost | edges | gated | worklets: one bench, while iterating
 const DIR = args[0] && !args[0].startsWith('--') ? args[0] : '/tmp/mb8-mix';
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 for (const f of ['index.html', 'sw.js', 'three.min.js']){
@@ -629,6 +634,153 @@ if (!ONLY || ONLY === 'lost'){
 }
 
 // ===========================================================================
+// EDGES — the hand-off's corners: the speed gates during a take, an emergency
+// hand-back met by NEXT, a pause during a hand-back (both kinds), the idle
+// deck let go before an emergency's twin, a booth that waited on SPEED, and a
+// paused record CORS refuses when the booth opens
+// ===========================================================================
+if (!ONLY || ONLY === 'edges'){
+  const { ctx, page, errs } = await open('edges: the hand-off\'s corners');
+  /* AN EAR FOR A PHONE. Every element ever started is watched (twins come and
+     go from the decks, and one left playing in no seat is exactly the bug a
+     deck-by-deck read would miss). A direct element is heard unless muted —
+     an iPhone ignores element volume — and a captured one only through a
+     chain still wired to its deck, in a running context, above a whisper. */
+  await page.evaluate(() => {
+    window.__played = new Set();
+    const play0 = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function(){ window.__played.add(this); return play0.apply(this, arguments); };
+    const mes0 = AudioContext.prototype.createMediaElementSource;
+    AudioContext.prototype.createMediaElementSource = function(a){ a.__cap = true; return mes0.apply(this, arguments); };
+    window.__heard = () => {
+      const chains = new Map((AE.decks || []).filter(d => d.src).map(d => [d.a, d]));
+      const out = [];
+      for (const a of window.__played){
+        const s = a.currentSrc || a.src || '';
+        if (!s || /^data:/.test(s) || a.paused || a.ended) continue;
+        const d = chains.get(a);
+        const lvl = a.__cap ? (d && AE.ctx && AE.ctx.state === 'running' ? d.gain.gain.value * (d.fader ? d.fader.gain.value : 1) : 0) : (a.muted ? 0 : 1);
+        if (lvl > 0.02) out.push({ src: decodeURIComponent(s.split('/').pop()).slice(0, 24), t: +a.currentTime.toFixed(2), graph: !!a.__cap });
+      }
+      return out;
+    };
+  });
+  const iA = await idx(page, 'alpha'), iB = await idx(page, 'beta'), iG = await idx(page, 'gamma'), iT = await idx(page, 'tau');
+  await page.evaluate(([a, b]) => { player.prepare(a, 0); player._committedNext = b; }, [iA, iB]);
+  await page.tap('#btnPlay');
+  await page.waitForFunction('player.playing && activeDeck().a.currentTime > 1.5', null, { timeout: 30000 }).catch(() => {});
+
+  // E6 — SPEED while a take is in flight (B already captured, graphLive not yet set), and the trainer's slow practice under live decks
+  await tapBooth(page);
+  const e6a = await page.evaluate(() => { const ph = DECKROUTE.phase, i0 = SPEED.idx; SPEED.cycle(); const i1 = SPEED.idx; if (i1 !== i0){ SPEED.idx = i0; SPEED.apply(); } return { phase: ph, i0, i1 }; });
+  const live = await page.waitForFunction('DECKROUTE.phase === "graph"', null, { timeout: 8000 }).then(() => true).catch(() => false);
+  const e6b = await page.evaluate(() => { const i0 = SPEED.idx; PIANO.setRecordSpeed(true); const i1 = SPEED.idx; if (i1 !== i0){ SPEED.idx = i0; SPEED.apply(); } return { graph: AE.graphLive, i0, i1 }; });
+  R('E6 SPEED during a take (deck B captured, the graph not yet live) stays at 1×', e6a.phase !== 'direct' && e6a.i0 === 0 && e6a.i1 === 0, JSON.stringify(e6a));
+  R('E6 the trainer\'s slow practice under live decks leaves SPEED at 1×', live && e6b.graph && e6b.i1 === 0, JSON.stringify(e6b));
+
+  // E1 — an emergency hand-back (a CORS failure mid-track), and NEXT while its twin loads
+  await page.evaluate(() => { const d = activeDeck(); if (d.a.duration - d.a.currentTime < 12) d.a.currentTime = 3; });
+  await wait(1500);
+  const e1 = await page.evaluate(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const before = player.cur;
+    DECKROUTE.onCorsError(player.tracks[player.cur]);
+    const em = !!(DECKROUTE._gv && DECKROUTE._gv.emergency);
+    player.next();
+    await sleep(3000);
+    const d = activeDeck();
+    return { em, moved: player.cur !== before, title: player.tracks[player.cur].title, playing: player.playing, paused: d.a.paused,
+      heard: window.__heard(), graph: AE.graphLive, chain: !!d.gain, phase: DECKROUTE.phase };
+  });
+  R('E1 NEXT while an emergency hand-back loads: only the new record is heard, and the route is where that record is',
+    e1.em && e1.moved && e1.playing && !e1.paused && e1.heard.length === 1 && e1.graph === e1.chain && (e1.phase === 'graph') === e1.graph, JSON.stringify(e1));
+  await page.evaluate(() => MIXER.setOn(false));      // from here the auto-DJ stays out of the corners under test
+
+  // E2 — the booth shut, and paused 300 ms into the hand-back
+  if (!(await page.evaluate(() => DECKROUTE.phase === 'graph' && player.playing))){
+    await page.evaluate(() => { if (!BOOTH.open) BOOTH.toggle(true); if (!player.playing) player.resume(); });
+    await touch(page); await page.evaluate(() => DECKROUTE.take('probe'));
+    await page.waitForFunction('DECKROUTE.phase === "graph"', null, { timeout: 8000 }).catch(() => {});
+  }
+  await page.evaluate(() => { const d = activeDeck(); if (d.a.duration - d.a.currentTime < 12) d.a.currentTime = 3; });
+  await wait(1200);
+  await tapBooth(page);
+  const g2 = await page.evaluate(() => DECKROUTE.phase);
+  await wait(300);
+  const spot2 = await page.evaluate(() => { const t = activeDeck().a.currentTime; player.pause(); return t; });   // read first: the pause hands the air to the twin
+  await wait(2500);
+  const e2 = await page.evaluate(() => { const d = activeDeck(); return { phase: DECKROUTE.phase, graph: AE.graphLive, playing: player.playing, paused: d.a.paused, t: d.a.currentTime, heard: window.__heard() }; });
+  R('E2 paused during the hand-back: it lands paused — direct, nothing heard, the transport says paused',
+    g2 === 'giving' && e2.phase === 'direct' && !e2.graph && !e2.playing && e2.paused && e2.heard.length === 0 && Math.abs(e2.t - spot2) < 0.5, JSON.stringify({ g2, spot2, ...e2 }));
+  await pressPlay(page);
+  await wait(1500);
+  const e2b = await page.evaluate(() => { const d = activeDeck(); return { playing: player.playing, paused: d.a.paused, muted: d.a.muted, t: d.a.currentTime, n: window.__heard().length }; });
+  R('E2 …and one ▶ plays it on from there', e2b.playing && !e2b.paused && !e2b.muted && e2b.n === 1 && e2b.t >= spot2 - 0.3 && e2b.t < spot2 + 2.5, JSON.stringify(e2b));
+
+  // E3 + E7 — behind a lock with the graph kept, a hand's record on the idle deck: the context lets go, and pause while the twin loads
+  await tapBooth(page);
+  const live3 = await page.waitForFunction('DECKROUTE.phase === "graph"', null, { timeout: 8000 }).then(() => true).catch(() => false);
+  await page.evaluate(() => { const d = activeDeck(); if (d.a.duration - d.a.currentTime < 12) d.a.currentTime = 3; });
+  const loaded = await page.evaluate(async t => {
+    const idle = DECKS.idle(); const ok = DECKS.load(idle, player.tracks[t]);
+    for (let k = 0; k < 60 && AE.decks[idle].a.readyState < 2; k++) await new Promise(r => setTimeout(r, 100));
+    return ok;
+  }, iT);
+  await page.evaluate(() => { DECKROUTE.giveRetry = 3; DECKROUTE._tryAt = performance.now(); window.__hide = true; document.dispatchEvent(new Event('visibilitychange')); });
+  await wait(700);
+  const e3 = await page.evaluate(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const kept = DECKROUTE.phase, idle = 1 - AE.active, idleHad = !!AE.decks[idle].a.getAttribute('src');
+    AE.ctx.suspend();
+    for (let k = 0; k < 400 && !(DECKROUTE._gv && DECKROUTE._gv.emergency); k++) await sleep(5);
+    const em = !!(DECKROUTE._gv && DECKROUTE._gv.emergency);
+    const idleAfter = !!AE.decks[idle].a.getAttribute('src');
+    player.pause();
+    await sleep(2500);
+    return { kept, em, idleHad, idleAfter, playing: player.playing, paused: activeDeck().a.paused, heard: window.__heard(), phase: DECKROUTE.phase };
+  });
+  R('E7 an emergency lets the idle deck\'s record go before its twin loads (never three decoders)', live3 && loaded && e3.em && e3.idleHad && !e3.idleAfter, JSON.stringify({ live3, loaded, ...e3, heard: undefined }));
+  R('E3 paused while an emergency\'s twin loads: the pause stands — the transport paused, nothing heard', e3.em && !e3.playing && e3.paused && e3.heard.length === 0, JSON.stringify(e3));
+  await page.evaluate(async () => { window.__hide = false; document.dispatchEvent(new Event('visibilitychange')); await AE.ctx.resume().catch(() => {}); });
+  await pressPlay(page);
+  await page.waitForFunction('player.playing && !activeDeck().a.paused', null, { timeout: 6000 }).catch(() => {});
+
+  // E5 — the booth opened at 1.25×: it waits, and once SPEED is back at 1× a touch in it wakes the decks
+  await tapBooth(page);
+  await page.waitForFunction('DECKROUTE.phase === "direct" && !AE.graphLive', null, { timeout: 8000 }).catch(() => {});
+  await page.evaluate(() => SPEED.cycle());
+  await tapBooth(page);
+  await wait(600);
+  const e5a = await page.evaluate(() => ({ phase: DECKROUTE.phase, rate: SPEED.rate, text: DECKROUTE.boothText() }));
+  await page.evaluate(() => { while (SPEED.idx !== 0) SPEED.cycle(); });
+  const box = await page.evaluate(() => { const r = el.booth.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + Math.min(40, r.height / 2) }; });
+  await page.touchscreen.tap(box.x, box.y);
+  const woke5 = await page.waitForFunction('DECKROUTE.phase === "graph"', null, { timeout: 8000 }).then(() => true).catch(() => false);
+  R('E5 a booth opened at 1.25× waits, and wakes on a touch once SPEED is back at 1×', e5a.phase === 'direct' && e5a.rate === 1.25 && /1×/.test(e5a.text) && woke5,
+    JSON.stringify({ ...e5a, woke5, route: await page.evaluate(() => window.__mb8Route()) }));
+
+  // E4 — paused on a record CORS refuses, the booth opened: nothing starts by itself
+  await tapBooth(page);
+  await page.waitForFunction('DECKROUTE.phase === "direct" && !AE.graphLive', null, { timeout: 8000 }).catch(() => {});
+  await page.evaluate(g => { const t = player.tracks[g]; t.url = t.url.replace('/cors/', '/nocors/'); player.playIndex(g); }, iG);
+  await page.waitForFunction('player.playing && activeDeck().a.currentTime > 3', null, { timeout: 30000 }).catch(() => {});
+  const spot4 = await page.evaluate(() => { const t = activeDeck().a.currentTime; player.pause(); return t; });
+  await tapBooth(page);
+  await wait(3000);
+  const e4 = await page.evaluate(() => { const d = activeDeck(); return { playing: player.playing, paused: d.a.paused, t: d.a.currentTime, cors: d.a.crossOrigin,
+    phase: DECKROUTE.phase, graph: AE.graphLive, heard: window.__heard(), refused: DECKROUTE._noGraph.has(player.tracks[player.cur].id) }; });
+  R('E4 paused on a record CORS refuses, the booth opened: nothing starts by itself — it waits direct, at its spot',
+    e4.refused && !e4.playing && e4.paused && !e4.cors && !e4.graph && e4.heard.length === 0 && Math.abs(e4.t - spot4) < 0.3, JSON.stringify({ spot4, ...e4 }));
+  await pressPlay(page);
+  await wait(1500);
+  const e4b = await page.evaluate(() => { const d = activeDeck(); return { playing: player.playing, paused: d.a.paused, muted: d.a.muted, t: d.a.currentTime, graph: AE.graphLive }; });
+  R('E4 …and one ▶ plays it from there, direct', e4b.playing && !e4b.paused && !e4b.muted && !e4b.graph && e4b.t >= spot4 - 0.3 && e4b.t < spot4 + 2.5, JSON.stringify(e4b));
+
+  R('no page errors on the edges bench', errs.length === 0, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
+// ===========================================================================
 // S11 — the devices the route leaves out behave as today
 // ===========================================================================
 for (const [label, ua, query] of (!ONLY || ONLY === 'gated') ? [['decks=direct on iOS 18', UA18, '?decks=direct'], ['iOS 17.6 with no override (the route ships off)', UA176, '']] : []){
@@ -658,9 +810,13 @@ if (!ONLY || ONLY === 'worklets'){
   await tapBooth(page);
   const live = await page.waitForFunction('DECKROUTE.phase === "graph"', null, { timeout: 8000 }).then(() => true).catch(() => false);
   await wait(1500);
-  const w = await page.evaluate(() => ({ flag: IOS_WORKLETS, decks: window.__mb8VinylDecks, why: VINYL.for(AE.active).why(), playing: player.playing }));
+  const w = await page.evaluate(() => ({ flag: IOS_WORKLETS, decks: window.__mb8VinylDecks, why: VINYL.for(AE.active).why(), playing: player.playing, limiter: window.__mb8Limiter }));
   R('A2 ?worklets=0: the decks are live with no platter seated, and the platter says why', live && !w.flag && w.decks && w.decks.A === 'none' && w.decks.B === 'none'
     && /worklets=0/.test(w.why) && w.playing, JSON.stringify(w));
+  /* …AND NO WORKLET AT ALL. WebKit moves the whole render off the real-time
+     thread at the first AudioWorklet module, so the A/B this dial exists for
+     measures nothing unless the master limiter takes its compressor seat too. */
+  R('A2 ?worklets=0: the master limiter takes the compressor seat (no AudioWorklet module is loaded)', w.limiter === 'compressor', 'limiter ' + w.limiter);
   R('no page errors (worklets=0)', errs.length === 0, errs.slice(0, 3).join(' | '));
   await ctx.close();
 }

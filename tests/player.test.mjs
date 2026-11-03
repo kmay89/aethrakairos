@@ -103,7 +103,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' waveTrailMean, waveTrailMax, waveTilt, waveMip, waveNorm, wavePack, waveLevel, waveRangeAt, waveFoldPeaks, waveOnsets, waveBandColours, waveTiltAt, waveTiltLUT, waveGridStyle, waveDeckTime, waveRateStep, waveClock,' +
   ' VINYL_SONG_FRAMES, vinylSongRate, vinylToTape, makeVinylSong, vinylSongCommand, vinylSongProcess,' +
   ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed, synLookahead,' +
-  ' iosMajor, iosGraphAllowed, iosRatesOk, IOS_SAME_TEMPO, iosSeamPlan, pickOverride, lagOverride, srcClean, crossoverSource,' +
+  ' iosMajor, iosGraphAllowed, iosRatesOk, IOS_SAME_TEMPO, IOS_SAME_DRIFT, IOS_SEAM_SEEK, IOS_SEAM_SEEKS, iosSeamPlan, pickOverride, lagOverride, srcClean, crossoverSource,' +
   ' XO_TOL, XO_ACCEPT, XO_SEEKS, crossoverAligned, giveWinner, HIDE_RESOLVE_S, HIDE_RETRY_S, HIDE_TRIES, hideAction, stayPutRule,' +
   ' SENTINEL_FLOOR, sentinelTrip };';
 const S = new Function(code)();
@@ -12231,11 +12231,94 @@ test('iosSeamPlan: with the rates held a beatmix between two tempi becomes the f
   const f = S.iosSeamPlan(bm(124, 126), false);
   assert.equal(f.type, 'fade'); assert.equal(f.seconds, 4);
   assert.equal(S.iosSeamPlan(bm(124, 126), false, 0.8).seconds, 0.8, 'MIX NOW keeps its quick fade');
-  assert.equal(S.iosSeamPlan(bm(124, 124.3), false).type, 'beatmix', 'inside 0.3 %: no glide needed');
-  assert.equal(S.iosSeamPlan(bm(124, 124.5), false).type, 'fade', 'outside it: the fade');
+  assert.equal(S.iosSeamPlan(bm(124, 124), false).type, 'beatmix', 'one tempo: no glide needed, beatmixed at 1×');
+  assert.equal(S.iosSeamPlan(bm(124, 124.1), false).type, 'beatmix', '0.08 % across 7.7 s drifts 6 ms: still one tempo');
+  assert.equal(S.iosSeamPlan(bm(124, 124.5), false).type, 'fade', 'outside 0.3 %: the fade');
+  assert.equal(S.iosSeamPlan({ type: 'beatmix', bpmA: 124, bpmB: 124.1, beats: 64 }, false).type, 'fade', 'no seconds: the beats and B\'s tempo size it (31 s, 25 ms)');
   assert.equal(S.iosSeamPlan({ type: 'gapless' }, false).type, 'gapless');
   assert.equal(S.iosSeamPlan({ type: 'fade', seconds: 3 }, false).seconds, 3);
   assert.equal(S.iosSeamPlan(null, false), null);
+});
+test('iosSeamPlan: one tempo is judged over the seam\'s own length — nothing can steer the phase once B is heard on held rates', () => {
+  const bm = (a, b, beats) => ({ type: 'beatmix', bpmA: a, bpmB: b, beats, seconds: Math.round(beats * 60 / a * 100) / 100 });
+  // 124.0 against 124.3: 0.24 % — inside the old flat bound, which let 19 ms of flam through a 16-beat seam
+  assert.equal(S.iosSeamPlan(bm(124, 124.3, 16), false).type, 'fade', '16 beats at 0.24 % drifts 19 ms: the fade');
+  assert.equal(S.iosSeamPlan(bm(124, 124.3, 4), false).type, 'beatmix', '4 beats drifts under 5 ms: still a beatmix');
+  assert.equal(S.iosSeamPlan(bm(124, 124.1, 32), false).type, 'fade', 'a tuner\'s 32-beat seam needs the tempi closer still (12 ms)');
+  assert.equal(S.iosSeamPlan(bm(124, 124.1, 16), false).type, 'beatmix', '…which 16 beats of the same pair is (6 ms)');
+  // the bound is the drift, at its own constant
+  const secs = 7.74, edge = 124 * (1 + S.IOS_SAME_DRIFT / secs);
+  assert.equal(S.iosSeamPlan({ type: 'beatmix', bpmA: edge * 0.9999, bpmB: 124, seconds: secs }, false).type, 'beatmix');
+  assert.equal(S.iosSeamPlan({ type: 'beatmix', bpmA: edge * 1.0002, bpmB: 124, seconds: secs }, false).type, 'fade');
+  assert.ok(S.IOS_SAME_DRIFT > 0 && S.IOS_SAME_DRIFT <= 0.012, 'about where two kicks begin to flam');
+});
+test('seamTake on held rates: the seek is the only lever — a few ms is sought out, with a bigger budget; never a pull', () => {
+  const held = { tau: 0.25, seekAbove: S.IOS_SEAM_SEEK, done: S.IOS_SEAM_SEEK, maxSeeks: S.IOS_SEAM_SEEKS };
+  assert.equal(S.seamTake(0.02, 0, 0).act, 'pull', 'free rates: 20 ms is a pull');
+  assert.equal(S.seamTake(0.02, 0, 0, held).act, 'seek', 'held rates: 20 ms is a seek (a pull would move nothing)');
+  assert.equal(S.seamTake(0.006, 0, 0, held).act, 'seek', '…and so is 6 ms');
+  assert.equal(S.seamTake(0.003, 0, 0, held).act, 'latch', 'under the seek threshold: done');
+  assert.equal(S.seamTake(0.02, 0, 3, held).act, 'seek', 'more than the free take\'s three seeks');
+  assert.equal(S.seamTake(0.02, 0, S.IOS_SEAM_SEEKS, held).act, 'pull', 'out of budget: seamTake says pull — which the sampler latches on held rates');
+  assert.equal(S.seamTake(0.02, 0.5, 0, held).act, 'latch', 'B audible: never a seek');
+  assert.equal(S.seamTake(0.1, 0, 3).act, 'pull', 'the free take keeps its budget of three');
+  assert.ok(S.IOS_SEAM_SEEK <= 0.005 && S.IOS_SEAM_SEEKS > 3);
+});
+test('the mixer on held rates: the take seeks with the learned refill, and a pull never stands in for a seek', () => {
+  const smp = html.slice(html.indexOf('  _sample(){'), html.indexOf('  // where the seam is, for the sampler'));
+  assert.ok(smp.includes('const held = ratesHeld();'), 'the sampler asks the one decider');
+  assert.ok(smp.includes('{ tau, seekAbove: IOS_SEAM_SEEK, done: IOS_SEAM_SEEK, maxSeeks: IOS_SEAM_SEEKS }'), 'held: the seek take');
+  assert.ok(smp.includes("} else if (take.act === 'pull' && !held){"), 'held: an inert pull is a latch');
+  assert.ok(smp.includes('bNow + errSec + (held ? (this._seekComp || 0) : 0)'), 'held: the refill folded into the aim');
+});
+test('a refused seam start holds the auto-DJ off that record: no re-arm, no commit/uncommit churn until a new record is on air', () => {
+  const mx = html.slice(html.indexOf('const MIXER = {'), html.indexOf('const MIXER = {') + 200000);
+  const up = mx.slice(mx.indexOf('  update(now, dt){'), mx.indexOf('  exitTime(dur, plan, track){'));
+  assert.ok(/if \(this\._holdRec && this\._holdRec === player\.tracks\[player\.cur\]\) return;\n\s+if \(d\.a\.duration - t < 90 && player\.hasNext\(\)\) this\.arm\(\);/.test(up), 'update() does not arm a held record');
+  const rf = mx.slice(mx.indexOf('  _refused(od, nd){'), mx.indexOf('  setVolumes(f){'));
+  assert.ok(rf.indexOf('this._holdRec = player.tracks[player.cur]') > rf.indexOf('player.uncommitMix();'), '_refused holds the record back on air (after the un-commit)');
+  assert.ok(mx.includes("this._holdRec = player.tracks[player.cur] || null; this.cancel('unblessed');"), 'an unblessed start holds the same way');
+  const pi = html.slice(html.indexOf('  playIndex(i, opts){'), html.indexOf('  playIndex(i, opts){') + 400);
+  assert.ok(pi.includes('MIXER._holdRec = null'), 'a new record clears it (playIndex)');
+  const cm = html.slice(html.indexOf('  commitMix(i, opts){'), html.indexOf('  commitMix(i, opts){') + 300);
+  assert.ok(cm.includes('MIXER._holdRec = null'), '…and (commitMix)');
+});
+test('the mixer stands down while an iPhone\'s hand-back is in flight (nothing armed or fired onto the deck it emptied)', () => {
+  const mx = html.slice(html.indexOf('const MIXER = {'), html.indexOf('const MIXER = {') + 200000);
+  const up = mx.slice(mx.indexOf('  update(now, dt){'), mx.indexOf('  exitTime(dur, plan, track){'));
+  assert.ok(up.indexOf("DECKROUTE.phase === 'giving' && (this.phase === 'idle' || this.phase === 'armed')") > up.indexOf('if (!AE.graphLive)'), 'update(): idle and armed stand down, a running seam lands');
+  const tm = mx.slice(mx.indexOf('  tryMixNow(){'), mx.indexOf('  fire(now){'));
+  assert.ok(tm.includes("DECKROUTE.phase === 'giving') return false;"), 'MIX NOW: the plain path');
+  const fi = mx.slice(mx.indexOf('  fire(now){'), mx.indexOf('  fire(now){') + 1200);
+  assert.ok(fi.includes("DECKROUTE.phase === 'giving'){ this.cancel('route'); return; }"), 'fire(): the poller cannot start a seam');
+});
+test('DECKROUTE: a change of record settles an emergency; a pause during a hand-back stands; the decks go direct only with the air direct', () => {
+  const route = html.slice(html.indexOf('const DECKROUTE = {'), html.indexOf('window.__mb8Route = () =>'));
+  const onTrack = route.slice(route.indexOf('  onTrack(i){'), route.indexOf('  onPause(){'));
+  assert.ok(onTrack.includes("this.phase === 'giving' && this._gv && this._gv.emergency){") && onTrack.includes('this._emergencyDrop();'), 'onTrack lets an emergency go');
+  const em = route.slice(route.indexOf('  emergency(why, pos){'), route.indexOf('  _emergencyDrop(reopen){'));
+  assert.ok(em.indexOf('if (AE.active !== k || D.a !== Da || player.cur !== cur0) return this._emergencyDrop(true);') < em.indexOf('this._seat(k, Tw, 120);'), 'the twin is seated only for the record still on air');
+  assert.ok(em.indexOf("I.a.removeAttribute('src')") < em.indexOf('AE._loadAt(a, src, pos);'), 'I4: the idle deck lets go before the twin loads');
+  assert.ok(em.indexOf('setValueAtTime(0, AE.ctx.currentTime)') < em.indexOf('a.muted = false;'), 'the captured chains go quiet before the twin is heard');
+  const op = route.slice(route.indexOf('  onPause(){'), route.indexOf('  onHide(){'));
+  assert.ok(op.includes("this.give('pause', { paused: true });") && op.includes('this._emergencyDrop();'), 'onPause settles both kinds of hand-back');
+  const so = route.slice(route.indexOf('  _swapOut(tok){'), route.indexOf('  _giveFail(tok, why){'));
+  assert.ok(so.indexOf('if (!player.playing || D.a.paused){') < so.indexOf('Tw.a.muted = false;\n    try {'), '_swapOut never unmutes a twin under a paused transport');
+  const fg = route.slice(route.indexOf('  _finishGive(){'), route.indexOf('  /* ---- the booth, the transport'));
+  assert.ok(fg.indexOf('if (on && (on.src || on.gain)){') < fg.indexOf('AE.graphLive = false;'), 'graphLive never drops with the air on a captured deck');
+  const ce = route.slice(route.indexOf('  onCorsError(t){'), route.indexOf('  armSentinel(){'));
+  assert.ok(ce.indexOf("this.give('cors', { at, paused: true });") < ce.indexOf("this.emergency('cors'"), 'a paused record CORS refuses is handed back paused');
+  const bo = route.slice(route.indexOf('  boothOpened(){'), route.indexOf('  boothClosed(){'));
+  assert.ok(bo.includes('else { this.wantTake = true; BOOTH.draw(); }'), 'a booth that waits on a gate wakes on a touch once it clears');
+});
+test('the rates, held from the moment a take starts; and ?worklets=0 loads no AudioWorklet module at all', () => {
+  assert.ok(html.includes("held(){ return IS_IOS && !IOS_GRAPH_RATES && (AE.graphLive || (typeof DECKROUTE !== 'undefined' && DECKROUTE.phase !== 'direct')); },"), 'SPEED.held');
+  assert.ok(html.includes("if (this.held()){ toast(T('Speed stays at 1×"), 'SPEED.cycle asks it');
+  assert.ok(html.includes("if (want !== 0 && SPEED.held()){ toast(T('Speed stays at 1×"), 'the trainer\'s slow practice asks it');
+  const ml = html.slice(html.indexOf('const MASTERLIM = {'), html.indexOf('const MASTERLIM = {') + 3000);
+  assert.ok(ml.includes('const noWorklet = IS_IOS && IOS_GRAPH && !IOS_WORKLETS;') && ml.includes('if (!noWorklet && ctx.audioWorklet'), 'the limiter takes the compressor seat on that run');
+  const ad = html.slice(html.indexOf('  async setDirect(direct){'), html.indexOf('  async setDirect(direct){') + 9000);
+  assert.ok(ad.includes("if (!direct && d.gain && onAir()) rampGain(d.gain, d.norm || 1, 0.25, 'in');"), 'AirPlay home: the gain opens only on a deck that still holds the air');
 });
 test('pickOverride / lagOverride: the address bar wins and is remembered, auto clears, nonsense falls back', () => {
   const A = ['graph', 'direct'];
