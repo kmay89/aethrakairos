@@ -360,10 +360,14 @@ if (!ONLY || ONLY === 'main'){
   await page.waitForFunction('DECKROUTE.phase !== "direct"', null, { timeout: 3000 }).catch(() => {});
   const s10a = await page.evaluate(() => DECKROUTE.phase);
   if (s10a === 'taking'){
-    await page.evaluate(() => player.next());
+    // read the take's own state in the same task as the press: before its commit NEXT calls it off, after it NEXT finishes it
+    const swapped = await page.evaluate(() => { const sw = !!(DECKROUTE._xo && DECKROUTE._xo.swapped); player.next(); return sw; });
     await wait(1500);
     const s10 = await page.evaluate(() => ({ phase: DECKROUTE.phase, want: DECKROUTE.wantTake, playing: player.playing }));
-    R('S10 NEXT during a take calls it off: direct again, the booth waits for a touch, the music on', s10.phase === 'direct' && s10.want && s10.playing, JSON.stringify(s10));
+    if (!swapped)
+      R('S10 NEXT during a take calls it off: direct again, the booth waits for a touch, the music on', s10.phase === 'direct' && s10.want && s10.playing, JSON.stringify(s10));
+    else
+      R('S10 NEXT just past the take\'s commit finishes it instead: the decks are live, the music on', s10.phase === 'graph' && s10.playing, JSON.stringify(s10));
   } else {
     R('S10 NEXT during a take calls it off (the take was over before NEXT could land — measured instead)', s10a === 'graph', 'phase ' + s10a);
   }

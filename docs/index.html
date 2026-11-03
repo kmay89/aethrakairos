@@ -20154,6 +20154,17 @@ const DECKROUTE = {
     const xo = this._xo, A = xo.A, B = xo.B;
     try { this._capture(B, 0); xo.captured = true; } catch (e){ return this._xoFail(tok, 'capture'); }
     B.a.muted = false;                  // captured at gain zero: still silent
+    /* B'S PLATTER TAKES ITS SEAT NOW, while B is silent. A new AudioWorkletNode
+       passes nothing until its processor has been built on the audio thread,
+       so a platter seated under a record already on air is a dropout — the
+       probe heard one, a block of near-silence just after the swap. Seated
+       here it is in place, and passing audio, long before B is heard (A's,
+       likewise, goes in when A is captured silent, at _finishTake). */
+    if (IOS_WORKLETS){
+      try { await VINYL._module(); } catch (e){}
+      if (tok !== this._seq) return;
+      VINYL.seatDeck(B, xo.bi);
+    }
     if (B.a.readyState < 1){
       const r = await this._once(B.a, ['loadedmetadata', 'error'], 8000);
       if (tok !== this._seq) return;
