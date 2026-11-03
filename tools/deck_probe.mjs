@@ -6,6 +6,8 @@
 //   a tap mid-blend → the running seam is never cancelled; the pick follows it
 //   auto cues  → a track with no cues gets them from its own waveform, on its
 //                beat grid, named; a hand's cue is never overwritten
+//   a warm copy → a record the auto-DJ warmed into memory, LOADed by hand,
+//                plays from that copy (spent only once the deck holds it)
 //
 //   python3 tools/make_mix_fixture.py /tmp/mb8-mix && cp docs/three.min.js /tmp/mb8-mix/
 //   cp docs/index.html /tmp/mb8-mix/ && node tools/deck_probe.mjs /tmp/mb8-mix
@@ -130,6 +132,35 @@ const hand = await page.evaluate(async () => {
   return { kept: Math.abs(CUES.slots[5] - cueSnap(7.0, FX.grid(), FX.bpm(), CLOCK.haveGrid)) < 1e-6, relabelled: !!CUES.labels[5], reran: !!window.__autoCues };
 });
 R('a hand\'s cue is never overwritten by the auto pass', hand.kept && !hand.relabelled && !hand.reran, JSON.stringify(hand));
+// ---- 5 · a record warmed into memory, loaded by hand
+/* The auto-DJ warms its next record into memory (PREFETCH, MIXER._seat). A hand
+   that LOADs that same record onto the idle deck takes the copy, and must get
+   it whole: spending the copy before the element held it revoked it under the
+   deck, the load failed, and a good record was skipped as broken. */
+await page.waitForFunction('MIXER.phase !== "running" && MIXER.phase !== "manual"', null, { timeout: 60000 }).catch(() => {});
+const warm = await page.evaluate(async () => {
+  if (MIXER.phase === 'armed') MIXER.cancel('probe');
+  const idle = 1 - AE.active, cur = player.tracks[player.cur];
+  const t = player.tracks.find(x => x !== cur && x.url && !x.local && !/^(blob|data):/i.test(x.url));
+  PREFETCH._no.delete(t.id); PREFETCH._fail = 0; PREFETCH._failAt = -1e9;
+  await PREFETCH.want(t);
+  const held = PREFETCH.holds(t), blob = PREFETCH.url;
+  const d = AE.decks[idle];
+  let err = false;
+  const onErr = () => { err = true; };
+  d.a.addEventListener('error', onErr);
+  const ok = DECKS.load(idle, t);
+  await new Promise(r => { if (d.a.readyState >= 1) return r(); d.a.addEventListener('loadedmetadata', r, { once: true }); setTimeout(r, 5000); });
+  await new Promise(r => setTimeout(r, 300));
+  d.a.removeEventListener('error', onErr);
+  let readable = false;
+  try { await (await fetch(blob)).arrayBuffer(); readable = true; } catch (e){}
+  return { title: t.title, held, ok, onCopy: d.a.src === blob, err, rs: d.a.readyState, readable,
+    same: MIXER._sameSrc(d.a, t.url), owner: DECKS.slots[idle].owner };
+});
+R('a record warmed into memory and loaded by hand plays from the copy, unrevoked',
+  warm.held && warm.ok && warm.onCopy && !warm.err && warm.rs >= 1 && warm.readable && warm.same && warm.owner === 'hand',
+  JSON.stringify(warm));
 R('no page errors', errors === 0, errors + ' errors');
 console.log(`\n${results.filter(Boolean).length}/${results.length} deck checks passed`);
 await browser.close(); server.close();
