@@ -11008,6 +11008,14 @@ function ensureCtx(){
     // pauses the element; reflect it, and recover cleanly when play returns.
     d.a.addEventListener('pause', () => {
       if (d.priming || i !== AE.active || AE.xfading || d._healing || d._swapping) return;   // a self-heal reload's or a src-swap's pause is not the listener's
+      /* A PAUSE THE ELEMENT HAS ALREADY BEEN PLAYED OUT OF IS STALE. The event
+         is queued, not dispatched: a deck paused and started again in one task
+         — a pre-rolled cue let go at fire() and placed the old way, or parked
+         by a skip that then puts the next record on that very deck — hears its
+         'pause' after it is on air and rolling, and read as the system's it
+         flipped a playing transport to paused for a frame (long enough for the
+         mixer to tear a seam down). What the system pauses stays paused. */
+      if (!d.a.paused) return;
       if (player.playing && !d.a.ended){
         player.playing = false; updatePlayIcon(); player.renderList();
         // forensics: a pause nobody in this app asked for gets named, so "it
@@ -24359,6 +24367,11 @@ const MIXER = {
 setInterval(() => {
   if (document.hidden) MIXER.update(performance.now() / 1000, 0.5);
 }, 500);
+/* …and a pre-rolled cue never rolls through a hidden tab. Its poll would be
+   throttled to a look a second, and a steering pull left on for a second is
+   half a second of drift on a deck nobody can hear: it is parked the instant
+   the tab hides, and the seam fires the old way on the coarse tick above. */
+document.addEventListener('visibilitychange', () => { if (document.hidden) MIXER._uncue('hidden'); });
 /* and the booth's clocks survive a hidden tab the same way: the gate's slice
    queue, the beat-synced LFOs, the brake and the performer are refilled from a
    coarse timer when there are no frames (FX.tick is idempotent on the audio

@@ -191,7 +191,16 @@ await page.evaluate(() => {
    * was already rolling when the blend began, which is the whole point. */
   const fire = MIXER.fire.bind(MIXER);
   MIXER.fire = function (now){
+    // (the fallback check below makes a rolling cue read as STALLED the
+    // instant the seam is called — no movement since its last read — once, so
+    // fire() must let it go and take the placement path; B's bytes untouched)
+    if (window.__knockCue && MIXER.cueing()){
+      const c = MIXER._cue;
+      c.lastB = c.d.a.currentTime; c.movedAt = 0;
+      window.__knockCue = 0;
+    }
     fire(now);
+    window.__seam.fired = { phase: MIXER.phase, type: MIXER.plan && MIXER.plan.type, deferred: MIXER.plan && MIXER.plan.deferred || 0, why: MIXER.plan && MIXER.plan.why };
     if (MIXER.phase !== 'running') return;
     const nd = AE.decks[AE.active];
     const seam = MIXER.audioT0 != null ? MIXER.audioT0 : AE.ctx.currentTime;
@@ -231,6 +240,19 @@ await page.evaluate(() => {
   }, 10);
 });
 
+/* THE TRANSPORT'S WORD, watched. Through a seam the player must never say it
+ * is paused, and nothing may log a pause the system did not make — a deck
+ * paused and started again in one task hears its 'pause' late (see the deck
+ * wiring), which is exactly what a cue let go at fire() does. */
+await page.evaluate(() => {
+  window.__flips = 0; window.__sysPauses = 0;
+  setInterval(() => { if ((MIXER.phase === 'running' || MIXER.phase === 'armed') && !player.playing) window.__flips++; }, 5);
+  if (typeof ACTIVITY !== 'undefined'){
+    const log = ACTIVITY.log.bind(ACTIVITY);
+    ACTIVITY.log = (kind, ...rest) => { if (kind === 'system') window.__sysPauses++; return log(kind, ...rest); };
+  }
+});
+
 /* ONE SEAM, MEASURED. alpha into `title`, found by name rather than by queue
  * position (the shuffle bag is free to reorder), with A jumped to `before`
  * seconds short of its bar line so the probe does not sit through a whole
@@ -239,7 +261,7 @@ async function measureSeam(title, before){
   const base = await page.evaluate(() => {
     Object.assign(window.__seam, { seamAt: null, bAtSeam: null, bMoved: null, bLate: null });
     Object.assign(window.__cueWatch, { n: 0, maxGain: 0, maxFader: 0, onAir: 0 });
-    return { done: window.__mixCompleted || 0, cued: window.__mixCued || 0 };
+    return { done: window.__mixCompleted || 0, cued: window.__mixCued || 0, flips: window.__flips, sys: window.__sysPauses };
   });
   const started = await page.evaluate(t => {
     const i = player.tracks.findIndex(x => x.title === 'alpha');
@@ -295,7 +317,7 @@ async function measureSeam(title, before){
       if (x.r < 1e-4) zero++;
     }
     return { bins: bins.map(b => b.n ? b.sum / b.n : null), zero, n: win.length,
-      bMoved: s.bMoved, bLate: s.bLate, phase: window.__mixPhaseErrMs };
+      bMoved: s.bMoved, bLate: s.bLate, phase: window.__mixPhaseErrMs, fired: s.fired };
   }, plan.seconds);
   /* A DECLINING ENVELOPE IS NOT AUTOMATICALLY A HOLE. If the incoming track is
    * simply quieter than the outgoing one, a correct equal-power crossfade lands
@@ -308,11 +330,12 @@ async function measureSeam(title, before){
     const a = window.__seam.rms.filter(s => s.t > t);
     return a.length ? a.reduce((x, s) => x + s.r, 0) / a.length : 0;
   }, plan.seconds);
-  const cue = await page.evaluate(c0 => ({ cued: (window.__mixCued || 0) - c0, fired: MIXER._cueFired || null,
-    watch: Object.assign({}, window.__cueWatch), lat: MIXER._cueLat, uncued: window.__mixUncued || null }), base.cued);
+  const cue = await page.evaluate(b => ({ cued: (window.__mixCued || 0) - b.cued, fired: MIXER._cueFired || null,
+    watch: Object.assign({}, window.__cueWatch), lat: MIXER._cueLat, uncued: window.__mixUncued || null,
+    flips: window.__flips - b.flips, sys: window.__sysPauses - b.sys }), base);
   const rel = m.bins.map(v => v == null || !preRms ? null : v / preRms);
   const endLevel = preRms > 0 ? postRms / preRms : null;
-  console.log(`seam measured over ${m.n} frames · overlap ${plan.seconds}s`);
+  console.log(`seam measured over ${m.n} frames · overlap ${plan.seconds}s` + (m.fired ? ` · fired as ${m.fired.type}${m.fired.deferred ? ' after ' + m.fired.deferred + ' deferred bar(s)' : ''}${m.fired.why ? ' (' + m.fired.why + ')' : ''}` : ''));
   console.log('  master level by fifth of the blend: ' + rel.map(pct).join(' ') + '   (100% = A alone)');
   console.log('  B alone, after the seam settles: ' + pct(endLevel));
   /* THE HONEST DEADLINE is the moment B could be HEARD, not the moment the fader
@@ -470,6 +493,23 @@ R('cued: the beat lock holds inside its 40 ms contract', s2.m.phase != null && s
 settleGates(await readSettle(), 'cued: ');
 const left2 = await page.evaluate(() => ({ cue: !!MIXER._cue, poll: !!MIXER._cueT }));
 R('cued: nothing of the cue outlives the seam', !left2.cue && !left2.poll, JSON.stringify(left2));
+
+/* A CUE THAT DOES NOT HOLD IS NOT A SECOND WAY FOR A SEAM TO GO WRONG. The
+ * rolling cue is made to read as stalled the instant fire() looks at it, so
+ * the seam must let it go and place B exactly as it always has: paused,
+ * seeked, play(). The transport must not blink on the way (the deck's late
+ * 'pause' is stale by then), and the lock must hold. */
+await page.evaluate(() => { window.__knockCue = true; MIXER._cueFired = null; });
+const s3 = await measureSeam('tau', lead2 + cueConst.win + 3);
+R('a cue that reads as stalled at fire: let go, and the seam placed B the old way',
+  s3.cue.cued === 0 && s3.cue.uncued === 'missed at fire' && s3.m.fired && s3.m.fired.type === 'beatmix' && s3.m.bMoved != null && s3.m.bMoved >= 0,
+  'cued ' + s3.cue.cued + ' · last let go: ' + s3.cue.uncued + ' · ' + rollWord(s3, false));
+R('…the transport never blinked: no paused frame, no pause the system did not make',
+  s1.cue.flips + s2.cue.flips + s3.cue.flips === 0 && s1.cue.sys + s2.cue.sys + s3.cue.sys === 0,
+  `paused frames ${s1.cue.flips}/${s2.cue.flips}/${s3.cue.flips} · system pauses logged ${s1.cue.sys}/${s2.cue.sys}/${s3.cue.sys} (seams 1/2/3)`);
+R('fallback: the beat lock holds inside its 40 ms contract', s3.m.phase != null && s3.m.phase < 40,
+  s3.m.phase == null ? 'not measured' : s3.m.phase.toFixed(1) + ' ms');
+R('fallback: the blend never drops to silence mid-seam', s3.m.zero === 0, s3.m.zero + ' silent frames');
 
 /* THE CUE LET GO OF. A cue is an optimisation; the deck under it must come
  * back exactly as the paused, parked deck everything else has always met —
