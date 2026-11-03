@@ -215,7 +215,9 @@ await page.evaluate(() => {
         const t = now();
         S.ev.push({ t, deck: i, onAir: i === AE.active, type, ct: +d.a.currentTime.toFixed(2),
           playing: !!player.playing, paused: d.a.paused, healing: !!d._healing,
-          seam: MIXER.phase === 'running' || MIXER.phase === 'manual' || t - (S.seamSeen || -9) < 3 });
+          seam: MIXER.phase === 'running' || MIXER.phase === 'manual' || t - (S.seamSeen || -9) < 3,
+          // where the incoming record enters on this seam (a runway fixture enters bars in, not at 0)
+          entry: MIXER.plan && isFinite(MIXER.plan.startB) ? +MIXER.plan.startB.toFixed(2) : null });
       });
     });
   };
@@ -372,8 +374,9 @@ const explained = s => S.hands.some(h => s.from >= h.from - 0.5 && s.to <= h.to 
 const drops = S.sil.filter(s => !explained(s));
 const freezes = S.frz.filter(f => !inHand(f.t) && !f.seam && !f.start);
 const entryFreezes = S.frz.filter(f => !inHand(f.t) && f.seam);
-// a record's first moments inside its own seam are the ENTRY (judged below), not the middle of a record
-const atEntry = e => e.seam && e.ct < 0.6;
+// a record's first moments inside its own seam — at 0, or at the plan's entry point when it enters
+// bars in (a runway) — are the ENTRY (judged below), not the middle of a record
+const atEntry = e => e.seam && (e.ct < 0.6 || (e.entry != null && Math.abs(e.ct - e.entry) < 0.6));
 const onAirBad = S.ev.filter(e => e.onAir && e.playing && !e.healing && /waiting|stalled|emptied|abort|error/.test(e.type) && !(e.type === 'waiting' && atEntry(e)));
 const entryWaits = S.ev.filter(e => e.onAir && e.playing && e.type === 'waiting' && atEntry(e));
 const blinks = S.ev.filter(e => e.onAir && e.playing && e.type === 'loadstart' && e.ct > 1);
