@@ -23860,6 +23860,12 @@ const MIXER = {
      transition; false hands the moment back to the plain path — and puts
      the drawn track back so the fallback plays the SAME track. */
   tryMixNow(){
+    /* NO GRAPH, NO BLEND. Where the decks run element-direct (iOS) the mixer
+       owns no transition — update() cancels any arm with 'direct' on the next
+       frame — so a "now" accepted here toasted "On the bar" and then did
+       nothing: NEXT on a beatmixable pair was swallowed and the record played
+       on. The plain path (playIndex's same-element advance) is the answer. */
+    if (!AE.graphLive) return false;
     if (!this.on || !player.playing || AE.mic.on || document.hidden) return false;
     const d = activeDeck();
     if (!d || !isFinite(d.a.duration) || d.a.duration <= 0) return false;
