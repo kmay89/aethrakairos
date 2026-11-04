@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { auditDevelop, dieVerdict } from '../tools/develop_audit.mjs';
 import { dirname, join } from 'path';
 import assert from 'assert';
+import vm from 'vm';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const html = readFileSync(join(root, 'docs/index.html'), 'utf8');
@@ -11761,7 +11762,71 @@ test('fxAutoStep: an ear that has not settled decides nothing — the bar is not
   // a hop to AirPlay releases the rack: no gesture outlives the graph it was written on
   const sd = html.indexOf('  async setDirect(direct){');
   assert.ok(sd > 0);
-  assert.match(html.slice(sd, sd + 2400), /if \(direct && typeof FX !== 'undefined'\) try \{ FX\.release\(\); \} catch \(e\)\{\}/, 'setDirect(true) releases FX');
+  assert.match(html.slice(sd, sd + 2400), /if \(direct && typeof FX !== 'undefined'\) try \{ FX\.letGoTail\(\); FX\.release\(\); \} catch \(e\)\{\}/, 'setDirect(true) releases FX');
+});
+test('FX.letGoTail: a held hand-off tail never outlives the graph — setDirect(true) and its own timer both let it go', () => {
+  /* the real FX object in a sandbox: the @fx block and `const FX = {…};`, with the
+     audio graph stubbed down to params that record their writes */
+  const L = html.split('\n');
+  const f0 = L.findIndex(l => l.includes('// @fx-start')), f1 = L.findIndex(l => l.includes('// @fx-end'));
+  const o0 = L.findIndex(l => l.startsWith('const FX = {')); let o1 = o0; while (L[o1] !== '};') o1++;
+  const make = () => {
+    const timers = [], P = {};
+    const prm = (n, v) => (P[n] = { value: v, writes: [] });
+    const gn = n => ({ gain: prm(n, n === 'gate' ? 1 : 0) });
+    const AE = {
+      graphLive: true, ctx: { currentTime: 100, sampleRate: 48000 }, active: 0,
+      decks: [{ a: { playbackRate: 1 } }, { a: { playbackRate: 1 } }],
+      fx: { lp: { frequency: prm('lp', 0), Q: prm('lpQ', 0) }, hp: { frequency: prm('hp', 0), Q: prm('hpQ', 0) }, gate: gn('gate'),
+        send: gn('send'), fb: gn('fb'), fbX: gn('fbX'), wet: gn('wet'), rvSend: gn('rvSend'), rvWet: gn('rvWet'),
+        insWet: gn('insWet'), insDry: gn('insDry'), eqLo: gn('eqLo'), eqMid: gn('eqMid'), eqHi: gn('eqHi'), inL: gn('inL'), inR: gn('inR'),
+        hpLoop: { frequency: prm('hpLoop', 0) }, lpLoop: { frequency: prm('lpLoop', 0) }, units: {}, insert: '', rvOn: false },
+      f: { bpm: 120 },
+    };
+    const ctx = {
+      AE, console, Math, Object, JSON, Array, Number, isFinite, Float32Array,
+      setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearTimeout: () => {}, setInterval: () => 1, clearInterval: () => {},
+      DECKS: { gainWrite: (p, v) => { if (v != null){ p.writes.push(v); p.value = v; } }, hand(){}, pitch: () => 1, handSlot: () => 0 },
+      CLOCK: { haveGrid: true, bpm: 120, grid: 0 }, LOOPER: { cancel(){}, engaged: () => false },
+      VINYL: { drop(){} }, MIXER: { phase: 'running' }, SPEED: { rate: 1 }, deckRate: r => r, activeDeck: () => AE.decks[0],
+      syncFxHud(){}, FXPADS: { paint(){} }, document: { hidden: false },
+      ECHO_HOLD_FB: S.ECHO_HOLD_FB != null ? S.ECHO_HOLD_FB : 0.94, DEBUG: false, clamp01: x => Math.max(0, Math.min(1, x)),
+    };
+    vm.createContext(ctx);
+    vm.runInContext(L.slice(f0 + 1, f1).join('\n').replace(/^const /gm, 'var ').replace(/^let /gm, 'var ')
+      + '\n' + L.slice(o0, o1 + 1).join('\n').replace(/^const FX = /, 'var FX = '), ctx);
+    const FX = ctx.FX;
+    FX._echoTime = () => {};
+    // the performer's echo is up at a seam, and the seam commits: the tail is held, its timer armed
+    FX.auto = true; FX.unit = 'echo'; FX.amount = 0.65; FX.wet = 0.55; FX._autoSt = Object.assign(ctx.makeFxAuto(), { unit: 'echo' });
+    P.send.value = 0.5; P.fb.value = 0.4; P.fbX.value = 0.4; P.wet.value = 0.3;
+    FX.release({ keepPlatters: true });
+    assert.ok(FX._tailHold && FX.hold, 'the seam holds the tail');
+    return { FX, AE, P, timers };
+  };
+  // 1. a hop to AirPlay inside the two bars: setDirect(true) lets the tail go while the graph can still be written
+  {
+    const { FX, AE, P, timers } = make();
+    FX.letGoTail(); FX.release(); AE.graphLive = false;
+    assert.ok(!FX._tailHold && !FX.hold, 'the hold is let go before the graph goes');
+    for (const k of ['send', 'fb', 'fbX', 'wet']) assert.equal(P[k].value, 0, k + ' parked, not left ringing at the hold');
+    timers.forEach(t => t.fn());                                  // the old timer fires later: nothing to do, nothing thrown
+    AE.graphLive = true; FX.release(); FX.set('echo', 0.65, 0.55);
+    assert.ok(P.send.value > 0, 'back from AirPlay, the next echo is fed (was 0: the HOLD survived the round trip)');
+  }
+  // 2. the graph goes some other way first: the tail's own timer still lets everything go
+  {
+    const { FX, AE, P, timers } = make();
+    AE.graphLive = false;
+    timers.forEach(t => t.fn());
+    assert.ok(!FX._tailHold && !FX.hold, 'the timer clears the hold with the graph down (echoHold could not)');
+    for (const k of ['send', 'fb', 'fbX', 'wet']) assert.equal(P[k].value, 0, k + ' parked by the timer');
+  }
+  // the exits call it, in that order
+  const sd = html.indexOf('  async setDirect(direct){');
+  assert.match(html.slice(sd, sd + 2400), /if \(direct && typeof FX !== 'undefined'\) try \{ FX\.letGoTail\(\); FX\.release\(\); \} catch \(e\)\{\}/, 'setDirect(true)');
+  const ro = html.indexOf('  _resolveOne(){');
+  assert.match(html.slice(ro, ro + 600), /FX\.letGoTail\(\); FX\.release\(\);/, 'DECKROUTE._resolveOne (the iPhone hand-back)');
 });
 test('fxAutoSweep: a build earns a highpass up to the vocals, over the bars it has left, let go a beat before the drop', () => {
   const s = S.fxAutoSweep(16, 120, 0.9);

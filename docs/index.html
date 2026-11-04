@@ -19784,7 +19784,7 @@ const AIRPLAY = {
          echo left up across a hop to AirPlay came back onto the master with
          the graph, wherever the room's hands had last been (the iPhone's
          hand-back releases the rack the same way, DECKROUTE._resolveOne) */
-      if (direct && typeof FX !== 'undefined') try { FX.release(); } catch (e){}
+      if (direct && typeof FX !== 'undefined') try { FX.letGoTail(); FX.release(); } catch (e){}
       AE.xfading = false;
       AE.decks.forEach((dk, k) => {
         try { dk.a.pause(); } catch (e){}
@@ -20410,7 +20410,8 @@ const DECKROUTE = {
     try { BOOTH.releaseCues(); } catch (e){}
     VINYL.drop();
     if (typeof LOOPER !== 'undefined') try { LOOPER.cancel(); } catch (e){}
-    if (typeof FX !== 'undefined') try { FX.release(); } catch (e){}
+    // the graph is about to go: a held hand-off tail lets go while it can still be written (FX.letGoTail)
+    if (typeof FX !== 'undefined') try { FX.letGoTail(); FX.release(); } catch (e){}
     const on = AE.active, off = 1 - on, s = DECKS.slots[off], d = AE.decks[off];
     const w = giveWinner({ phase: MIXER.phase, gains: xfaderGains(DECKS.fader.x, DECKS.fader.curve), active: on,
       idleOwner: s.owner, idleRolling: !d.a.paused && !d.a.ended, idleTrack: s.trackIdx, idleCue: s.cue });
@@ -29674,6 +29675,23 @@ const FX = {
     if (typeof syncFxHud === 'function') syncFxHud();
     return this.hold;
   },
+  /* THE HAND-OFF TAIL, LET GO — by its own two-bar timer, or at once where the
+     graph is about to go (a hop to AirPlay, an iPhone's hand-back). echoHold
+     can only write while the graph is live, so a timer that came after the
+     graph had gone used to find nothing to do: the loop rang on at 0.94 out of
+     the computer's own speakers for forty seconds while the music played on
+     the receiver, and the HOLD stayed set across the round trip, every echo
+     after it fed nothing. Whatever the graph's state, the flags and the loop
+     both let go here. */
+  letGoTail(){
+    clearTimeout(this._holdT); this._holdT = 0;
+    if (!this._tailHold) return;
+    if (this.live()){ this.echoHold(false); return; }
+    this._tailHold = false; this.hold = false;
+    const f = AE.fx;
+    if (f && AE.ctx) try { for (const n of [f.send, f.fb, f.fbX, f.wet]) if (n) this._w(n.gain, 0, 0.1); } catch (e){}
+    if (typeof syncFxHud === 'function') try { syncFxHud(); } catch (e){}
+  },
   setPingPong(on){ this.pingpong = !!on; if (this.unit === 'echo'){ this._w(AE.fx.inR.gain, this.pingpong ? 0 : 1, 0.02); this.apply(); } },
   /* THE LFOs, beat-synced and phased to the bar. An oscillator cannot be
      re-phased, so each (re)start is a new one with the phase baked into its
@@ -30257,7 +30275,7 @@ const FX = {
         this._tailHold = true;
         this.echoHold(true);
         clearTimeout(this._holdT);
-        this._holdT = setTimeout(() => { if (this._tailHold) this.echoHold(false); }, Math.round(2 * beatLen(4, this.bpm()) * 1000));
+        this._holdT = setTimeout(() => this.letGoTail(), Math.round(2 * beatLen(4, this.bpm()) * 1000));
         if (this.unit === 'echo'){ this.unit = ''; this.amount = 0; this.wet = 0; }
         return;
       }
@@ -30283,7 +30301,7 @@ const FX = {
       this._tailHold = true;
       this.echoHold(true);
       clearTimeout(this._holdT);
-      this._holdT = setTimeout(() => { if (this._tailHold) this.echoHold(false); }, Math.round(2 * beatLen(4, this.bpm()) * 1000));
+      this._holdT = setTimeout(() => this.letGoTail(), Math.round(2 * beatLen(4, this.bpm()) * 1000));
     }
     /* A TRACK CHANGING HANDS TAKES THE PLATTER AWAY — but a seam is not a
        track change for the hands. The platters sit before the seam's gain
