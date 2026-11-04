@@ -86,7 +86,7 @@ const ear = await page.evaluate(async src => {
     const n = new AudioWorkletNode(AE.ctx, 'lat-ear');
     const z = AE.ctx.createGain(); z.gain.value = 0; z.connect(AE.ctx.destination);
     window.__blocks = [];
-    n.port.onmessage = e => { const b = window.__blocks; b.push(e.data); if (b.length > 4000) b.splice(0, b.length - 4000); };
+    n.port.onmessage = e => { window.__blocks.push(e.data); };   // reset per trial (a rolling buffer shifted every index under the scan)
     AE.out.connect(n); n.connect(z);
     return { ok: true, sr: AE.ctx.sampleRate, base: AE.ctx.baseLatency || 0, out: AE.ctx.outputLatency || 0 };
   } catch (e){ return { ok: false, why: String(e) }; }
@@ -94,50 +94,68 @@ const ear = await page.evaluate(async src => {
 R('an ear listens at AE.out on the audio thread', ear.ok, ear.ok ? `${ear.sr} Hz · baseLatency ${(ear.base * 1000).toFixed(1)} ms · outputLatency ${(ear.out * 1000).toFixed(1)} ms` : ear.why);
 if (!ear.ok){ await browser.close(); server.close(); process.exit(1); }
 
-/* one trial: take the record, hold it still, move it sharply, listen */
-const trial = (kind) => page.evaluate(async kind => {
+/* one trial: take the record, hold it still, move it by `music` seconds in one event, listen.
+   Two numbers come out: the FIRST CHANGE (the move posted → the first block at AE.out that
+   differs: the port, the quantum, the limiter's lookahead) and the ARRIVAL (the record has
+   got to where the finger put it and stopped again: the slipmat spring's whole answer). A
+   small step measures the spring; a big flick measures the rate cap, which is not the spring. */
+const trial = (kind, music) => page.evaluate(async ({ kind, music }) => {
   const h = VINYL.for(AE.active), g = { cx: 50, cy: 50, r: 40 };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   VINYL.slip = true; VINYL.arm(true);
   const a0 = 0;                                                     // the finger lands at the rim's right
   if (!h.grab(g.cx + g.r * Math.cos(a0), g.cy + g.r * Math.sin(a0), g, performance.now(), kind, false)) return { err: 'grab refused: ' + h.why() };
   await sleep(450);                                                 // the record stops under the finger; the ear settles on its still level
-  const blocks = window.__blocks; const nStill = blocks.length;
-  const stillFrom = Math.max(0, nStill - 60);
-  let still = 0; for (let i = stillFrom; i < nStill; i++) still = Math.max(still, blocks[i].d);
-  // half a second of music in one event: the angle that is 0.5 s at VINYL_REV_SEC per turn (the hand's own gain is 1)
-  const dA = 0.5 / VINYL_REV_SEC * 2 * Math.PI, a1 = a0 + dA;
+  const stillBlocks = window.__blocks.slice(-60);
+  let still = 0; for (const b of stillBlocks) still = Math.max(still, b.d);
+  window.__blocks = [];
+  // `music` seconds of music in one event: the angle that is `music` at VINYL_REV_SEC per turn (the hand's own gain is 1)
+  const dA = music / VINYL_REV_SEC * 2 * Math.PI, a1 = a0 + dA;
   const tIssue = AE.ctx.currentTime, wIssue = performance.now();
   h.move(g.cx + g.r * Math.cos(a1), g.cy + g.r * Math.sin(a1), g, wIssue);
-  await sleep(250);
-  const b = window.__blocks;
-  let first = -1;
-  for (let i = nStill; i < b.length; i++){ if (b[i].t >= tIssue - 1e-6 && b[i].d > still * 4 + 1e-4){ first = i; break; } }
-  const lat = first >= 0 ? (b[first].t - tIssue) : null;
-  // the spring's settling: the block from which the energy stays up for 20 ms (the record is moving steadily)
-  h.lift();
-  await sleep(500);
-  return { still, lat, first: first >= 0 ? b[first].d : null, n: b.length - nStill, rate: h.rate };
-}, kind);
-
-const runs = async (kind, n) => {
-  const lats = [], errs2 = [];
-  for (let i = 0; i < n; i++){
-    const t = await trial(kind);
-    if (t.err){ errs2.push(t.err); continue; }
-    if (t.lat == null) errs2.push('no rise heard (still ' + t.still.toExponential(2) + ')'); else lats.push(t.lat * 1000);
+  await sleep(300);
+  const b = window.__blocks.slice();
+  const thr = still * 4 + 1e-4;
+  let first = -1, peak = 0;
+  for (let i = 0; i < b.length; i++){ if (b[i].t >= tIssue - 1e-6 && b[i].d > thr){ first = i; break; } }
+  for (let i = Math.max(0, first); i < b.length; i++) peak = Math.max(peak, b[i].d);
+  // the arrival: after the rise, the first block from which the energy stays under 5 % of its peak for 15 ms
+  let arrive = -1;
+  if (first >= 0) for (let i = first + 1; i < b.length; i++){
+    if (b[i].d > peak * 0.05) continue;
+    let quiet = true; for (let j = i; j < b.length && b[j].t < b[i].t + 0.015; j++) if (b[j].d > peak * 0.05){ quiet = false; break; }
+    if (quiet){ arrive = i; break; }
   }
-  lats.sort((a, b) => a - b);
-  const q = p => lats.length ? lats[Math.min(lats.length - 1, Math.floor(p * lats.length))] : NaN;
-  return { lats, errs: errs2, median: q(0.5), p95: q(0.95), min: lats[0], max: lats[lats.length - 1] };
+  h.lift();
+  await sleep(450);
+  return { still, first: first >= 0 ? (b[first].t - tIssue) * 1000 : null, arrive: arrive >= 0 ? (b[arrive].t - tIssue) * 1000 : null, peak, n: b.length };
+}, { kind, music });
+
+const stats = xs => { const a = xs.slice().sort((p, q) => p - q); const q = p => a.length ? a[Math.min(a.length - 1, Math.floor(p * a.length))] : NaN; return { n: a.length, median: q(0.5), p95: q(0.95), min: a[0], max: a[a.length - 1] }; };
+const fmt = s => `median ${s.median.toFixed(1)} ms · p95 ${s.p95.toFixed(1)} · min ${s.min.toFixed(1)} · max ${s.max.toFixed(1)} (${s.n})`;
+const runs = async (kind, music, n) => {
+  const firsts = [], arrives = [], errs2 = [];
+  for (let i = 0; i < n; i++){
+    const t = await trial(kind, music);
+    if (t.err){ errs2.push(t.err); continue; }
+    if (t.first == null) errs2.push('no rise heard (still ' + t.still.toExponential(2) + ', ' + t.n + ' blocks)'); else firsts.push(t.first);
+    if (t.arrive != null) arrives.push(t.arrive);
+  }
+  return { first: stats(firsts), arrive: stats(arrives), errs: errs2 };
 };
-const mouse = await runs('mouse', 20);
-R('twenty mouse trials: the engine answers every move', mouse.lats.length >= 18, `${mouse.lats.length}/20 heard · ${mouse.errs.slice(0, 2).join(' | ')}`);
-R('mouse feel: median engine latency under 25 ms', mouse.median < 25, `median ${mouse.median.toFixed(1)} ms · p95 ${mouse.p95.toFixed(1)} ms · min ${mouse.min.toFixed(1)} · max ${mouse.max.toFixed(1)}`);
-const touch = await runs('touch', 20);
-R('twenty touch trials: the engine answers every move', touch.lats.length >= 18, `${touch.lats.length}/20 heard · ${touch.errs.slice(0, 2).join(' | ')}`);
-R('touch feel: median engine latency under 18 ms', touch.median < 18, `median ${touch.median.toFixed(1)} ms · p95 ${touch.p95.toFixed(1)} ms · min ${touch.min.toFixed(1)} · max ${touch.max.toFixed(1)}`);
-console.log(`\nengine latency (move posted → first changed block at AE.out, limiter included): mouse median ${mouse.median.toFixed(1)} ms / p95 ${mouse.p95.toFixed(1)} ms · touch median ${touch.median.toFixed(1)} ms / p95 ${touch.p95.toFixed(1)} ms`);
+const blockMs = 128 / ear.sr * 1000;
+// the port and the quantum: a flick of half a second, the first changed block
+const flick = await runs('mouse', 0.5, 12);
+R('a flick: the engine answers every move', flick.first.n >= 11, `${flick.first.n}/12 heard · ${flick.errs.slice(0, 2).join(' | ')}`);
+R('…within two render quanta of the move (the port, the quantum, the limiter\'s 3 ms)', flick.first.p95 <= 2 * blockMs + 3.5, 'first change ' + fmt(flick.first));
+// the spring: a small step, the record arriving where the finger put it
+const stepMouse = await runs('mouse', 0.025, 16), stepTouch = await runs('touch', 0.025, 16);
+R('a 25 ms step, mouse feel: the record arrives', stepMouse.arrive.n >= 14, `${stepMouse.arrive.n}/16 arrived · ${stepMouse.errs.slice(0, 2).join(' | ')}`);
+R('…settled within 60 ms of the move', stepMouse.arrive.median < 60, 'arrival ' + fmt(stepMouse.arrive));
+R('a 25 ms step, touch feel: the record arrives', stepTouch.arrive.n >= 14, `${stepTouch.arrive.n}/16 arrived · ${stepTouch.errs.slice(0, 2).join(' | ')}`);
+R('…settled within 45 ms of the move', stepTouch.arrive.median < 45, 'arrival ' + fmt(stepTouch.arrive));
+console.log(`\nengine share of touch-to-sound (the port, the quantum, the limiter): first change after a flick ${fmt(flick.first)} · one quantum is ${blockMs.toFixed(1)} ms`);
+console.log(`the slipmat spring (a 25 ms step, moved then still): mouse arrival ${fmt(stepMouse.arrive)} · touch arrival ${fmt(stepTouch.arrive)}`);
 console.log(`the browser's own: baseLatency ${(ear.base * 1000).toFixed(1)} ms · outputLatency ${(ear.out * 1000).toFixed(1)} ms (not ours; a phone adds its touch delivery on top)`);
 R('no page errors throughout', errs.length === 0, errs.join(' | '));
 console.log(`\n${pass} passed, ${fail} failed`);

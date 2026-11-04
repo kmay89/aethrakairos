@@ -98,7 +98,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' makeLava, lavaNeighbours, lavaConfine, lavaStep, lavaWallDensity, lavaDensityError,' +
   ' LIMITER, dbToLin, linToDb, interPeak, makeLimiter, limiterProcess, limiterWorkletSource, BAND_HZ, bandBins,' +
   ' VINYL_REV_SEC, VINYL_RING_SEC, VINYL_RING_IOS_SEC, VINYL_RAMP_SEC, PLATTER, makePlatter, platterStep, platterHandRate, platterDelta, hermite4, vinylThrowSpeed, vinylBackLead,' +
-  ' platterHandFollow, makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylWorkletSource,' +
+  ' platterHandFollow, makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylSnap, vinylWorkletSource,' +
   ' VINYL_CUT_SEC, vinylReadAir, vinylToneK, vinylCutSpec, vinylScriptStep, vinylScriptCut, vinylScriptBlock, vinylSnap, VINYL_PRESETS, vinylPresetSteps, vinylLanding, vinylNextLine, VINYL_SONG_LOW_SR,' +
   ' WAVE_V, WAVE_HZ, WAVE_SR, WAVE_TILT, WAVE_PLANES, WAVE_MIPS, waveBiquad, wavePct, waveDetail, waveQuant, waveFromEnv, waveRange, waveGrid, waveBeatPos, waveWorkerSource,' +
   ' waveTrailMean, waveTrailMax, waveTilt, waveMip, waveNorm, wavePack, waveLevel, waveRangeAt, waveFoldPeaks, waveOnsets, waveBandColours, waveTiltAt, waveTiltLUT, waveGridStyle, waveDeckTime, waveRateStep, waveClock,' +
@@ -5327,6 +5327,47 @@ test('a hand\'s cue is the entry: the planner takes it, the lead-in is what the 
   assert.equal((html.match(/if \(held && plan\.type === 'beatmix'\) plan\.lead = seamLeadAvail\(hd\.a\.buffered, plan\.startB, BEATMIX_LEAD\);/g) || []).length, 2, 'arm and MIX NOW carry the lead');
   assert.match(html, /\(seekOnly && hs\.owner === 'hand' && hs\.cue > 0 \? hs\.cue : 0\);/, '_preload parks a hand\'s record at its cue for a fade');
   assert.match(html, /: handCue;\s*\} catch \(e\)\{\}/, 'fire() enters a fade at the cue');
+});
+test('the platter follows where the finger IS: timestamped samples carry its speed; the head sits on a frame at 1×; a snap ramps from nothing', () => {
+  const sr = 48000, N = 128, dtB = N / sr;
+  const mk = () => { const S = S_.makeVinyl(sr, 24); S.engaged = true; S.gain = 1; S.written = sr * 10; S.pos = S.written - 3;
+    S_.vinylCommand(S, { op: 'feel', lead: 0.007, tau: 0.0035 }); S_.vinylCommand(S, { op: 'grab' }); return S; };
+  const S_ = S;
+  const inL = new Float32Array(N), out = new Float32Array(N);
+  // a finger moving steadily at 1× of music, sampled every 8 ms and delivered 3 ms late: with its times the record runs where the finger is
+  const lagOf = withTimes => {
+    const V = mk(); let t = 0; for (let b = 0; b < 60; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    const pos0 = V.pos; let next = 0, errs = [];
+    for (let b = 0; b < 400; b++){
+      // a sample made at `next` is received (and applied) at the next block boundary t ≥ next: a message cannot arrive before it was sent
+      while (next <= t){ const x = (next - 0) * 1.0; const m = { op: 'handAt', x }; if (withTimes){ m.ts = next * 1000; m.now = next * 1000 + 0.2; } S_.vinylCommand(V, m, t); next += 0.008; }
+      S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB;
+      if (b > 150){ const fingerNow = t * 1.0; errs.push(fingerNow - (V.pos - pos0) / sr); }
+    }
+    return errs.reduce((a, e) => a + e, 0) / errs.length;
+  };
+  const plain = lagOf(false), timed = lagOf(true);
+  assert.ok(plain > 0.008, 'reported places alone: the record runs a lead behind the finger: ' + plain.toFixed(4) + ' s');
+  assert.ok(timed < plain - 0.006 && Math.abs(timed) < 0.004, 'with its times the record is carried to where the finger is: ' + timed.toFixed(4) + ' s behind (was ' + plain.toFixed(4) + ')');
+  // a finger that stopped sends nothing: nothing is carried for it past PLATTER.handStill
+  { const V = mk(); let t = 0; for (let b = 0; b < 60; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    S_.vinylCommand(V, { op: 'handAt', x: 0.00, ts: t * 1000, now: t * 1000 }, t); S_.vinylCommand(V, { op: 'handAt', x: 0.02, ts: t * 1000 + 8, now: t * 1000 + 8 }, t + 0.008);
+    assert.ok(V.handV > 0, 'a speed was read');
+    for (let b = 0; b < 60; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    const place = V.handFrom + 0.02 * sr;
+    assert.ok(Math.abs(V.pos - place) < 2, 'held still after the move, the record is at the place, not carried past it: ' + (V.pos - place).toFixed(1) + ' frames'); }
+  // at 1× with nothing on it the head eases onto a frame: the read is the sample itself
+  { const V = mk(); S_.vinylCommand(V, { op: 'handAt', x: 0.0137 }); let t = 0;
+    for (let b = 0; b < 40; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    S_.vinylCommand(V, { op: 'lift' });
+    for (let b = 0; b < 1200; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }   // the motor's spin-up and its last fifth of a cent
+    assert.equal(V.platter.rate, 1, 'the motor arrives exactly');
+    assert.ok(Math.abs(V.pos - Math.round(V.pos)) < 1e-6, 'the head sits on a frame: fraction ' + (V.pos - Math.floor(V.pos)).toFixed(6)); }
+  // the ramp never carries a hand's rate across a snap
+  { const V = mk(); S_.vinylCommand(V, { op: 'handAt', x: -0.3 }); let t = 0;
+    for (let b = 0; b < 30; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    S_.vinylSnap(V); assert.equal(V.rateLast, V.platter.rate); }
+  assert.equal(S.PLATTER.handAhead, 0.020); assert.equal(S.PLATTER.handStill, 0.05);
 });
 test('xfadeCurve: monotonic, norm-scaled, correct endpoints per side', () => {
   const out = S.xfadeCurve(0.8, 'out', 32), inc = S.xfadeCurve(0.5, 'in', 32);
