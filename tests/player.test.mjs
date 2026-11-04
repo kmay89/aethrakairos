@@ -3569,6 +3569,24 @@ test('updateGate: a person using the app is not a quiet room — no reload under
   // the listener's own wish still fires at its boundary, busy or not
   assert.equal(S.updateGate({ ready: true, armed: 'afterTrack', playing: false, busy: true, touchedAgo: 0, now: 0 }), 'apply');
 });
+test('updateGate: a DJ in the booth is not a quiet room, and a hidden page never swaps itself', () => {
+  const idle = { ready: true, playing: false, quietFor: 9e9, touchedAgo: 9e9, now: 0 };
+  assert.equal(S.updateGate(idle), 'apply', 'the baseline');
+  /* the report: "the browser refreshes the page" — a set paused between records
+     with the booth open (busy never counted the booth), and an iPhone back from
+     a pocket, where the lock had paused the audio and the quiet clock ran */
+  assert.equal(S.updateGate(Object.assign({}, idle, { booth: true })), 'wait', 'the booth open, records on the decks, a platter in hand: a person');
+  assert.equal(S.updateGate(Object.assign({}, idle, { hidden: true })), 'wait', 'a hidden page is not an idle room');
+  assert.equal(S.updateGate(Object.assign({}, idle, { booth: false, hidden: false })), 'apply');
+  // the listener's own wish still fires at its boundary
+  assert.equal(S.updateGate({ ready: true, armed: 'afterTrack', playing: false, booth: true, hidden: true, now: 0 }), 'apply');
+  // the inputs are wired, and boothInUse reads every hand the booth can have
+  assert.match(html, /booth: boothInUse\(\),\s*hidden: !!document\.hidden,/, 'autoApplyVerdict feeds both');
+  const bi = html.indexOf('function boothInUse(){');
+  const body = html.slice(bi, bi + 1200);
+  for (const k of ['BOOTH.open', "s.owner === 'hand'", 'VINYL.engaged', 'LOOPER.engaged()', 'FX.loop', "MIXER.phase === 'running'", "DECKROUTE.phase !== 'direct'"])
+    assert.ok(body.includes(k), 'boothInUse reads ' + k);
+});
 test('updateGate: SHOW mode is never yanked, even paused', () => {
   assert.equal(S.updateGate({ ready: true, playing: false, quietFor: 9e9, show: true, now: 0 }), 'wait');
 });

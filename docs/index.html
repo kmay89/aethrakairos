@@ -7086,6 +7086,20 @@ function updateGate(o){
      minute is a person, not a quiet room. The update waits for them to put the
      app down; the Update button is there the whole time if they want it now. */
   if (o.busy) return 'wait';
+  /* A DJ IN THE BOOTH IS NOT A QUIET ROOM, playing or not. "Busy" counted the
+     library, the playlist and the cards — never the booth: a hand's records on
+     the decks, a platter under a finger, a loop held, an iPhone whose decks
+     have joined the graph. A set paused for two minutes between records was an
+     idle room, and the page reloaded under the hands cueing the next one — on
+     an iPhone, with its decks handed back and the booth shut. The Update
+     button is there the whole time. */
+  if (o.booth) return 'wait';
+  /* …AND A PAGE NOBODY CAN SEE NEVER SWAPS ITSELF. A hidden page is not an
+     idle room either: behind a lock iOS pauses the audio, 'playing' reads
+     false, the quiet clock runs, and the swap landed while the phone was in a
+     pocket — so the listener came back to a page that had refreshed itself,
+     the set restored paused. Visible, idle and quiet, or not at all. */
+  if (o.hidden) return 'wait';
   if (Number(o.touchedAgo) < UP_TOUCH_MS) return 'wait';
   /* THE QUIET IS A DURATION, NOT AN INSTANT. "Not playing right now" is true in
      the two-second gap while the next track's element loads, true during a phone
@@ -27288,8 +27302,25 @@ function autoApplyVerdict(){
     snoozedUntil: UPDATE.snoozedUntil, now: Date.now(),
     applies: UPDATE.applies(),
     busy: appInUse(),
+    booth: boothInUse(),
+    hidden: !!document.hidden,
     touchedAgo: Date.now() - UPDATE._lastTouchAt,
   });
+}
+/* a DJ in the booth: the room open, a record a hand put on a deck, a platter
+   under a finger, a loop held, a seam the hand is riding, or an iPhone whose
+   decks have joined the graph (the booth's own audio engine, built by a touch) */
+function boothInUse(){
+  try {
+    if (typeof BOOTH !== 'undefined' && BOOTH.open) return true;
+    if (typeof DECKS !== 'undefined' && DECKS.slots && DECKS.slots.some(s => s && s.owner === 'hand')) return true;
+    if (typeof VINYL !== 'undefined' && VINYL.engaged) return true;
+    if (typeof LOOPER !== 'undefined' && LOOPER.engaged && LOOPER.engaged()) return true;
+    if (typeof FX !== 'undefined' && FX.loop) return true;
+    if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return true;
+    if (typeof DECKROUTE !== 'undefined' && DECKROUTE.phase !== 'direct') return true;
+  } catch (e){}
+  return false;
 }
 /* anything on screen that a person is reading or working in */
 function appInUse(){
