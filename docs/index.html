@@ -20325,6 +20325,10 @@ const DECKROUTE = {
      nothing to call off: the take finishes now. */
   abortTake(why){
     if (this.phase !== 'taking') return;
+    /* an EQ press kept for this take (eqDeadNow) goes with it: the pads paint
+       the bank dead again, and a kill they no longer show must not lie in
+       wait to be played by the next take, or toggled off by the next tap */
+    if (typeof FX !== 'undefined' && (FX.eq.lo || FX.eq.mid || FX.eq.hi)){ FX.eq.lo = FX.eq.mid = FX.eq.hi = 0; try { FX.applyEq(); } catch (e){} }
     this._last = (this._last && this._last.startsWith('crossover') ? this._last + ' → ' : '') + 'take called off: ' + why;
     const xo = this._xo;
     if (xo && xo.swapped){ if (xo.tail) xo.tail(); return; }
@@ -25848,6 +25852,13 @@ const MIXER = {
     const nd = AE.decks[1 - AE.active];
     const B = player.tracks[this.next];
     if (!B){ this.cancel(); return; }
+    /* THE INCOMING DECK'S TRIM IS THE INCOMING RECORD'S. Only a hand's LOAD,
+       prepare(), playIndex() and an iPhone's take set a deck's norm; an
+       auto-mixed record never did, so it played at unity (a deck never loaded
+       by hand) or at whatever record that deck last held — the loudness
+       normalisation wrong by the difference of two records' gains, every
+       auto seam on. Set here, where the record takes its deck. */
+    nd.norm = normLin(B);
     /* AN UNBLESSED DECK IS NOT STARTED FROM A TIMER. iOS refuses a play() on
        an element no gesture has touched, and a seam is the one start that
        never has a gesture behind it. Refused here, before anything moves, the
@@ -26025,7 +26036,13 @@ const MIXER = {
     if (AE.graphLive && od.gain && nd.gain){
       const t0 = seamT0, dur = Math.max(0.02, this.overlap);
       const N = Math.max(24, Math.min(256, Math.round(dur * 24)));   // ~24 pts/sec
-      const tNow = AE.ctx.currentTime;
+      /* the clock can tick between seamT0's read and this one (the seek, the
+         play(), commitMix's re-render all run in between): with no lead, t0
+         then lies behind now, and a hold set at now falls INSIDE the curve's
+         window — Chromium throws, and the catch left both gains frozen for the
+         whole seam. Held at the seam's origin, a past time the engine clamps,
+         the curves are always legal. */
+      const tNow = Math.min(AE.ctx.currentTime, t0);
       try {
         // hold both decks where they stand through the lead-in: A full, B silent,
         // so the curves inherit a known state instead of whatever was left over.
@@ -26144,7 +26161,8 @@ const MIXER = {
     // The loudness crossfade was scheduled sample-accurately at fire() (graph
     // path); on iOS the mixer never runs, so setVolumes only matters if the
     // graph scheduling threw. Here we just track f for the HUD.
-    if (AE.graphLive) this.lastF = f; else this.setVolumes(f);
+    // (and if it did throw — audioT0 null — the frame loop crossfades instead of leaving both decks frozen)
+    if (AE.graphLive && this.audioT0 != null) this.lastF = f; else this.setVolumes(f);
     // …and the painted handle moves with the audible blend
     if (!manual) DECKS.setFader(xfaderPosFromSeam(f, outSlot), 'auto');
     if (p.type === 'beatmix'){
@@ -31327,6 +31345,13 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && (VI
    (_finishTake applies the EQ), so the press is kept, not refused with words
    that contradict the booth's own 'Deck B is joining'. A desktop is never
    dead: a kill set while away on AirPlay comes home with the graph. */
+/* what the FX bank says to a tap it cannot take: while a take is joining the
+   decks (the tap itself can start it) the booth's own word, not 'the music
+   plays direct', which contradicts 'Deck B is joining' on the same screen */
+function fxDeadWord(){
+  if (IS_IOS && IOS_GRAPH && typeof DECKROUTE !== 'undefined' && DECKROUTE.phase === 'taking') return T('Deck B is joining — matching the record on air…');
+  return T('Beat FX need the engine — on this device the music plays direct');
+}
 function eqDeadNow(){
   if (!IS_IOS || AE.graphLive) return false;
   return !(IOS_GRAPH && typeof DECKROUTE !== 'undefined' && DECKROUTE.phase === 'taking');
@@ -31549,7 +31574,7 @@ const FXPADS = {
     } else {
       b.addEventListener('click', () => {
         // a bank the device cannot give says so, rather than lighting a pad that does nothing
-        if (!FX.live()){ toast(T('Beat FX need the engine — on this device the music plays direct')); return; }
+        if (!FX.live()){ toast(fxDeadWord()); return; }
         FX.hand();
         FX.set(FX.unit === key ? '' : key);               // each unit comes up at its own remembered knobs
         this.paint(); syncFxHud();
@@ -32029,7 +32054,7 @@ function wireFxRack(){
   });
   const hold = document.getElementById('fxHold');
   if (hold) hold.addEventListener('click', () => {
-    if (!FX.live()){ toast(T('Beat FX need the engine — on this device the music plays direct')); return; }
+    if (!FX.live()){ toast(fxDeadWord()); return; }
     FX.hand(); FX.echoHold(!FX.hold); HAPTICS.pulse(!!FX.hold); syncFxHud();
   });
   const br = document.getElementById('fxBrake');

@@ -5166,6 +5166,25 @@ test('seamOutHold: A at its trim is held as before; A mid-glide is ramped onto t
   assert.deepEqual(z, { ev: [['set', 1, 10]], from: 1 });
   // an unreadable value falls back to the trim
   assert.deepEqual(S.seamOutHold(NaN, 0.7, 5, 5.5), { ev: [['set', 0.7, 5]], from: 0.7 });
+  // fire() clamps tNow to the seam's origin: with t0 === tNow every event sits AT t0, never inside the curve's window
+  for (const v of [0.56, 1]){
+    const h = S.seamOutHold(v, 0.56, 7, 7);
+    assert.ok(h.ev.every(([, , at]) => at <= 7), 'no hold event lands after the curve starts');
+  }
+});
+test('MIXER.fire: the incoming deck takes its own record\'s trim; the hold sits at the seam\'s origin; a schedule that threw still crossfades', () => {
+  const f0 = html.indexOf('  fire(now){');
+  const body = html.slice(f0, f0 + 16000);
+  const nAt = body.indexOf('nd.norm = normLin(B);'), curveAt = body.indexOf("xfadeCurve(nd.norm || 1, 'in', N)");
+  assert.ok(nAt > 0 && curveAt > nAt, 'nd.norm is the incoming record\'s before the in-curve is scaled by it (auto seams played at unity or a stale trim)');
+  assert.match(body, /const tNow = Math\.min\(AE\.ctx\.currentTime, t0\);/, 'the hold never lands inside the curve (Chromium threw, freezing both gains)');
+  assert.match(html, /if \(AE\.graphLive && this\.audioT0 != null\) this\.lastF = f; else this\.setVolumes\(f\);/, 'run() crossfades by frame when the scheduled curves threw');
+  // the take's kept EQ press goes with a take that is called off; the FX bank answers a take in flight with the booth's word
+  const ab = html.indexOf('  abortTake(why){');
+  assert.match(html.slice(ab, ab + 600), /FX\.eq\.lo = FX\.eq\.mid = FX\.eq\.hi = 0; try \{ FX\.applyEq\(\); \} catch \(e\)\{\}/);
+  const fw = html.indexOf('function fxDeadWord(){');
+  assert.match(html.slice(fw, fw + 400), /DECKROUTE\.phase === 'taking'\) return T\('Deck B is joining — matching the record on air…'\);/);
+  assert.equal((html.match(/if \(!FX\.live\(\)\)\{ toast\(fxDeadWord\(\)\); return; \}/g) || []).length, 2, 'both FX refusals use it');
 });
 test('xfadeCurve: monotonic, norm-scaled, correct endpoints per side', () => {
   const out = S.xfadeCurve(0.8, 'out', 32), inc = S.xfadeCurve(0.5, 'in', 32);
