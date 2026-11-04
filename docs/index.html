@@ -85,6 +85,10 @@ body{
   -webkit-font-smoothing:antialiased;
   overscroll-behavior:none;
 }
+/* a scroll that reaches a panel's edge stops there: it never chains to the
+   document, where iOS Safari's rubber band is also its pull-to-refresh — a
+   drag at the top of the booth must not reload the page */
+#booth,#plList,#libList,#crateBody,.pn-panel,.act-list,#langGate .lg-card{overscroll-behavior:contain}
 button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
 button:focus-visible,[tabindex]:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
 ::selection{background:var(--accent-dim)}
@@ -11922,8 +11926,14 @@ const DECKS = {
     if (typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual')) return false;
     if (this.retiring(slot)) return false;              // its phase take would seek a record still fading out
     const mixS = mixOf(this.track(slot)), mixM = mixOf(this.track(m));
+    this.syncWhy = '';
     if (!mixS || !mixM || !(mixS.bpm > 0) || !(mixM.bpm > 0)) return false;
-    s.pitch = syncRateFor(mixM.bpm, mixS.bpm); s.synced = true;
+    /* THE SAME GATE AS EVERY OTHER MATCH. The planner, MIX NOW and the crate
+       brain all stop at SYNC_MAX_TEMPO; the hand's SYNC folded anything into
+       ±6 semitones and never said a word. Refused here, untouched, with why. */
+    const ratio = syncRateFor(mixM.bpm, mixS.bpm);
+    if (Math.abs(ratio - 1) > SYNC_MAX_TEMPO){ this.syncWhy = 'range'; this.syncBpm = { m: Math.round(mixM.bpm), s: Math.round(mixS.bpm) }; return false; }
+    s.pitch = ratio; s.synced = true;
     SPEED.apply();
     const g = xfaderGains(this.fader.x, this.fader.curve);
     if (g[slot] < 0.06 && isFinite(d.a.duration) && !dm.a.paused && mixS.grid != null && mixM.grid != null){
@@ -11956,7 +11966,8 @@ const DECKS = {
       const gi = (typeof MIXER !== 'undefined' && MIXER.cueing(d)) ? 0 : g[i];
       if (gi >= 0.999 && d._faderRampTo > now) return;
       d._faderRampTo = 0;
-      this.gainWrite(d.fader.gain, gi, 0.006);
+      // the CUT law is a switch: a 1.5 ms edge, so a crab or a transform reaches its floor; the power law keeps its 6 ms glide
+      this.gainWrite(d.fader.gain, gi, this.fader.curve === 'cut' ? 0.0015 : 0.006);
     });
   },
   // the mixer paints x from its seam ('auto'); anything else moves the level
@@ -15260,7 +15271,10 @@ const SPEED = {
         const s = (typeof DECKS !== 'undefined') ? DECKS.slots[i] : null;
         const r = deckRate(this.rate * (s && s.pitch > 0 ? s.pitch : 1));
         if (d.a.playbackRate !== r) d.a.playbackRate = r;
-        setPitchLock(d.a, this.keyLock && !(s && s.synced));
+        /* a synced deck rides vinyl only at the listener's 1× and within a
+           small ratio: at 1.25× the 'resampled' deck sat a major third above
+           the music, under a KEY LOCK pad that said otherwise */
+        setPitchLock(d.a, this.keyLock && !(s && s.synced && this.rate === 1 && Math.abs((s.pitch || 1) - 1) <= SYNC_VINYL_MAX));
       } catch (e){}
     });
     // …and a rolling cue is re-rated from the same speed and the on-air pitch,
@@ -15770,6 +15784,15 @@ function camelotCompat(a, b){
 }
 /* octave-fold a tempo ratio into [1/√2, √2): 70 vs 140 BPM is half-time,
    not a clash */
+/* THE TEMPO GATES, one number each, shared by every path that matches two
+   tempi so none of them can drift: the auto-DJ's planner, MIX NOW, the crate
+   brain's scoring, and the hand's SYNC — which had no gate at all and folded
+   128 against 100 into +4.3 semitones, 100 against 140 into −5.8. Within
+   SYNC_VINYL_MAX the synced deck rides vinyl (resampled: a third of a
+   semitone at most, the one-shot phase seek is all that pays the stretcher's
+   ±15 ms); beyond it the listener's KEY LOCK pad is honoured. */
+const SYNC_MAX_TEMPO = 0.08;
+const SYNC_VINYL_MAX = 0.03;
 function tempoFoldRatio(a, b){
   let r = a / b;
   while (r < 0.7071) r *= 2;
@@ -15795,7 +15818,7 @@ function planTransition(A, B, opts){
   if (!opts.forced && (mA.mixable < th || mB.mixable < th))
     return fade('not beat-stable — the piano rule');
   const r = tempoFoldRatio(mA.bpm, mB.bpm);
-  if (!opts.forced && Math.abs(r - 1) > (opts.maxTempo || 0.08))
+  if (!opts.forced && Math.abs(r - 1) > (opts.maxTempo || SYNC_MAX_TEMPO))
     return fade('tempo gap ' + mA.bpm + '→' + mB.bpm);
   const kc = camelotCompat(mA.key, mB.key);
   if (!opts.forced && kc > 2)
@@ -15870,7 +15893,7 @@ function mixMatchScore(A, B, opts){
        those are what it reads. Blend length survives only as a small tiebreak:
        a pair whose regions can hold a longer overlap does have more room. */
     const key = 1.0 - (p.compat || 0) * 0.11;              // Camelot distance dominates
-    const tempo = 1.0 - Math.min(1, Math.abs((p.fold || 1) - 1) / 0.08) * 0.12;
+    const tempo = 1.0 - Math.min(1, Math.abs((p.fold || 1) - 1) / SYNC_MAX_TEMPO) * 0.12;
     const room = p.beats >= 16 ? 0.03 : 0;
     return { score: Math.max(0, Math.min(1, key * tempo + room)), plan: p };
   }
@@ -17618,7 +17641,7 @@ function planMixNow(A, B, pos, opts){
   if ((A.mixable || 0) < mixMin || (B.mixable || 0) < mixMin)
     return Object.assign(quick, { why: 'not beat-stable' });
   const fold = tempoFoldRatio(A.bpm, B.bpm);
-  if (Math.abs(fold - 1) > (o.maxTempo == null ? 0.08 : o.maxTempo))
+  if (Math.abs(fold - 1) > (o.maxTempo == null ? SYNC_MAX_TEMPO : o.maxTempo))
     return Object.assign(quick, { why: 'tempo gap' });
   const kc = camelotCompat(A.key, B.key);
   if (kc > 2) return Object.assign(quick, { why: 'key clash' });
@@ -25256,7 +25279,7 @@ const MIXER = {
       // that is already where it should be
       const s = DECKS.slots[i], r = deckRate(SPEED.rate * DECKS.pitch(i));
       try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){}
-      setPitchLock(d.a, SPEED.keyLock && !s.synced);     // (already equality-guarded)
+      setPitchLock(d.a, SPEED.keyLock && !(s.synced && SPEED.rate === 1 && Math.abs((s.pitch || 1) - 1) <= SYNC_VINYL_MAX));   // (already equality-guarded; the vinyl ride is SPEED.apply's rule)
       if (d.shelf && d.shelf.gain.value !== 0) DECKS.gainWrite(d.shelf.gain, 0, 0.006);
       /* kill any scheduled crossfade ramp and settle each deck: the surviving
          (active) deck back to full, a hand's deck too (its level is the
@@ -25752,8 +25775,8 @@ const MIXER = {
     DECKS.gainWrite(nd.gain.gain, 0, 0.002);
     DECKS.gainWrite(nd.fader.gain, 0, 0.002);
     nd._faderRampTo = 0;
-    // the blend rides vinyl (see fire()); the cue rides it from its first sample, so fire() changes nothing
-    setPitchLock(nd.a, false);
+    // the blend rides vinyl at 1× (see fire()); the cue rides it from its first sample, so fire() changes nothing
+    if (SPEED.rate === 1) setPitchLock(nd.a, false);
     const c = this._cue = { d: nd, playAt: performance.now(), moved: false, movedAt: 0, lastB: nd.a.currentTime,
       seeks: 0, pull: 0, err: null, fireErr: null, rate: 0 };
     if (to != null && isFinite(to)){ try { nd.a.currentTime = Math.max(0, to); } catch (e){} c.lastB = nd.a.currentTime; }
@@ -25992,8 +26015,13 @@ const MIXER = {
          beatmix both decks resample — a +2 % blend is a third of a semitone,
          which is what every turntable blend has ever sounded like — and the
          listener's key lock comes back the instant the seam lets go (finish /
-         cancel), when both decks are at their own tempo again. */
-      setPitchLock(od.a, false); setPitchLock(nd.a, false);
+         cancel), when both decks are at their own tempo again.
+         AT THE LISTENER'S 1× ONLY. The rate written below carries SPEED.rate,
+         so at 1.25× 'resampled' meant the whole mix jumping a major third at
+         every seam and back at its end, under a KEY LOCK pad and a toast that
+         had promised 'pitch preserved'. There the stretcher stays on and the
+         lock steers a little less precisely — the lesser evil by a mile. */
+      if (SPEED.rate === 1){ setPitchLock(od.a, false); setPitchLock(nd.a, false); }
       const g = glideRates(p.bpmA, p.bpmB, 0), k = seamPitchCarry(this._pA, 0);
       od.a.playbackRate = this._lastRateA = deckRate(g.rateA * k * SPEED.rate);
       nd.a.playbackRate = this._lastRateB = deckRate(g.rateB * k * SPEED.rate);
@@ -26973,10 +27001,18 @@ const UPDATE = {
   deferrals: 0,          // how many times this listener has said "later"
   lastRemindAt: 0,       // the snooze a reminder has already answered
   _armCur: -1,           // player.cur when "after this track" was armed
-  _lastTouchAt: 0,       // when a person last touched the app (see appInUse)
-  _lastPlayingAt: 0,     // when playback was last OBSERVED playing — what "the
-                         // quiet" is measured from. Zero (never played) reads as
-                         // quiet-forever, so an idle page still updates itself.
+  /* THE QUIET IS COUNTED FROM BOOT, NOT FROM THE EPOCH. Both stamps used to
+     start at zero, so a fresh page read as quiet-forever and untouched-forever:
+     a ready update applied itself seconds after the page had painted and
+     shown its 'Restored' toast — on every launch after every deploy, a page
+     that opens and then refreshes under the listener's eyes, and the shell
+     fetched past every cache up to three times to do it. A fresh page is quiet
+     SINCE BOOT: the badge shows, and the swap waits the same two minutes of
+     visible idle as any other; otherwise the new shell is simply there on the
+     next launch (the old worker has already recached it). */
+  _bootAt: Date.now(),
+  _lastTouchAt: Date.now(),   // when a person last touched the app (see appInUse); the launch counts
+  _lastPlayingAt: Date.now(), // when playback (or a hand's record) was last OBSERVED rolling — what "the quiet" is measured from
   ready(){ return !!(swReg && swReg.waiting) || this.source === 'shell' || this.source === 'native'; },
   /* how many times THIS session has already swapped. Session-scoped on purpose:
      a genuine sequence of deploys across a long day should each land, but a
@@ -27274,8 +27310,10 @@ function raiseOffer(source, build, print){
     el.btnUpdate.classList.add('pulse');
     ACTIVITY.log('update', T('A new version is ready')
       + (UPDATE.newBuild ? T(' - build ') + UPDATE.newBuild : ''));
-    // a listener who already said "later" gets the badge, not another toast
-    if (!UPDATE.deferrals) toast(T('A new version is ready — tap <b>Update</b> to see what changed'));
+    // a listener who already said "later" gets the badge, not another toast —
+    // and so does a page still in its first minute: an offer that arrives with
+    // the boot (every launch after a deploy) is the badge, quietly
+    if (!UPDATE.deferrals && Date.now() - UPDATE._bootAt >= UP_TOUCH_MS) toast(T('A new version is ready — tap <b>Update</b> to see what changed'));
   }
   UPDATE.paint();
 }
@@ -27289,13 +27327,16 @@ function autoApplyVerdict(){
      listener reads "idle, go ahead" and a screen facing an audience would
      reload itself mid-set. It updates when it is next opened. */
   if (typeof STAGE !== 'undefined' && STAGE.screen()) return 'wait';
-  // the quiet clock: five-second granularity is plenty against a two-minute bar
-  if (player.playing) UPDATE._lastPlayingAt = Date.now();
+  // the quiet clock: five-second granularity is plenty against a two-minute bar.
+  // A record rolling by hand on the other deck is music too: the transport can
+  // be paused while a DJ scratches, and that was 'not playing' to this clock.
+  const rolling = !!player.playing || (typeof DECKS !== 'undefined' && !!DECKS.handRolling());
+  if (rolling) UPDATE._lastPlayingAt = Date.now();
   return updateGate({
     ready: UPDATE.ready(), requested: updateRequested,
     armed: UPDATE.armed,
     trackChanged: UPDATE.armed === 'afterTrack' && player.cur !== UPDATE._armCur,
-    playing: player.playing,
+    playing: rolling,
     quietFor: Date.now() - UPDATE._lastPlayingAt,
     native: UPDATE.source === 'native',
     show: typeof POWER !== 'undefined' && POWER.mode === 'show',
@@ -27333,6 +27374,16 @@ function appInUse(){
 // the last time a person touched the app — what "put the app down" is measured from
 ['pointerdown', 'keydown', 'touchstart', 'wheel'].forEach(ev =>
   window.addEventListener(ev, () => { UPDATE._lastTouchAt = Date.now(); }, { passive: true, capture: true }));
+// …and a hand that never lifts is still a hand: a long ride on the crossfader or
+// a platter held for a minute fired no down, so it aged into 'hands-off' mid-gesture
+window.addEventListener('pointermove', () => { const n = Date.now(); if (n - UPDATE._lastTouchAt > 1000) UPDATE._lastTouchAt = n; }, { passive: true, capture: true });
+/* COMING BACK IS A TOUCH. A page brought to the front (a tab switched to, the
+   phone unlocked onto it, a bfcache restore) used to be judged the instant it
+   was looked at: idle for an hour in the background, it swapped itself under
+   the eyes that had just landed on it. It must be visibly quiet for the same
+   minute as any other hands-off page first. */
+document.addEventListener('visibilitychange', () => { if (!document.hidden) UPDATE._lastTouchAt = Date.now(); });
+window.addEventListener('pageshow', () => { UPDATE._lastTouchAt = Date.now(); });
 /* the swap itself, hardened end to end: every step is fenced so no single
    failure — a throwing save, a vanished worker, a refused reload — can strand
    the listener on a dead "Updating…". The bar runs on the learned estimate
@@ -29970,13 +30021,19 @@ const FX = {
       const hand = d._fxHand, seam = d._fxSeam ? fxSeamHz(d._fxSeam, now) : 0, brake = d._fxBrake || 0;
       if (hand || d._fxSeam || brake) busy = true;
       if (d._fxSched) continue;
-      const a = fxFilterArbiter(hand, seam, brake), q = hand ? hand.q : Math.SQRT1_2;   // linear; written in dB (qDb)
+      const a = fxFilterArbiter(hand, seam, brake);
+      /* THE HAND'S Q GOES TO THE SIDE IT SWEEPS. Written to both biquads, the
+         parked highpass at 20 Hz took the lowpass's resonance too: a +9.5 dB
+         peak at its corner, +4.5 dB at 30 Hz — a sub resonator under every
+         lowpass sweep. The other side stays Butterworth. (linear; written in dB) */
+      const qLp = hand && hand.x < 0 ? hand.q : Math.SQRT1_2, qHp = hand && hand.x > 0 ? hand.q : Math.SQRT1_2;
       const tau = d._fxTau || 0.03;
-      const L = d._fxLast || (d._fxLast = { lp: 0, hp: 0, q: 0 });
+      const L = d._fxLast || (d._fxLast = { lp: 0, hp: 0, qlp: 0, qhp: 0 });
       try {
         if (Math.abs(a.lp - L.lp) > L.lp * 0.002){ d.filter.frequency.setTargetAtTime(a.lp, now, tau); L.lp = a.lp; busy = true; }
         if (Math.abs(a.hp - L.hp) > L.hp * 0.002){ d.hp.frequency.setTargetAtTime(a.hp, now, tau); L.hp = a.hp; busy = true; }
-        if (Math.abs(q - L.q) > 0.002){ const qd = qDb(q); d.filter.Q.setTargetAtTime(qd, now, tau); d.hp.Q.setTargetAtTime(qd, now, tau); L.q = q; busy = true; }
+        if (Math.abs(qLp - L.qlp) > 0.002){ d.filter.Q.setTargetAtTime(qDb(qLp), now, tau); L.qlp = qLp; busy = true; }
+        if (Math.abs(qHp - L.qhp) > 0.002){ d.hp.Q.setTargetAtTime(qDb(qHp), now, tau); L.qhp = qHp; busy = true; }
       } catch (e){}
     }
     if (busy) this._ftIdle = 0;
@@ -31925,7 +31982,9 @@ function wireDeckTransport(){
     if (!now){
       BOOTH.holdState(slot, !AE.graphLive ? directWhy()
         : ratesHeld() ? T('Tempo match needs iOS that plays tempo cleanly — this one keeps both decks at their own tempo')
-        : seam(slot) ? T('busy — a blend is running') : T('SYNC needs a tempo on both decks'));
+        : seam(slot) ? T('busy — a blend is running')
+        : DECKS.syncWhy === 'range' ? T('SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead', DECKS.syncBpm || { m: '?', s: '?' })
+        : T('SYNC needs a tempo on both decks'));
       return false;
     }
     const mm = mixOf(DECKS.track(1 - slot));

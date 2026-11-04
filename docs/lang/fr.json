@@ -1745,6 +1745,7 @@
  "Play deck {d}": "Lire la platine {d}",
  "Play something first — the decks wake with the first track": "Lance d’abord un morceau — les platines s’éveillent avec le premier",
  "SYNC needs a tempo on both decks": "SYNC a besoin d’un tempo sur les deux platines",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} contre {s} BPM est hors des ±8 % — fais plutôt un nudge",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} calée à {bpm}",
  "Sync deck {d} to the other deck": "Synchroniser la platine {d} sur l’autre",
  "The set pinned this song to play in full — the fader waits for it": "Le set a épinglé ce morceau pour qu’il joue en entier — le fader l’attend",

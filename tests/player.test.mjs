@@ -28,7 +28,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' XFORM_KINDS, XFORM_MIN_DUR, segueFx, segueFxDur,' +
   ' smoothEnv, analyzeStructure, moodOf, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB, STEM_PAL, STEM_OKLCH,' +
   ' SEGUE_BARS, SECTION_CHANGE, sectionChangeClass, LENS_HYST,' +
-  ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
+  ' camelotParse, camelotCompat, tempoFoldRatio, SYNC_MAX_TEMPO, SYNC_VINYL_MAX, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamOutHold, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
   ' SEAM_CUE_S, SEAM_CUE_MIN, SEAM_CUE_TOL, SEAM_CUE_LAT, seamCueTarget, seamCuePoint, seamCueDue, seamCueStep, seamCueHolds, seamCueLearn,' +
@@ -3587,6 +3587,17 @@ test('updateGate: a DJ in the booth is not a quiet room, and a hidden page never
   for (const k of ['BOOTH.open', "s.owner === 'hand'", 'VINYL.engaged', 'LOOPER.engaged()', 'FX.loop', "MIXER.phase === 'running'", "DECKROUTE.phase !== 'direct'"])
     assert.ok(body.includes(k), 'boothInUse reads ' + k);
 });
+test('the update flow in the player: the quiet is counted from boot, coming back is a touch, a hand\'s record is music', () => {
+  const up = html.slice(html.indexOf('const UPDATE = {'), html.indexOf('const UPDATE = {') + 4000);
+  assert.match(up, /_bootAt: Date\.now\(\),\s*_lastTouchAt: Date\.now\(\),[^\n]*\n\s*_lastPlayingAt: Date\.now\(\),/, 'a fresh page is quiet SINCE BOOT, not quiet forever (it reloaded itself seconds after painting)');
+  const av = html.slice(html.indexOf('function autoApplyVerdict(){'), html.indexOf('function autoApplyVerdict(){') + 1600);
+  assert.match(av, /const rolling = !!player\.playing \|\| \(typeof DECKS !== 'undefined' && !!DECKS\.handRolling\(\)\);\s*if \(rolling\) UPDATE\._lastPlayingAt = Date\.now\(\);/, 'a record rolling by hand stamps the quiet clock');
+  assert.match(av, /playing: rolling,/, '…and reads as playing');
+  assert.match(html, /window\.addEventListener\('pointermove', \(\) => \{ const n = Date\.now\(\); if \(n - UPDATE\._lastTouchAt > 1000\) UPDATE\._lastTouchAt = n; \}, \{ passive: true, capture: true \}\);/, 'a hand that never lifts is still a hand');
+  assert.match(html, /document\.addEventListener\('visibilitychange', \(\) => \{ if \(!document\.hidden\) UPDATE\._lastTouchAt = Date\.now\(\); \}\);\s*window\.addEventListener\('pageshow', \(\) => \{ UPDATE\._lastTouchAt = Date\.now\(\); \}\);/, 'coming back to the page is a touch: a minute of visible quiet before any swap');
+  assert.match(html, /if \(!UPDATE\.deferrals && Date\.now\(\) - UPDATE\._bootAt >= UP_TOUCH_MS\) toast\(T\('A new version is ready/, 'an offer that arrives with the boot is the badge, not a toast');
+  assert.match(html, /#booth,#plList,#libList,#crateBody,\.pn-panel,\.act-list,#langGate \.lg-card\{overscroll-behavior:contain\}/, 'a panel\'s scroll never chains to the document (iOS pull-to-refresh)');
+});
 test('updateGate: SHOW mode is never yanked, even paused', () => {
   assert.equal(S.updateGate({ ready: true, playing: false, quietFor: 9e9, show: true, now: 0 }), 'wait');
 });
@@ -5216,6 +5227,29 @@ test('MIXER.fire: the incoming deck takes its own record\'s trim; the hold sits 
   const fw = html.indexOf('function fxDeadWord(){');
   assert.match(html.slice(fw, fw + 400), /DECKROUTE\.phase === 'taking'\) return T\('Deck B is joining — matching the record on air…'\);/);
   assert.equal((html.match(/if \(!FX\.live\(\)\)\{ toast\(fxDeadWord\(\)\); return; \}/g) || []).length, 2, 'both FX refusals use it');
+});
+test('the tempo gates are one number: SYNC refuses beyond it, the vinyl ride is the 1× listener\'s only, the hand\'s Q stays on its side, the cut fader is a switch', () => {
+  assert.equal(S.SYNC_MAX_TEMPO, 0.08); assert.equal(S.SYNC_VINYL_MAX, 0.03);
+  // every matcher reads the one constant (they used to carry their own 0.08)
+  assert.match(html, /Math\.abs\(r - 1\) > \(opts\.maxTempo \|\| SYNC_MAX_TEMPO\)/, 'planTransition');
+  assert.match(html, /o\.maxTempo == null \? SYNC_MAX_TEMPO : o\.maxTempo/, 'planMixNow');
+  assert.match(html, /\/ SYNC_MAX_TEMPO\) \* 0\.12;/, 'mixMatchScore');
+  // the hand's SYNC: 128 against 100 is +4.3 semitones — refused, untouched, with the numbers
+  const sy = html.slice(html.indexOf('  sync(slot){'), html.indexOf('  sync(slot){') + 2600);
+  assert.match(sy, /const ratio = syncRateFor\(mixM\.bpm, mixS\.bpm\);\s*if \(Math\.abs\(ratio - 1\) > SYNC_MAX_TEMPO\)\{ this\.syncWhy = 'range'; this\.syncBpm = \{ m: Math\.round\(mixM\.bpm\), s: Math\.round\(mixS\.bpm\) \}; return false; \}\s*s\.pitch = ratio; s\.synced = true;/);
+  assert.ok(Math.abs(S.syncRateFor(100, 128) - 1) > S.SYNC_MAX_TEMPO && Math.abs(S.syncRateFor(128, 124) - 1) <= S.SYNC_MAX_TEMPO, 'the fold decides');
+  assert.match(html, /DECKS\.syncWhy === 'range' \? T\('SYNC · \{m\} vs \{s\} BPM is outside ±8 % — nudge instead', DECKS\.syncBpm/, 'the booth says why');
+  // the vinyl ride (preservesPitch off) only at the listener's 1×, and for a synced deck only within 3 %
+  assert.match(html, /if \(SPEED\.rate === 1\)\{ setPitchLock\(od\.a, false\); setPitchLock\(nd\.a, false\); \}/, 'fire()');
+  assert.match(html, /if \(SPEED\.rate === 1\) setPitchLock\(nd\.a, false\);/, 'the pre-rolled cue');
+  assert.match(html, /setPitchLock\(d\.a, this\.keyLock && !\(s && s\.synced && this\.rate === 1 && Math\.abs\(\(s\.pitch \|\| 1\) - 1\) <= SYNC_VINYL_MAX\)\);/, 'SPEED.apply');
+  assert.match(html, /setPitchLock\(d\.a, SPEED\.keyLock && !\(s\.synced && SPEED\.rate === 1 && Math\.abs\(\(s\.pitch \|\| 1\) - 1\) <= SYNC_VINYL_MAX\)\);/, 'the cancel\'s retune');
+  assert.ok(!/setPitchLock\(od\.a, false\); setPitchLock\(nd\.a, false\);\s*const g = glideRates/.test(html), 'no unconditional drop is left');
+  // the hand's Q goes to the side it sweeps; the parked side stays Butterworth (a +9.5 dB sub resonator otherwise)
+  assert.match(html, /const qLp = hand && hand\.x < 0 \? hand\.q : Math\.SQRT1_2, qHp = hand && hand\.x > 0 \? hand\.q : Math\.SQRT1_2;/);
+  assert.ok(!/d\.filter\.Q\.setTargetAtTime\(qd, now, tau\); d\.hp\.Q\.setTargetAtTime\(qd, now, tau\);/.test(html), 'one Q no longer lands on both');
+  // the CUT law's edge
+  assert.match(html, /this\.gainWrite\(d\.fader\.gain, gi, this\.fader\.curve === 'cut' \? 0\.0015 : 0\.006\);/);
 });
 test('xfadeCurve: monotonic, norm-scaled, correct endpoints per side', () => {
   const out = S.xfadeCurve(0.8, 'out', 32), inc = S.xfadeCurve(0.5, 'in', 32);
@@ -12034,9 +12068,9 @@ test('the rack in the player: release walks FX_PARK, the gate is curves, the sea
                    // the LFO: stopped late, swapped under a duck, glided on drift
                    'this._lfoEnd(U, o, at);', 'if (live){ this._w(U.lfoG.gain, 0, 0.01); this._lfoStop(u, 0.05); }',
                    'U.lfo.frequency.setTargetAtTime(fxFlangeParams(this.amount, this.div, bpm).rateHz, AE.ctx.currentTime, 0.05);',
-                   'f.hp.Q.linearRampToValueAtTime(qDb(sw.qTop), tRel);', 'const qd = qDb(q); d.filter.Q.setTargetAtTime(qd, now, tau);',
+                   'f.hp.Q.linearRampToValueAtTime(qDb(sw.qTop), tRel);', 'd.filter.Q.setTargetAtTime(qDb(qLp), now, tau);', 'd.hp.Q.setTargetAtTime(qDb(qHp), now, tau);',
                    'this._gateAt = b ? gateAnchor(t, b.at, step) : t;', 'd._fxBrake = 400 + r * 20000;',
-                   'const a = fxFilterArbiter(hand, seam, brake), q = hand ? hand.q : Math.SQRT1_2;',
+                   'const a = fxFilterArbiter(hand, seam, brake);',
                    'd.filter.frequency.setTargetAtTime(a.lp, now, tau);', 'if (d._fxSched) continue;',
                    'p.exponentialRampToValueAtTime(to, t + fxEchoGlide(from, to));', 'conv.normalize = true;',
                    'const r = fxAutoStep(this._autoSt, o, barPhase, bars);', 'f.hp.frequency.exponentialRampToValueAtTime(sw.hzTop, tRel);',

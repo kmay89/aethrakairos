@@ -1945,6 +1945,7 @@
  "Play deck {d}": "Odtwórz deck {d}",
  "Play something first — the decks wake with the first track": "Najpierw coś odtwórz — decki budzą się z pierwszym utworem",
  "SYNC needs a tempo on both decks": "SYNC potrzebuje tempa na obu deckach",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} wobec {s} BPM wykracza poza ±8 % — zamiast tego użyj nudge",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} dopasowany do {bpm}",
  "Sync deck {d} to the other deck": "Zsynchronizuj deck {d} z drugim deckiem",
  "The set pinned this song to play in full — the fader waits for it": "Set przypiął ten utwór do odtworzenia w całości — crossfader na niego czeka",

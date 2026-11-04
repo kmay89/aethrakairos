@@ -1945,6 +1945,7 @@
  "Play deck {d}": "Грати деку {d}",
  "Play something first — the decks wake with the first track": "Спершу щось увімкни — деки прокидаються з першим треком",
  "SYNC needs a tempo on both decks": "SYNC потребує темпу на обох деках",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} проти {s} BPM — поза ±8 % — натомість підштовхніть (nudge)",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} підлаштовано під {bpm}",
  "Sync deck {d} to the other deck": "Синхронізувати деку {d} з іншою декою",
  "The set pinned this song to play in full — the fader waits for it": "Сет закріпив цей трек повністю — фейдер чекає на нього",

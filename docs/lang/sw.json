@@ -1745,6 +1745,7 @@
  "Play deck {d}": "Cheza deki {d}",
  "Play something first — the decks wake with the first track": "Cheza kitu kwanza — deki huamka na wimbo wa kwanza",
  "SYNC needs a tempo on both decks": "SYNC inahitaji tempo kwenye deki zote mbili",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} dhidi ya {s} BPM iko nje ya ±8 % — tumia nudge badala yake",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} imelinganishwa kwa {bpm}",
  "Sync deck {d} to the other deck": "Linganisha deki {d} na deki nyingine",
  "The set pinned this song to play in full — the fader waits for it": "Seti imebandika wimbo huu uchezwe mzima — fader inausubiri",

@@ -1745,6 +1745,7 @@
  "Play deck {d}": "ဒက် {d} ဖွင့်ရန်",
  "Play something first — the decks wake with the first track": "အရင် တစ်ခုခု ဖွင့်ပါ — ပထမသီချင်းနှင့်အတူ ဒက်များ နိုးလာမည်",
  "SYNC needs a tempo on both decks": "SYNC အတွက် ဒက်နှစ်ခုလုံးတွင် tempo လိုအပ်သည်",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} နှင့် {s} BPM သည် ±8 % ပြင်ပ ဖြစ်နေသည် — အစား nudge လုပ်ပါ",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} ကို {bpm} နှင့် ကိုက်ညီစေပြီ",
  "Sync deck {d} to the other deck": "ဒက် {d} ကို အခြားဒက်နှင့် ချိန်ညှိရန်",
  "The set pinned this song to play in full — the fader waits for it": "Set က ဤသီချင်းကို အပြည့်ဖွင့်ရန် သတ်မှတ်ထားသည် — ဖေဒါက စောင့်နေသည်",

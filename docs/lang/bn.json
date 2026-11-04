@@ -1745,6 +1745,7 @@
  "Play deck {d}": "ডেক {d} বাজান",
  "Play something first — the decks wake with the first track": "আগে কিছু বাজান — প্রথম ট্র্যাকের সঙ্গে ডেকগুলো জেগে ওঠে",
  "SYNC needs a tempo on both decks": "SYNC-এর জন্য দুই ডেকেই টেম্পো লাগে",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} বনাম {s} BPM ±8 %-এর বাইরে — তার বদলে nudge করুন",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} {bpm}-এ মেলানো হয়েছে",
  "Sync deck {d} to the other deck": "ডেক {d} অন্য ডেকের সঙ্গে সিঙ্ক করুন",
  "The set pinned this song to play in full — the fader waits for it": "সেট এই গানটি পুরো বাজানোর জন্য ঠিক করে রেখেছে — ফেডার এর জন্য অপেক্ষা করে",

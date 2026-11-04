@@ -1745,6 +1745,7 @@
  "Play deck {d}": "Putar deck {d}",
  "Play something first — the decks wake with the first track": "Putar sesuatu dulu — deck bangun bersama lagu pertama",
  "SYNC needs a tempo on both decks": "SYNC butuh tempo di kedua deck",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} vs {s} BPM di luar ±8 % — gunakan nudge saja",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} disamakan ke {bpm}",
  "Sync deck {d} to the other deck": "Sinkronkan deck {d} dengan deck satunya",
  "The set pinned this song to play in full — the fader waits for it": "Set menyematkan lagu ini untuk diputar utuh — fader menunggunya",

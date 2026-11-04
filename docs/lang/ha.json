@@ -1745,6 +1745,7 @@
  "Play deck {d}": "Kunna deck {d}",
  "Play something first — the decks wake with the first track": "Fara kunna wani abu — deck-deck na farkawa da waƙar farko",
  "SYNC needs a tempo on both decks": "SYNC na buƙatar tempo a kan deck biyu",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} da {s} BPM sun wuce ±8 % — yi nudge a maimakon haka",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} ya daidaita a {bpm}",
  "Sync deck {d} to the other deck": "Daidaita deck {d} da ɗayan deck",
  "The set pinned this song to play in full — the fader waits for it": "Set ya kafa wannan waƙar a kunna ta gaba ɗaya — fader na jiranta",

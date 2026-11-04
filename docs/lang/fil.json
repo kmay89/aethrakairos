@@ -1745,6 +1745,7 @@
  "Play deck {d}": "I-play ang deck {d}",
  "Play something first — the decks wake with the first track": "Mag-play muna ng kahit ano — gumigising ang mga deck sa unang track",
  "SYNC needs a tempo on both decks": "Kailangan ng SYNC ng tempo sa parehong deck",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} laban sa {s} BPM ay lampas sa ±8 % — mag-nudge na lang",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} itinugma sa {bpm}",
  "Sync deck {d} to the other deck": "I-sync ang deck {d} sa kabilang deck",
  "The set pinned this song to play in full — the fader waits for it": "Ipinako ng set ang kantang ito para tumugtog nang buo — hinihintay ito ng fader",
