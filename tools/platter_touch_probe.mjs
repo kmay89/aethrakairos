@@ -41,15 +41,29 @@ const R = (name, ok, detail) => {
   console.log((ok ? '  ok   ' : '  FAIL ') + name + (detail ? ' — ' + detail : ''));
 };
 
-async function bench(label, ua){
+async function bench(label, ua, graph){
   console.log(label);
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, ...(ua ? { userAgent: ua } : {}) });
-  await ctx.addInitScript(() => { try { localStorage.setItem('mb8_lang', 'en'); } catch (e){} });
+  await ctx.addInitScript(g => {
+    try { localStorage.setItem('mb8_lang', 'en'); } catch (e){}
+    // the two-deck route needs Safari's audio session; Chromium has none
+    if (g && !navigator.audioSession) Object.defineProperty(navigator, 'audioSession', { value: { type: 'auto' }, configurable: true });
+  }, !!graph);
   const page = await ctx.newPage();
   const errs = [];
   page.on('pageerror', e => errs.push(e.message.split('\n')[0]));
-  await page.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+  await page.goto(origin + '/' + (graph ? '?decks=graph' : ''), { waitUntil: 'domcontentloaded' });
   await page.waitForFunction('window.__mb8Booted === true', null, { timeout: 45000 });
+  if (graph){
+    /* AN iPHONE WITH THE ROUTE OPTED IN: the booth, opened in a gesture before
+       anything plays, takes both (empty) decks into the graph where they
+       stand — so from here the bench is the graph bench, on an iPhone. */
+    await page.evaluate(() => { const o = document.getElementById('onboard'); if (o) o.classList.remove('open'); if (typeof firstRunClose === 'function') try { firstRunClose(); } catch (e) {} });
+    await page.touchscreen.tap(195, 120);
+    await page.evaluate(() => BOOTH.toggle(true));
+    const took = await page.waitForFunction('DECKROUTE.phase === "graph" && AE.graphLive', null, { timeout: 10000 }).then(() => true).catch(() => false);
+    R('the open booth takes the iPhone\'s decks into the graph', took, JSON.stringify(await page.evaluate(() => window.__mb8Route())));
+  }
   await page.evaluate(async () => {
     const o = document.getElementById('onboard'); if (o) o.classList.remove('open');
     if (typeof firstRunClose === 'function') try { firstRunClose(); } catch (e) {}
@@ -67,7 +81,11 @@ async function bench(label, ua){
   if (!playing){ await ctx.close(); return; }
   await page.evaluate(() => { activeDeck().a.loop = true; });   // the demo is short; the probe is not
   const direct = await page.evaluate(() => !AE.graphLive);
-  R(direct ? 'the music plays element-direct, as on an iPhone' : 'the music runs through the graph', direct === !!ua);
+  R(direct ? 'the music plays element-direct, as on an iPhone' : 'the music runs through the graph', direct === (!!ua && !graph));
+  if (graph){
+    const w = await page.evaluate(() => window.__mb8VinylDecks);
+    R('…with a platter worklet seated on EACH deck (per-deck, not the song tape)', w && w.A === 'worklet' && w.B === 'worklet', JSON.stringify(w));
+  }
   if (direct){
     const pressed = await page.waitForFunction('VINYL.songReady()', null, { timeout: 30000 }).then(() => true).catch(() => false);
     const info = await page.evaluate(() => window.__mb8VinylSong);
@@ -229,6 +247,7 @@ async function bench(label, ua){
 
 await bench('graph (a phone with the Web Audio graph)', '');
 await bench('direct (an iPhone, element-direct)', IPHONE);
+await bench('graph on an iPhone (the two-deck route, ?decks=graph, booth open)', IPHONE, true);
 await browser.close(); server.close();
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

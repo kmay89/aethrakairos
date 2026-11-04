@@ -102,7 +102,10 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' WAVE_V, WAVE_HZ, WAVE_SR, WAVE_TILT, WAVE_PLANES, WAVE_MIPS, waveBiquad, wavePct, waveDetail, waveQuant, waveFromEnv, waveRange, waveGrid, waveBeatPos, waveWorkerSource,' +
   ' waveTrailMean, waveTrailMax, waveTilt, waveMip, waveNorm, wavePack, waveLevel, waveRangeAt, waveFoldPeaks, waveOnsets, waveBandColours, waveTiltAt, waveTiltLUT, waveGridStyle, waveDeckTime, waveRateStep, waveClock,' +
   ' VINYL_SONG_FRAMES, vinylSongRate, vinylToTape, makeVinylSong, vinylSongCommand, vinylSongProcess,' +
-  ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed, synLookahead };';
+  ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed, synLookahead,' +
+  ' iosMajor, iosGraphAllowed, iosRatesOk, IOS_SAME_TEMPO, IOS_SAME_DRIFT, IOS_SEAM_SEEK, IOS_SEAM_SEEKS, iosSeamPlan, pickOverride, lagOverride, srcClean, crossoverSource,' +
+  ' XO_TOL, XO_ACCEPT, XO_SEEKS, crossoverAligned, giveWinner, HIDE_RESOLVE_S, HIDE_RETRY_S, HIDE_TRIES, hideAction, stayPutRule,' +
+  ' SENTINEL_FLOOR, sentinelTrip };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -11710,6 +11713,34 @@ test('fxAutoStep: a decision a bar, hysteresis on the line, two bars held, eight
   assert.equal(S.fxAutoPick({ ...base, phase: 'break', energy: 0.4, barsIn: 1 }), 'reverb', 'a break\'s first bars are a wash');
   assert.equal(S.fxAutoPick({ ...base, phase: 'break', energy: 0.4, barsIn: 3 }), 'none', '…and only its first bars');
 });
+test('fxAutoStep: an ear that has not settled decides nothing — the bar is not spent, and the seam echo is never held', () => {
+  /* an iPhone's take: the graph's analyser becomes the room's ear on a downbeat, with the
+     band followers still carrying the score's hotter reading (1.0 there, where the analyser
+     itself never reads above 0.83) — the step that read it dealt a GATE onto the master
+     the instant the decks joined */
+  const base = { ceil: 0.56, act: 2, phase: 'peak', bar: 1.94, toSeam: null };
+  const st0 = S.makeFxAuto();
+  assert.ok(S.FX_AUTO.earSec >= 6 * 0.08, 'six of the slowest band follower\'s time constants (0.08 s) at least');
+  const held = S.fxAutoStep(st0, { ...base, energy: 1, earFor: 0.017 }, 0.005, 1.005);
+  assert.ok(!held.change && held.unit === 'none', 'the carried-over reading deals nothing');
+  assert.equal(held.st.bar, st0.bar, '…and does not spend the bar');
+  // settled inside the same first quarter: the decision is taken then, on the ear's own reading
+  const settled = S.fxAutoStep(held.st, { ...base, energy: 0.83, earFor: 0.5 }, 0.2, 1.2);
+  assert.ok(settled.change === false && settled.st.bar === 1, 'the analyser\'s 0.83 is no peak to gate: a decision, for silence');
+  const earned = S.fxAutoStep(held.st, { ...base, energy: 0.95, earFor: 0.6 }, 0.2, 1.2);
+  assert.ok(earned.change && earned.unit === 'gate', 'a peak the ear itself hears is still the gate\'s');
+  // the hand-off echo reads the mixer's arithmetic, not the ear
+  const seam = S.fxAutoStep(st0, { ...base, energy: 0.4, earFor: 0.05, toSeam: 1.2 }, 0.01, 7.01);
+  assert.ok(seam.change && seam.unit === 'echo', 'the seam comes once: its echo is never held');
+  // no ear reported (the old callers, the tests above): the step is what it always was
+  assert.ok(S.fxAutoStep(st0, { ...base, energy: 1 }, 0.005, 1.005).change);
+  // the ear's clock: reset whenever the rack is not live, and a hidden tab's coarse tick (no analyse()) settles nothing
+  const at = html.indexOf('  autoTick(dt){\n    /* how long the analyser');
+  assert.ok(at > 0, 'FX.autoTick keeps the ear\'s clock');
+  const head = html.slice(at, at + 700);
+  assert.match(head, /this\._earFor = this\.live\(\) \? /, 'the clock resets when the rack is not live');
+  assert.match(head, /!document\.hidden/, 'a hidden tick runs no analyse(), so it adds no settled time');
+});
 test('fxAutoSweep: a build earns a highpass up to the vocals, over the bars it has left, let go a beat before the drop', () => {
   const s = S.fxAutoSweep(16, 120, 0.9);
   assert.ok(s.hzTop >= 900 && s.hzTop <= 1400, 'the top sits under the vocals, got ' + s.hzTop);
@@ -11852,15 +11883,16 @@ test('the decks in the player: slots by identity, the restore onto the idle deck
   assert.ok(decks.includes("this.load(this.idle(), t, { at: r.cue, by: 'restore' });"), 'R10: the hand\'s record returns to the idle deck');
   assert.ok(!decks.includes('const slot = r.slot === 1 ? 1 : 0;'), 'R10: the saved letter is not where it goes');
   assert.ok(decks.includes('if (!cued) s.cue = 0;'), 'R29: a transport start cues the record at its top');
-  assert.ok(decks.includes('try { if (d.a.playbackRate !== SPEED.rate) d.a.playbackRate = SPEED.rate; } catch (e){}\n    setPitchLock(d.a, SPEED.keyLock);'),
+  // (through deckRate, the one door every deck rate passes: on an iPhone with the decks in the graph it holds 1×)
+  assert.ok(decks.includes('{ const r = deckRate(SPEED.rate); try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){} }\n    setPitchLock(d.a, SPEED.keyLock);'),
     'R13: the element follows the slot it resets');
   const mixer = html.slice(html.indexOf('const MIXER = {'), html.indexOf('/* hidden tabs get no rAF'));
   assert.ok(mixer.includes("this._pA = (typeof DECKS !== 'undefined') ? DECKS.pitch(AE.active) : 1;"), 'R13: the on-air pitch is read at fire');
-  assert.ok(mixer.includes('od.a.playbackRate = this._lastRateA = g.rateA * k * SPEED.rate;') && mixer.includes('nd.a.playbackRate = this._lastRateB = g.rateB * k * SPEED.rate;'), 'R13: fire carries it');
-  assert.ok(mixer.includes('k = seamPitchCarry(this._pA, f);') && mixer.includes('const rA = g.rateA * k * SPEED.rate, rB = g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate;'), 'R13: the glide carries it home');
+  assert.ok(mixer.includes('od.a.playbackRate = this._lastRateA = deckRate(g.rateA * k * SPEED.rate);') && mixer.includes('nd.a.playbackRate = this._lastRateB = deckRate(g.rateB * k * SPEED.rate);'), 'R13: fire carries it');
+  assert.ok(mixer.includes('k = seamPitchCarry(this._pA, f);') && mixer.includes('const rA = deckRate(g.rateA * k * SPEED.rate), rB = deckRate(g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate);'), 'R13: the glide carries it home');
   assert.equal((mixer.match(/this\._lastRateA = this\._lastRateB = 1; this\._pA = 1;/g) || []).length, 2, 'R13: finish and cancel let it go');
   assert.ok(mixer.includes('const fresh = ws.rec !== had;') && mixer.includes('if (fresh){ const mB = mixOf(B); ws.cue = (mB && mB.in && mB.in.start) || 0; }'), 'R29: the auto-DJ\'s record gets its own cue');
-  assert.ok(mixer.includes('if (fresh && nd.a.paused){\n      try { if (nd.a.playbackRate !== SPEED.rate) nd.a.playbackRate = SPEED.rate; } catch (e){}\n      setPitchLock(nd.a, SPEED.keyLock);'),
+  assert.ok(mixer.includes('if (fresh && nd.a.paused){\n      { const r = deckRate(SPEED.rate); try { if (nd.a.playbackRate !== r) nd.a.playbackRate = r; } catch (e){} }\n      setPitchLock(nd.a, SPEED.keyLock);'),
     'R13: a new record on the idle deck plays at the listener\'s rate, never a retired match');
   assert.ok(decks.includes('if (retired != null && retired >= 0){ r.trackIdx = retired; r.pitch = 1; r.synced = false; }'), 'R13: the retired deck\'s sync retires with it');
   assert.ok(decks.includes('onPlayIndex(newIdx, retired, fadeDur, cued, idx){') && decks.includes('if (idx != null && idx >= 0) s.trackIdx = idx;'), 'R13: the on-air slot names the record it plays');
@@ -12706,6 +12738,308 @@ test('the cued deck in the player: parked by the warm, rolled silent, skipped by
   assert.ok(html.includes("rolling(){ const d = this.deck(); return !!(d && !d.a.paused && !d.a.ended && !(typeof MIXER !== 'undefined' && MIXER.cueing(d))); },"), 'the platter waits for PLAY');
   assert.ok(html.includes("if (d && DECKS.track(slot) && !d.a.paused && !d.a.ended && !MIXER.cueing(d)){ DECKS.pause(slot); return true; }"), 'PLAY starts it by hand');
   assert.ok(html.includes("if (typeof MIXER !== 'undefined' && MIXER.cueing(d)) return;   // a rolling cue takes its rate from the seam"), 'SPEED leaves its rate to the seam');
+});
+
+// ---------------------------------------------------------------- two decks on an iPhone (DECKROUTE, @media)
+const UA18 = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+const UA176 = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1';
+const UA26 = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1';
+const UACRIOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/129.0.6668.69 Mobile/15E148 Safari/604.1';
+const UAPAD = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15';
+test('iosMajor: the OS figure and Version/ both read, the larger wins; iPadOS-as-Mac reads Version/ only; 10_15 is never a version', () => {
+  assert.equal(S.iosMajor(UA18, 'iPhone', 5), 18);
+  assert.equal(S.iosMajor(UA176, 'iPhone', 5), 17);
+  assert.equal(S.iosMajor(UA26, 'iPhone', 5), 26, 'iOS 26 Safari froze the UA at 18_6 and says 26 in Version/');
+  assert.equal(S.iosMajor(UACRIOS, 'iPhone', 5), 18, 'Chrome on iOS carries the OS figure only');
+  assert.equal(S.iosMajor(UAPAD, 'MacIntel', 5), 18, 'an iPad in desktop mode');
+  assert.equal(S.iosMajor(UAPAD, 'MacIntel', 0), 0, 'a real Mac is not iOS');
+  assert.notEqual(S.iosMajor('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 'MacIntel', 5), 10, 'Mac OS X 10_15 is not iOS 10');
+  assert.equal(S.iosMajor('garbage', 'Linux', 0), 0);
+});
+test('iosGraphAllowed: needs iOS, audioSession and a worklet always; direct is final; graph skips the floor; the default gates the rest', () => {
+  const base = { ios: true, major: 18, hasAudioSession: true, hasWorklet: true, override: '', defaultOn: true };
+  assert.equal(S.iosGraphAllowed(base), true, 'iOS 18 with the default on');
+  assert.equal(S.iosGraphAllowed({ ...base, major: 17 }), false, '17.6 keeps the music direct');
+  assert.equal(S.iosGraphAllowed({ ...base, major: S.iosMajor(UA26, 'iPhone', 5) }), true, 'iOS 26');
+  assert.equal(S.iosGraphAllowed({ ...base, major: S.iosMajor(UACRIOS, 'iPhone', 5) }), true, 'CriOS on 18');
+  assert.equal(S.iosGraphAllowed({ ...base, major: S.iosMajor(UAPAD, 'MacIntel', 5) }), true, 'iPadOS in desktop mode');
+  assert.equal(S.iosGraphAllowed({ ...base, hasAudioSession: false }), false, 'no audioSession, no graph');
+  assert.equal(S.iosGraphAllowed({ ...base, hasWorklet: false }), false, 'no worklet, no platters, no graph');
+  assert.equal(S.iosGraphAllowed({ ...base, override: 'direct' }), false, 'decks=direct is final');
+  assert.equal(S.iosGraphAllowed({ ...base, major: 17, override: 'graph' }), true, 'decks=graph skips the version floor');
+  assert.equal(S.iosGraphAllowed({ ...base, override: 'graph', hasAudioSession: false }), false, '…but never the platform');
+  assert.equal(S.iosGraphAllowed({ ...base, defaultOn: false }), false, 'shipped off: nothing without the override');
+  assert.equal(S.iosGraphAllowed({ ...base, ios: false, override: 'graph' }), false, 'not iOS: nothing to take');
+});
+test('iosRatesOk: one place decides — free off iOS and on the direct path; held at 1 on an iOS graph unless overridden', () => {
+  assert.equal(S.iosRatesOk({ ios: false, graph: true, override: false }), true, 'desktop');
+  assert.equal(S.iosRatesOk({ ios: true, graph: false, override: false }), true, 'iOS direct: element rates are clean');
+  assert.equal(S.iosRatesOk({ ios: true, graph: true, override: false }), false, 'iOS in the graph: WebKit 240405');
+  assert.equal(S.iosRatesOk({ ios: true, graph: true, override: true }), true, '?rates=1 for a WebKit that has the fix');
+});
+test('iosSeamPlan: with the rates held a beatmix between two tempi becomes the fade; one tempo still beatmixes; fades and gapless pass', () => {
+  const bm = (a, b) => ({ type: 'beatmix', bpmA: a, bpmB: b, beats: 16, seconds: 7.7 });
+  assert.equal(S.iosSeamPlan(bm(124, 126), true).type, 'beatmix', 'rates free: untouched');
+  const f = S.iosSeamPlan(bm(124, 126), false);
+  assert.equal(f.type, 'fade'); assert.equal(f.seconds, 4);
+  assert.equal(S.iosSeamPlan(bm(124, 126), false, 0.8).seconds, 0.8, 'MIX NOW keeps its quick fade');
+  assert.equal(S.iosSeamPlan(bm(124, 124), false).type, 'beatmix', 'one tempo: no glide needed, beatmixed at 1×');
+  assert.equal(S.iosSeamPlan(bm(124, 124.1), false).type, 'beatmix', '0.08 % across 7.7 s drifts 6 ms: still one tempo');
+  assert.equal(S.iosSeamPlan(bm(124, 124.5), false).type, 'fade', 'outside 0.3 %: the fade');
+  assert.equal(S.iosSeamPlan({ type: 'beatmix', bpmA: 124, bpmB: 124.1, beats: 64 }, false).type, 'fade', 'no seconds: the beats and B\'s tempo size it (31 s, 25 ms)');
+  assert.equal(S.iosSeamPlan({ type: 'gapless' }, false).type, 'gapless');
+  assert.equal(S.iosSeamPlan({ type: 'fade', seconds: 3 }, false).seconds, 3);
+  assert.equal(S.iosSeamPlan(null, false), null);
+});
+test('iosSeamPlan: one tempo is judged over the seam\'s own length — nothing can steer the phase once B is heard on held rates', () => {
+  const bm = (a, b, beats) => ({ type: 'beatmix', bpmA: a, bpmB: b, beats, seconds: Math.round(beats * 60 / a * 100) / 100 });
+  // 124.0 against 124.3: 0.24 % — inside the old flat bound, which let 19 ms of flam through a 16-beat seam
+  assert.equal(S.iosSeamPlan(bm(124, 124.3, 16), false).type, 'fade', '16 beats at 0.24 % drifts 19 ms: the fade');
+  assert.equal(S.iosSeamPlan(bm(124, 124.3, 4), false).type, 'beatmix', '4 beats drifts under 5 ms: still a beatmix');
+  assert.equal(S.iosSeamPlan(bm(124, 124.1, 32), false).type, 'fade', 'a tuner\'s 32-beat seam needs the tempi closer still (12 ms)');
+  assert.equal(S.iosSeamPlan(bm(124, 124.1, 16), false).type, 'beatmix', '…which 16 beats of the same pair is (6 ms)');
+  // the bound is the drift, at its own constant
+  const secs = 7.74, edge = 124 * (1 + S.IOS_SAME_DRIFT / secs);
+  assert.equal(S.iosSeamPlan({ type: 'beatmix', bpmA: edge * 0.9999, bpmB: 124, seconds: secs }, false).type, 'beatmix');
+  assert.equal(S.iosSeamPlan({ type: 'beatmix', bpmA: edge * 1.0002, bpmB: 124, seconds: secs }, false).type, 'fade');
+  assert.ok(S.IOS_SAME_DRIFT > 0 && S.IOS_SAME_DRIFT <= 0.012, 'about where two kicks begin to flam');
+});
+test('seamTake on held rates: the seek is the only lever — a few ms is sought out, with a bigger budget; never a pull', () => {
+  const held = { tau: 0.25, seekAbove: S.IOS_SEAM_SEEK, done: S.IOS_SEAM_SEEK, maxSeeks: S.IOS_SEAM_SEEKS };
+  assert.equal(S.seamTake(0.02, 0, 0).act, 'pull', 'free rates: 20 ms is a pull');
+  assert.equal(S.seamTake(0.02, 0, 0, held).act, 'seek', 'held rates: 20 ms is a seek (a pull would move nothing)');
+  assert.equal(S.seamTake(0.006, 0, 0, held).act, 'seek', '…and so is 6 ms');
+  assert.equal(S.seamTake(0.003, 0, 0, held).act, 'latch', 'under the seek threshold: done');
+  assert.equal(S.seamTake(0.02, 0, 3, held).act, 'seek', 'more than the free take\'s three seeks');
+  assert.equal(S.seamTake(0.02, 0, S.IOS_SEAM_SEEKS, held).act, 'pull', 'out of budget: seamTake says pull — which the sampler latches on held rates');
+  assert.equal(S.seamTake(0.02, 0.5, 0, held).act, 'latch', 'B audible: never a seek');
+  assert.equal(S.seamTake(0.1, 0, 3).act, 'pull', 'the free take keeps its budget of three');
+  assert.ok(S.IOS_SEAM_SEEK <= 0.005 && S.IOS_SEAM_SEEKS > 3);
+});
+test('the mixer on held rates: the take seeks with the learned refill, and a pull never stands in for a seek', () => {
+  const smp = html.slice(html.indexOf('  _sample(){'), html.indexOf('  // where the seam is, for the sampler'));
+  assert.ok(smp.includes('const held = ratesHeld();'), 'the sampler asks the one decider');
+  assert.ok(smp.includes('{ tau, seekAbove: IOS_SEAM_SEEK, done: IOS_SEAM_SEEK, maxSeeks: IOS_SEAM_SEEKS }'), 'held: the seek take');
+  assert.ok(smp.includes("} else if (take.act === 'pull' && !held){"), 'held: an inert pull is a latch');
+  assert.ok(smp.includes('bNow + errSec + (held ? (this._seekComp || 0) : 0)'), 'held: the refill folded into the aim');
+});
+test('a refused seam start holds the auto-DJ off that record: no re-arm, no commit/uncommit churn until a new record is on air', () => {
+  const mx = html.slice(html.indexOf('const MIXER = {'), html.indexOf('const MIXER = {') + 200000);
+  const up = mx.slice(mx.indexOf('  update(now, dt){'), mx.indexOf('  exitTime(dur, plan, track){'));
+  assert.ok(/if \(this\._holdRec && this\._holdRec === player\.tracks\[player\.cur\]\) return;\n\s+if \(d\.a\.duration - t < 90 && player\.hasNext\(\)\) this\.arm\(\);/.test(up), 'update() does not arm a held record');
+  const rf = mx.slice(mx.indexOf('  _refused(od, nd){'), mx.indexOf('  setVolumes(f){'));
+  assert.ok(rf.indexOf('this._holdRec = player.tracks[player.cur]') > rf.indexOf('player.uncommitMix();'), '_refused holds the record back on air (after the un-commit)');
+  assert.ok(mx.includes("this._holdRec = player.tracks[player.cur] || null; this.cancel('unblessed');"), 'an unblessed start holds the same way');
+  const pi = html.slice(html.indexOf('  playIndex(i, opts){'), html.indexOf('  playIndex(i, opts){') + 400);
+  assert.ok(pi.includes('MIXER._holdRec = null'), 'a new record clears it (playIndex)');
+  const cm = html.slice(html.indexOf('  commitMix(i, opts){'), html.indexOf('  commitMix(i, opts){') + 300);
+  assert.ok(cm.includes('MIXER._holdRec = null'), '…and (commitMix)');
+});
+test('the mixer stands down while an iPhone\'s hand-back is in flight (nothing armed or fired onto the deck it emptied)', () => {
+  const mx = html.slice(html.indexOf('const MIXER = {'), html.indexOf('const MIXER = {') + 200000);
+  const up = mx.slice(mx.indexOf('  update(now, dt){'), mx.indexOf('  exitTime(dur, plan, track){'));
+  assert.ok(up.indexOf("DECKROUTE.phase === 'giving' && (this.phase === 'idle' || this.phase === 'armed')") > up.indexOf('if (!AE.graphLive)'), 'update(): idle and armed stand down, a running seam lands');
+  const tm = mx.slice(mx.indexOf('  tryMixNow(){'), mx.indexOf('  fire(now){'));
+  assert.ok(tm.includes("DECKROUTE.phase === 'giving') return false;"), 'MIX NOW: the plain path');
+  const fi = mx.slice(mx.indexOf('  fire(now){'), mx.indexOf('  fire(now){') + 1200);
+  assert.ok(fi.includes("DECKROUTE.phase === 'giving'){ this.cancel('route'); return; }"), 'fire(): the poller cannot start a seam');
+});
+test('DECKROUTE: a change of record settles an emergency; a pause during a hand-back stands; the decks go direct only with the air direct', () => {
+  const route = html.slice(html.indexOf('const DECKROUTE = {'), html.indexOf('window.__mb8Route = () =>'));
+  const onTrack = route.slice(route.indexOf('  onTrack(i){'), route.indexOf('  onPause(){'));
+  assert.ok(onTrack.includes("this.phase === 'giving' && this._gv && this._gv.emergency){") && onTrack.includes('this._emergencyDrop();'), 'onTrack lets an emergency go');
+  const em = route.slice(route.indexOf('  emergency(why, pos){'), route.indexOf('  _emergencyDrop(reopen){'));
+  assert.ok(em.indexOf('if (AE.active !== k || D.a !== Da || player.cur !== cur0) return this._emergencyDrop(true);') < em.indexOf('this._seat(k, Tw, 120);'), 'the twin is seated only for the record still on air');
+  assert.ok(em.indexOf("I.a.removeAttribute('src')") < em.indexOf('AE._loadAt(a, src, pos);'), 'I4: the idle deck lets go before the twin loads');
+  assert.ok(em.indexOf('setValueAtTime(0, AE.ctx.currentTime)') < em.indexOf('a.muted = false;'), 'the captured chains go quiet before the twin is heard');
+  const op = route.slice(route.indexOf('  onPause(){'), route.indexOf('  onHide(){'));
+  assert.ok(op.includes("this.give('pause', { paused: true });") && op.includes('this._emergencyDrop();'), 'onPause settles both kinds of hand-back');
+  const so = route.slice(route.indexOf('  _swapOut(tok){'), route.indexOf('  _giveFail(tok, why){'));
+  assert.ok(so.indexOf('if (!player.playing || D.a.paused){') < so.indexOf('Tw.a.muted = false;\n    try {'), '_swapOut never unmutes a twin under a paused transport');
+  const fg = route.slice(route.indexOf('  _finishGive(){'), route.indexOf('  /* ---- the booth, the transport'));
+  assert.ok(fg.indexOf('if (on && (on.src || on.gain)){') < fg.indexOf('AE.graphLive = false;'), 'graphLive never drops with the air on a captured deck');
+  const ce = route.slice(route.indexOf('  onCorsError(t){'), route.indexOf('  armSentinel(){'));
+  assert.ok(ce.indexOf("this.give('cors', { at, paused: true });") < ce.indexOf("this.emergency('cors'"), 'a paused record CORS refuses is handed back paused');
+  const bo = route.slice(route.indexOf('  boothOpened(){'), route.indexOf('  boothClosed(){'));
+  assert.ok(bo.includes('else { this.wantTake = true; BOOTH.draw(); }'), 'a booth that waits on a gate wakes on a touch once it clears');
+});
+test('the rates, held from the moment a take starts; and ?worklets=0 loads no AudioWorklet module at all', () => {
+  assert.ok(html.includes("held(){ return IS_IOS && !IOS_GRAPH_RATES && (AE.graphLive || (typeof DECKROUTE !== 'undefined' && DECKROUTE.phase !== 'direct')); },"), 'SPEED.held');
+  assert.ok(html.includes("if (this.held()){ toast(T('Speed stays at 1×"), 'SPEED.cycle asks it');
+  assert.ok(html.includes("if (want !== 0 && SPEED.held()){ toast(T('Speed stays at 1×"), 'the trainer\'s slow practice asks it');
+  const ml = html.slice(html.indexOf('const MASTERLIM = {'), html.indexOf('const MASTERLIM = {') + 3000);
+  assert.ok(ml.includes('const noWorklet = IS_IOS && IOS_GRAPH && !IOS_WORKLETS;') && ml.includes('if (!noWorklet && ctx.audioWorklet'), 'the limiter takes the compressor seat on that run');
+  const ad = html.slice(html.indexOf('  async setDirect(direct){'), html.indexOf('  async setDirect(direct){') + 9000);
+  assert.ok(ad.includes("if (!direct && d.gain && onAir()) rampGain(d.gain, d.norm || 1, 0.25, 'in');"), 'AirPlay home: the gain opens only on a deck that still holds the air');
+  // …and "the same record" is the record, not its queue index (a move, sort or remove above re-indexes it)
+  assert.ok(ad.includes('player.tracks[player.cur] === rec0') && !ad.includes('player.cur === cur0'), 'AirPlay home compares the record');
+  const em = html.slice(html.indexOf('  emergency(why, pos'), html.indexOf('  emergency(why, pos') + 6000);
+  assert.ok(em.includes('player.tracks[player.cur] !== rec0') && !em.includes('player.cur !== cur0'), 'the emergency compares the record');
+  assert.ok(em.includes("if (MIXER.phase !== 'idle') MIXER.cancel('route');"), 'an emergency stands down any seam, so a running one cannot reopen the captured deck');
+  const rh = html.slice(html.indexOf('  resumeHook(d){'), html.indexOf('  resumeHook(d){') + 2500);
+  assert.ok(rh.includes('const refused = asleep && !!(t && this._noGraph.has(t.id));') && rh.includes('if (refused ||'), 'a refused record paused asleep takes the emergency on ▶');
+  assert.ok(rh.includes("if (AE.ctx.state === 'running'){ this._lost = null; return false; }"), 'a running context drops a stale saved spot');
+});
+test('pickOverride / lagOverride: the address bar wins and is remembered, auto clears, nonsense falls back', () => {
+  const A = ['graph', 'direct'];
+  assert.deepEqual(S.pickOverride('graph', '', A), { v: 'graph', save: 'graph' });
+  assert.deepEqual(S.pickOverride(null, 'direct', A), { v: 'direct', save: null }, 'remembered');
+  assert.deepEqual(S.pickOverride('auto', 'graph', A), { v: '', save: '' }, 'cleared');
+  assert.deepEqual(S.pickOverride('bogus', 'graph', A), { v: 'graph', save: null }, 'nonsense ignored');
+  assert.deepEqual(S.pickOverride(null, 'bogus', A), { v: '', save: null });
+  assert.equal(S.lagOverride('70', null, 200, 0.05), 0.07);
+  assert.equal(S.lagOverride(null, '30', 200, 0.05), 0.03, 'stored');
+  assert.equal(S.lagOverride('900', null, 200, 0.05), 0.2, 'clamped');
+  assert.equal(S.lagOverride('-5', null, 200, 0.05), 0, 'clamped at zero');
+  assert.equal(S.lagOverride('x', 'y', 200, 0.05), 0.05, 'the default');
+});
+test('srcClean: blob, data and same-origin are clean; the media host is tainted unless loaded in CORS mode; empty is clean', () => {
+  const page = 'https://aethrakairos.com';
+  assert.equal(S.srcClean('blob:https://aethrakairos.com/0b1c', page, false), true);
+  assert.equal(S.srcClean('data:audio/wav;base64,AAAA', page, false), true);
+  assert.equal(S.srcClean('https://aethrakairos.com/audio/demo.mp3', page, false), true);
+  assert.equal(S.srcClean('audio/demo.mp3', page, false), true, 'relative is same-origin');
+  assert.equal(S.srcClean('https://media.aethrakairos.com/audio/1/01.mp3', page, false), false, 'the catalog host: tainted');
+  assert.equal(S.srcClean('https://media.aethrakairos.com/audio/1/01.mp3', page, 'anonymous'), true, 'unless CORS-mode');
+  assert.equal(S.srcClean('', page, false), true);
+});
+test('crossoverSource: the on-air blob, then bytes in hand, then the network in CORS mode', () => {
+  assert.equal(S.crossoverSource({ onAirSrc: 'blob:x/1', peek: true, trackUrl: 'https://m/1.mp3' }), 'onair');
+  assert.equal(S.crossoverSource({ onAirSrc: 'https://m/1.mp3', peek: true, trackUrl: 'https://m/1.mp3' }), 'bytes');
+  assert.equal(S.crossoverSource({ onAirSrc: 'https://m/1.mp3', peek: null, trackUrl: 'https://m/1.mp3' }), 'cors');
+  assert.equal(S.crossoverSource({ onAirSrc: '', peek: null, trackUrl: 'https://m/1.mp3' }), 'cors');
+});
+test('crossoverAligned: inside 15 ms is the same record; three seeks then anything inside 60 ms; worse fails; a user jump refills the budget', () => {
+  let s = { seeks: 0 };
+  assert.equal(S.crossoverAligned(s, { delta: 0.010 }), 'ok');
+  assert.equal(S.crossoverAligned(s, { delta: -0.012 }), 'ok', 'either side');
+  s = { seeks: 0 };
+  assert.equal(S.crossoverAligned(s, { delta: 0.080 }), 'seek');
+  assert.equal(S.crossoverAligned(s, { delta: 0.040 }), 'seek');
+  assert.equal(S.crossoverAligned(s, { delta: 0.030 }), 'seek');
+  assert.equal(s.seeks, S.XO_SEEKS);
+  assert.equal(S.crossoverAligned(s, { delta: 0.050 }), 'ok', 'after three, inside 60 ms is taken');
+  assert.equal(S.crossoverAligned(s, { delta: 0.070 }), 'fail', 'worse is refused');
+  assert.equal(S.crossoverAligned(s, { delta: 0.070, jump: true }), 'seek', 'a seek on the record on air moves the target and refills');
+  assert.equal(S.crossoverAligned({ seeks: 0 }, { delta: NaN }), 'wait');
+});
+test('giveWinner: every seam and hand state resolves to one record', () => {
+  const g = (x) => x === 0 ? [1, 0] : x === 1 ? [0, 1] : [0.7, 0.7];
+  assert.deepEqual(S.giveWinner({ phase: 'idle', gains: g(0), active: 0, idleOwner: 'free', idleTrack: -1 }), { action: 'none' });
+  assert.deepEqual(S.giveWinner({ phase: 'armed', gains: g(0), active: 0 }), { action: 'cancel' });
+  assert.deepEqual(S.giveWinner({ phase: 'running', gains: g(0), active: 1 }), { action: 'finish' });
+  // a yielded seam: the incoming is on air (fire flipped AE.active)
+  assert.deepEqual(S.giveWinner({ phase: 'manual', gains: g(1), active: 1 }), { action: 'finish-hand' }, 'handle at the incoming');
+  assert.deepEqual(S.giveWinner({ phase: 'manual', gains: g(0.5), active: 1 }), { action: 'finish-hand' }, 'centre: the incoming');
+  assert.deepEqual(S.giveWinner({ phase: 'manual', gains: g(0), active: 1 }), { action: 'abort-hand', slot: 0 }, 'handle at the outgoing');
+  assert.deepEqual(S.giveWinner({ phase: 'idle', gains: g(1), active: 0, idleOwner: 'hand', idleRolling: true, idleTrack: 4, idleCue: 12 }),
+    { action: 'commit', slot: 1 }, 'a hand\'s record rolling and favoured takes the air');
+  assert.deepEqual(S.giveWinner({ phase: 'idle', gains: g(0), active: 0, idleOwner: 'hand', idleRolling: true, idleTrack: 4, idleCue: 12 }),
+    { action: 'next', slot: 1, next: 4, cue: 12 }, 'rolling but not favoured: it plays next, from its cue');
+  assert.deepEqual(S.giveWinner({ phase: 'idle', gains: g(0), active: 0, idleOwner: 'hand', idleRolling: false, idleTrack: 4, idleCue: 30.5 }),
+    { action: 'next', slot: 1, next: 4, cue: 30.5 }, 'cued and paused: next, from its cue');
+});
+test('hideAction: give when single; wait through a blend, resolve after 30 s; emergency on a dead context; keep after three refusals, retry every 30 s', () => {
+  const b = { graph: true, ctxState: 'running', seam: 'idle', handRolling: false, hiddenFor: 1, onAirPlaying: true, tries: 0 };
+  assert.equal(S.hideAction({ ...b, graph: false }), 'none');
+  assert.equal(S.hideAction(b), 'give');
+  assert.equal(S.hideAction({ ...b, seam: 'armed' }), 'give', 'an armed plan is let go of by onHide; nothing is blending');
+  assert.equal(S.hideAction({ ...b, seam: 'running' }), 'wait', 'a running seam lands on its curves');
+  assert.equal(S.hideAction({ ...b, seam: 'manual' }), 'wait');
+  assert.equal(S.hideAction({ ...b, handRolling: true }), 'wait', 'a hand\'s record finishes its roll');
+  assert.equal(S.hideAction({ ...b, seam: 'running', hiddenFor: 30 }), 'resolve', 'thirty seconds: forced to one');
+  assert.equal(S.hideAction({ ...b, ctxState: 'interrupted' }), 'emergency');
+  assert.equal(S.hideAction({ ...b, ctxState: 'suspended', onAirPlaying: false }), 'give', 'nothing sounding: an ordinary give');
+  assert.equal(S.hideAction({ ...b, tries: 1, sinceTry: 0.5 }), 'keep', 'a refused give is not retried at once');
+  assert.equal(S.hideAction({ ...b, tries: 1, sinceTry: 3 }), 'give');
+  assert.equal(S.hideAction({ ...b, tries: 3, sinceTry: 10 }), 'keep', 'three refusals keep the graph');
+  assert.equal(S.hideAction({ ...b, tries: 3, sinceTry: 30 }), 'give', '…and retry every 30 s');
+});
+test('stayPutRule: the element-direct contract unchanged; under the graph only hidden or an unblessed other deck stays put; a cue always wins', () => {
+  const b = { ios: true, xfade: false, playing: true, cued: false, graph: false, hidden: false, otherPrimed: true };
+  assert.equal(S.stayPutRule(b), true, 'iOS direct: the one blessed element');
+  assert.equal(S.stayPutRule({ ...b, ios: false }), false, 'desktop: two decks');
+  assert.equal(S.stayPutRule({ ...b, playing: false }), false, 'paused: nothing to carry');
+  assert.equal(S.stayPutRule({ ...b, xfade: true }), false);
+  assert.equal(S.stayPutRule({ ...b, cued: true }), false, 'a hand\'s cue beats the same-element advance');
+  assert.equal(S.stayPutRule({ ...b, graph: true }), false, 'graph, visible, other deck blessed: the other deck');
+  assert.equal(S.stayPutRule({ ...b, graph: true, hidden: true }), true, 'hidden: no cross-deck start behind a lock');
+  assert.equal(S.stayPutRule({ ...b, graph: true, otherPrimed: false }), true, 'an unblessed deck is never started from a timer');
+});
+test('sentinelTrip: only 2-10 s after a load, only an advancing open deck, under the floor long enough for what the record says', () => {
+  const b = { rms: 0, gainProduct: 1, sinceLoad: 5, quietFor: 3, sectionEnergy: 0.6, advancing: true, gateOpen: true, muted: false };
+  assert.equal(S.sentinelTrip(b), true);
+  assert.equal(S.sentinelTrip({ ...b, sinceLoad: 1.5 }), false, 'too early');
+  assert.equal(S.sentinelTrip({ ...b, sinceLoad: 11 }), false, 'too late: a breakdown is music');
+  assert.equal(S.sentinelTrip({ ...b, rms: 0.01 }), false, 'sounding');
+  assert.equal(S.sentinelTrip({ ...b, quietFor: 2 }), false, 'not quiet for long enough');
+  assert.equal(S.sentinelTrip({ ...b, sectionEnergy: 0.1 }), false, 'a quiet part is allowed to be quiet');
+  assert.equal(S.sentinelTrip({ ...b, sectionEnergy: null, quietFor: 3 }), false, 'no structure: needs 4 s');
+  assert.equal(S.sentinelTrip({ ...b, sectionEnergy: null, quietFor: 4 }), true);
+  assert.equal(S.sentinelTrip({ ...b, advancing: false }), false, 'a stopped deck is the watchdog\'s');
+  assert.equal(S.sentinelTrip({ ...b, muted: true }), false, 'a muted deck is silent on purpose');
+  assert.equal(S.sentinelTrip({ ...b, gainProduct: 0.05 }), false, 'a faded deck is silent on purpose');
+  assert.equal(S.sentinelTrip({ ...b, gateOpen: false }), false, 'a held loop owns the bus');
+});
+
+/* A1: EVERY DECK RATE GOES THROUGH ONE DOOR. On an iPhone with the decks in
+   the graph a captured element plays choppy at any rate but 1 (WebKit
+   240405), so every write of a deck element's playbackRate — SPEED, SYNC's
+   pitch, a seam's glide and phase lock, the cue's steering, finish/cancel,
+   the element brake — must pass through deckRate(), which asks iosRatesOk.
+   A new write that bypasses it would put a choppy record on air; this finds
+   it. (DECKROUTE's own copies of the on-air rate onto an element not yet in
+   the graph, or a direct twin, are the route's and are left out.) */
+test('A1: every deck element rate write passes through deckRate (the one decider, iosRatesOk)', () => {
+  const lines = html.split('\n');
+  const r0 = lines.findIndex(l => l.startsWith('const DECKROUTE = {'));
+  const r1 = lines.findIndex(l => l.startsWith('window.__mb8Route = () =>'));
+  assert.ok(r0 > 0 && r1 > r0, 'the route module is where it is expected');
+  let n = 0;
+  lines.forEach((l, i) => {
+    const m = l.match(/\.a\.playbackRate\s*=\s*([^;=][^;]*);/);
+    if (!m || (i > r0 && i < r1)) return;
+    n++;
+    const rhs = m[1].trim();
+    if (/deckRate\(/.test(rhs) || /deckRate\(/.test(l)) return;
+    const v = rhs.match(/^([A-Za-z_$][\w$]*)$/);
+    assert.ok(v, 'line ' + (i + 1) + ' writes a rate that is neither deckRate(...) nor a variable: ' + l.trim());
+    let found = false;
+    for (let k = i; k >= Math.max(0, i - 15) && !found; k--){
+      if (new RegExp('\\b(const|let)\\s[^;]*\\b' + v[1] + '\\s*=').test(lines[k])){
+        assert.ok(/deckRate\(/.test(lines[k]), 'line ' + (i + 1) + ': `' + v[1] + '` is not computed through deckRate: ' + lines[k].trim());
+        found = true;
+      }
+    }
+    assert.ok(found, 'line ' + (i + 1) + ': could not find where `' + v[1] + '` is computed');
+  });
+  assert.ok(n >= 15, 'the deck rate writes were all found (' + n + ')');
+});
+test('the loop tape stands down on iOS, booth graph included; the route rebuild lets a deck\'s tape go with its chain', () => {
+  const at = html.indexOf('  seat(d, i){\n    if (IS_IOS || !d || !d.src');
+  assert.ok(at > 0, 'LOOPER.seat refuses on iOS before it builds anything');
+  const sa = html.indexOf('  _seat(k, Tw, tearMs){');
+  assert.ok(sa > 0);
+  assert.match(html.slice(sa, sa + 600), /d\.vinyl = d\.tape = null/, 'DECKROUTE._seat clears the deck\'s tape with the rest of its chain');
+  const wd = html.indexOf('  AE._wireDeck = (d, i) => {');
+  const body = html.slice(wd, wd + 4000);
+  assert.ok(body.indexOf('const stale = ') < body.indexOf("['seeking', 'seeked', 'waiting', 'playing', 'emptied', 'loadstart']"), 'the tape\'s listeners are wired per element');
+  assert.match(body, /a\.addEventListener\(ev, \(\) => \{ if \(d\.a === a\) d\._tapeT0/, 'a rebuilt element\'s leftovers stamp nothing');
+  assert.match(body, /if \(d\.a === a && typeof LOOPER !== 'undefined'\) LOOPER\.broke/, '…and break no loop');
+});
+test('the route in the player: gated, opt-in, and today\'s code wherever it is not on', () => {
+  assert.ok(html.includes('const IOS_GRAPH_DEFAULT = false;'), 'A4: the route ships off');
+  const boothToggle = html.slice(html.indexOf('const BOOTH = {'), html.indexOf('const BOOTH = {') + 2500);
+  assert.ok(boothToggle.includes('if (IOS_GRAPH) DECKROUTE.boothOpened();\n      else if (VINYL.songMode()) VINYL.pressSong();'), 'the booth takes the decks only where the gate is open, today\'s song tape otherwise');
+  assert.ok(boothToggle.includes('if (IOS_GRAPH) DECKROUTE.boothClosed();'), '…and gives them back on close');
+  assert.ok(html.includes("return !!(IS_IOS && !IOS_GRAPH && !AE.graphLive && AE.ctx"), 'no song tape where the route can run');
+  const route = html.slice(html.indexOf('const DECKROUTE = {'), html.indexOf('window.__mb8Route = () =>'));
+  assert.ok(/onGesture\(ev\)\{\n    if \(!IOS_GRAPH\) return;/.test(route), 'gestures do nothing for the route where the gate is shut');
+  assert.ok(route.indexOf("navigator.audioSession.type = 'playback'") < route.indexOf('this._capture('), 'A3: the session says playback before anything is captured');
+  assert.ok(route.includes("const playing = !!(player.playing && D.a.src && !D.a.paused && !D.a.ended);"), 'the hand-back reads whether the record is rolling');
+  assert.ok(html.includes("const stayPut = stayPutRule({ ios: IS_IOS, xfade, playing: this.playing, cued, graph: AE.graphLive,"), 'playIndex asks the tested rule');
+  assert.ok(html.includes('plan = iosSeamPlan(plan, !ratesHeld());'), 'A1: the auto-DJ\'s seam meets two tempi in the fade on held rates');
+  assert.ok(html.includes('if (ratesHeld()) return false;\n    if (typeof MIXER !== \'undefined\' && (MIXER.phase === \'running\''), 'A1: SYNC stands down on held rates');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
