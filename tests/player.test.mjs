@@ -3597,6 +3597,13 @@ test('the update flow in the player: the quiet is counted from boot, coming back
   assert.match(html, /document\.addEventListener\('visibilitychange', \(\) => \{ if \(!document\.hidden\) UPDATE\._lastTouchAt = Date\.now\(\); \}\);\s*window\.addEventListener\('pageshow', \(\) => \{ UPDATE\._lastTouchAt = Date\.now\(\); \}\);/, 'coming back to the page is a touch: a minute of visible quiet before any swap');
   assert.match(html, /if \(!UPDATE\.deferrals && Date\.now\(\) - UPDATE\._bootAt >= UP_TOUCH_MS\) toast\(T\('A new version is ready/, 'an offer that arrives with the boot is the badge, not a toast');
   assert.match(html, /#booth,#plList,#libList,#crateBody,\.pn-panel,\.act-list,#langGate \.lg-card\{overscroll-behavior:contain\}/, 'a panel\'s scroll never chains to the document (iOS pull-to-refresh)');
+  // a return to the page re-checks the origin at most once a quarter hour (the worker revalidates the 4 MB shell each time)
+  assert.match(html, /const UP_CHECK_GAP_MS = 15 \* 60 \* 1000;/);
+  assert.match(html, /const checkOnReturn = \(\) => \{ if \(Date\.now\(\) - \(UPDATE\._checkedAt \|\| 0\) >= UP_CHECK_GAP_MS\) checkForUpdate\(\); \};/);
+  assert.match(html, /function checkForUpdate\(\)\{\s*UPDATE\._checkedAt = Date\.now\(\);/);
+  // the pressing's gate: two gigabytes or less presses nothing; under four, or an iPhone that says nothing, presses at the low rate (no longer dead code)
+  assert.match(html, /if \(mem != null && isFinite\(mem\) && mem <= 2\)\{ this\._song = \{ key, state: 'failed', sr: 0 \}; return; \}\s*const low = \(IS_IOS && mem == null\) \|\| \(mem != null && isFinite\(mem\) && mem < 4\);/);
+  assert.match(html, /const tsr = vinylSongRate\(dur, low \? VINYL_SONG_LOW_SR : 0\);/);
 });
 test('updateGate: SHOW mode is never yanked, even paused', () => {
   assert.equal(S.updateGate({ ready: true, playing: false, quietFor: 9e9, show: true, now: 0 }), 'wait');
@@ -5284,6 +5291,10 @@ test('the hand on the platter: a dropped hand re-takes the record, a still finge
   assert.match(html, /if \(idle && this\.mode === 'stopped'\)\{/, 'the stopped platter restarts, latched or one-shot');
   assert.match(html, /this\.lag > \(this\.song\(\) \? VINYL_RING_SEC : VINYL\.ringSec\(\)\) - 3/, 'the reach is the ring\'s real length');
   assert.match(html, /processorOptions: \{ seconds: VINYL\.ringSec\(\) \}/);
+  // the hand's samples come unaligned where the browser offers them, and are never fed twice
+  assert.match(html, /const rawFeed = 'onpointerrawupdate' in window;/);
+  assert.match(html, /if \(rawFeed\) cv\.addEventListener\('pointerrawupdate', ev => \{ if \(jog && ev\.pointerId === jog\.id\) feed\(ev\); \}\);/);
+  assert.match(html, /if \(jog && ev\.pointerId === jog\.id\)\{\s*if \(!rawFeed\) feed\(ev\);\s*ev\.preventDefault\(\);/, 'pointermove feeds only where raw updates do not');
   // the booth closing lets go; a lost capture lifts; a cancel keeps a hand's focus
   assert.match(html, /this\.releaseCues\(\);[^\n]*\n\s*VINYL\.drop\(\);/, 'BOOTH.toggle(false) drops every hand');
   assert.match(html, /if \(jog && ev\.pointerId === jog\.id\)\{ const hand = VINYL\.for\(jog\.deck\); jog = null; hand\.lift\(\); VINYL\._cursor\(\); return; \}/, 'lostpointercapture lifts a scratch');

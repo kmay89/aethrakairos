@@ -27225,11 +27225,17 @@ function registerSW(){
   });
   // look for new releases when the app comes to the foreground (the
   // home-screen reality) and on a slow timer while it stays open
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
-  window.addEventListener('pageshow', ev => { if (ev.persisted) checkForUpdate(); });
+  // …but not on EVERY return: a check revalidates the 4 MB shell in the worker
+  // (three text copies of it on a phone), and an app switched to and from a
+  // dozen times in a set is not a dozen deploys. Once a quarter hour is plenty.
+  const checkOnReturn = () => { if (Date.now() - (UPDATE._checkedAt || 0) >= UP_CHECK_GAP_MS) checkForUpdate(); };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkOnReturn(); });
+  window.addEventListener('pageshow', ev => { if (ev.persisted) checkOnReturn(); });
   setInterval(checkForUpdate, 30 * 60 * 1000);
 }
+const UP_CHECK_GAP_MS = 15 * 60 * 1000;    // how often a return to the page may re-check the origin
 function checkForUpdate(){
+  UPDATE._checkedAt = Date.now();
   // the two probes are INDEPENDENT: a registration that never resolved must not
   // also cost us the shell byte-check, which is the path that catches a deploy
   // whose stamp never changed
@@ -31435,11 +31441,21 @@ const VINYL = {
     const d = activeDeck();
     const dur = (d && isFinite(d.a.duration) && d.a.duration > 0) ? d.a.duration : (tr.duration || 0);
     if (!(dur > 0)){ this._pressLater(); return; }   // not even the length is known yet
+    /* THE PRESSING'S MEMORY GATE. The decode's float is the peak — a ten-minute
+       record at 32 kHz is 137 MB in flight — and the old gate read 'under 4 GB:
+       no pressing at all' before it could ever reach 'two: the low rate', so
+       the low rate was dead code; and Safari never reports deviceMemory, so an
+       iPhone, the one device that plays element-direct and needs the pressing,
+       pressed at the full budget every time. A phone that says nothing is a
+       phone: it presses at the low rate (the decode runs at that rate, so the
+       float peak shrinks with it); a device that says two gigabytes or less
+       presses nothing. */
     const mem = navigator.deviceMemory;
-    if (mem != null && isFinite(mem) && mem < 4){ this._song = { key, state: 'failed', sr: 0 }; return; }
+    if (mem != null && isFinite(mem) && mem <= 2){ this._song = { key, state: 'failed', sr: 0 }; return; }
+    const low = (IS_IOS && mem == null) || (mem != null && isFinite(mem) && mem < 4);
     if (d && !/^(blob|data):/i.test(tr.url || '')
         && !seamBuffered(d.a.buffered, d.a.currentTime, dur - d.a.currentTime - 0.5)){ this._pressLater(); return; }
-    const tsr = vinylSongRate(dur, (mem != null && isFinite(mem) && mem <= 2) ? VINYL_SONG_LOW_SR : 0);
+    const tsr = vinylSongRate(dur, low ? VINYL_SONG_LOW_SR : 0);
     const ctl = new AbortController();
     const s = this._song = { key, state: tsr ? 'loading' : 'failed', sr: tsr, ac: ctl };
     if (!tsr) return;
@@ -31965,15 +31981,26 @@ function wireBoothScrub(){
     FX._seek(p.deck, p.to); FX.hand();
     ev.preventDefault();
   });
+  /* THE HAND'S SAMPLES, UNALIGNED. pointermove is delivered once per animation
+     frame, its coalesced samples with it: a move made just after one frame's
+     dispatch waits up to 16 ms for the next before the platter hears of it —
+     half the engine's latency on a mouse, for nothing. Where the browser
+     offers pointerrawupdate (Chromium, Android) the samples are taken from
+     it the moment they arrive, and the frame-aligned pointermove feeds
+     nothing (it would repeat them); elsewhere pointermove is the feed. */
+  const rawFeed = 'onpointerrawupdate' in window;
+  const feed = ev => {
+    const g = jog.deck ? BOOTH._jogB : BOOTH._jogA, hand = VINYL.for(jog.deck);
+    if (!g) return;
+    // every sample the hand made, at the time it made it: a 120 Hz finger is not a 60 Hz one
+    const r = cv.getBoundingClientRect();
+    const evs = (typeof ev.getCoalescedEvents === 'function' && ev.getCoalescedEvents()) || [];
+    for (const e of (evs.length ? evs : [ev])) hand.move(e.clientX - r.left, e.clientY - r.top, g, e.timeStamp);
+  };
+  if (rawFeed) cv.addEventListener('pointerrawupdate', ev => { if (jog && ev.pointerId === jog.id) feed(ev); });
   cv.addEventListener('pointermove', ev => {
     if (jog && ev.pointerId === jog.id){
-      const g = jog.deck ? BOOTH._jogB : BOOTH._jogA, hand = VINYL.for(jog.deck);
-      if (g){
-        // every sample the hand made, at the time it made it: a 120 Hz finger is not a 60 Hz one
-        const r = cv.getBoundingClientRect();
-        const evs = (typeof ev.getCoalescedEvents === 'function' && ev.getCoalescedEvents()) || [];
-        for (const e of (evs.length ? evs : [ev])) hand.move(e.clientX - r.left, e.clientY - r.top, g, e.timeStamp);
-      }
+      if (!rawFeed) feed(ev);
       ev.preventDefault();
       return;
     }
