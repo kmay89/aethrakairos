@@ -29842,8 +29842,10 @@ const FX = {
      or the mixer's, and the room keeps its hands still. */
   autoTick(dt){
     /* how long the analyser has been the room's ear: analyse() reads it from
-       the frame the graph is live, smoothing with this same dt (fxAutoStep) */
-    this._earFor = this.live() ? (this._earFor || 0) + (dt > 0 ? dt : 0) : 0;
+       the frame the graph is live, smoothing with this same dt (fxAutoStep).
+       A hidden tab's coarse tick runs no analyse(), so it settles nothing: a
+       graph gone live behind a locked screen still owes its half-second */
+    this._earFor = this.live() ? (this._earFor || 0) + ((dt > 0 && !document.hidden) ? dt : 0) : 0;
     if (!this.auto || !this.live() || !player.playing) return;
     const d = activeDeck();
     const b = d ? this.barLineAt(d) : null;

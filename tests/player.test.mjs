@@ -11811,6 +11811,12 @@ test('fxAutoStep: an ear that has not settled decides nothing — the bar is not
   assert.ok(seam.change && seam.unit === 'echo', 'the seam comes once: its echo is never held');
   // no ear reported (the old callers, the tests above): the step is what it always was
   assert.ok(S.fxAutoStep(st0, { ...base, energy: 1 }, 0.005, 1.005).change);
+  // the ear's clock: reset whenever the rack is not live, and a hidden tab's coarse tick (no analyse()) settles nothing
+  const at = html.indexOf('  autoTick(dt){\n    /* how long the analyser');
+  assert.ok(at > 0, 'FX.autoTick keeps the ear\'s clock');
+  const head = html.slice(at, at + 700);
+  assert.match(head, /this\._earFor = this\.live\(\) \? /, 'the clock resets when the rack is not live');
+  assert.match(head, /!document\.hidden/, 'a hidden tick runs no analyse(), so it adds no settled time');
 });
 test('fxAutoSweep: a build earns a highpass up to the vocals, over the bars it has left, let go a beat before the drop', () => {
   const s = S.fxAutoSweep(16, 120, 0.9);
