@@ -127,20 +127,24 @@ const mid2 = await page.evaluate(() => new Promise(res => {
 R('both decks play through the overlap',
   !mid1.pausedA && !mid1.pausedB && mid2.a > mid1.a && mid2.b > mid1.b,
   `A ${mid1.a.toFixed(1)}→${mid2.a.toFixed(1)} · B ${mid1.b.toFixed(1)}→${mid2.b.toFixed(1)}`);
-R('the master tempo curve is gliding both decks',
-  mid1.rA >= 1.0 && mid1.rB <= 1.0 && (mid1.rA > 1.0001 || mid1.rB < 0.9999),
+// the record on air never moves: A holds its tempo for the whole blend and B is pitched to it (glideRates) —
+// it used to glide both along one master tempo, a 1.3-semitone slide of the vocals on air over a 7 % gap
+R('the record on air holds its tempo; the incoming is matched to it',
+  Math.abs(mid1.rA - 1.0) < 1e-6 && Math.abs(mid1.rB - 1.0) > 1e-4,
   `rateA ${mid1.rA.toFixed(4)} rateB ${mid1.rB.toFixed(4)}`);
 R('beat-phase lock < 40 ms', mid2.err != null && mid2.err < 40,
   (mid2.err && mid2.err.toFixed(1)) + ' ms');
 
 // ---- 4 · the mix completes; beta is current and playing
 await page.waitForFunction('window.__mixCompleted >= 1', null, { timeout: 40000 });
+// …and the incoming record comes home to its own tempo at a walking pace once it is alone on air (MIXER._home): the rate is read once it has landed
+await page.waitForFunction('!MIXER._home', null, { timeout: 20000 }).catch(() => {});
 const post = await page.evaluate(() => ({
   title: player.tracks[player.cur].title, playing: player.playing,
-  rate: AE.decks[AE.active].a.playbackRate,
+  rate: AE.decks[AE.active].a.playbackRate, home: !MIXER._home,
 }));
-R('handover complete — beta playing at rate 1', post.title === 'beta' && post.playing
-  && Math.abs(post.rate - 1) < 1e-6, JSON.stringify(post));
+R('handover complete — beta playing, home at rate 1', post.title === 'beta' && post.playing && post.home
+  && Math.abs(post.rate - 1) < 1e-3, JSON.stringify(post));
 
 // ---- 5 · refusals: tempo gap and the piano rule plan as fades
 const verdicts = await page.evaluate(() => {
