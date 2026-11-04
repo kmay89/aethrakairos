@@ -30,7 +30,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' SEGUE_BARS, SECTION_CHANGE, sectionChangeClass, LENS_HYST,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, SYNC_MAX_TEMPO, SYNC_VINYL_MAX, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
-  ' equalPowerXfade, xfadeCurve, seamOutHold, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
+  ' equalPowerXfade, xfadeCurve, seamOutHold, seamLeadAvail, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
   ' SEAM_CUE_S, SEAM_CUE_MIN, SEAM_CUE_TOL, SEAM_CUE_LAT, seamCueTarget, seamCuePoint, seamCueDue, seamCueStep, seamCueHolds, seamCueLearn,' +
   ' SEAM_SCENE, seamSceneCue, pinchDolly, ndcOf,' +
   ' XFADER_CUT_EDGE, XFADER_PARK, FADER_IDLE_S, xfaderGains, xfaderPosFromSeam, xfaderPosFromGains, xfaderArbiter, syncRateFor, faderIdleStop, XFADER_HOME, xfaderHeld, xfaderAutoTo, XFADER_STEP_ASIDE, xfaderCancelMode, deckSlot, seamPitchCarry, XF_DBL_MS, XF_DBL_REACH, xfaderDoubleTap, boothFaderKey,' +
@@ -5203,7 +5203,7 @@ test('seamOutHold: A at its trim is held as before; A mid-glide is ramped onto t
 });
 test('MIXER.fire: the incoming deck takes its own record\'s trim; the hold sits at the seam\'s origin; a schedule that threw still crossfades', () => {
   const f0 = html.indexOf('  fire(now){');
-  const body = html.slice(f0, f0 + 16000);
+  const body = html.slice(f0, f0 + 26000);
   const nAt = body.indexOf('nd.norm = normLin(B);'), curveAt = body.indexOf("xfadeCurve(nd.norm || 1, 'in', N)");
   assert.ok(nAt > 0 && curveAt > nAt, 'nd.norm is the incoming record\'s before the in-curve is scaled by it (auto seams played at unity or a stale trim)');
   // …and from the moment the record takes the deck, so a hand starting the armed or cued deck itself opens it at the right level
@@ -5290,6 +5290,32 @@ test('the hand on the platter: a dropped hand re-takes the record, a still finge
   assert.match(html, /if \(!this\.inHand\(this\.focus\)\) this\.focus = -1;/, 'settle keeps a focus on a deck in hand');
   assert.equal((html.match(/this\.focus = slot;\s*\/\/ the cancel's settle looked before/g) || []).length, 1, 'play re-asserts');
   assert.match(html, /s\.owner = 'hand'; this\.focus = slot; this\._gainTo\(d, d\.norm \|\| 1\);/, 'cue re-asserts');
+});
+test('a hand\'s cue is the entry: the planner takes it, the lead-in is what the deck holds before it, a fade enters there', () => {
+  const A = mkMixTrack(1), B = mkMixTrack(2, { mix: { bpm: 124, key: '8B' } });
+  const spb = 60 / 124;
+  const plain = S.planTransition(A, B), cued = S.planTransition(A, B, { startB: 60 });
+  assert.equal(plain.type, 'beatmix'); assert.equal(cued.type, 'beatmix');
+  assert.ok(Math.abs(cued.startB - 60) <= spb / 2 + 1e-9 && Math.abs(((cued.startB - 0.4) / spb) - Math.round((cued.startB - 0.4) / spb)) < 1e-6, 'the cue, on B\'s own grid: ' + cued.startB);
+  assert.ok(Math.abs(plain.startB - 0.4) < 1e-9, 'without a cue the mix-in, as before');
+  // the lead a parked deck can give: what is buffered before the cue in the range the cue sits in
+  const tr = pairs => ({ length: pairs.length, start: i => pairs[i][0], end: i => pairs[i][1] });
+  assert.equal(S.seamLeadAvail(tr([[0, 1.5], [60, 200]]), 60, 1), 0, 'a seek buffers forward: nothing before the cue');
+  assert.ok(Math.abs(S.seamLeadAvail(tr([[0, 1.5], [59.6, 200]]), 60, 1) - 0.4) < 1e-9, 'four tenths held: four tenths of lead');
+  assert.equal(S.seamLeadAvail(tr([[0, 200]]), 60, 1), 1, 'the whole file: the full lead');
+  assert.equal(S.seamLeadAvail(tr([[0, 50]]), 60, 1), 0, 'the cue not buffered at all');
+  assert.equal(S.seamLeadAvail([[0, 200]], 60, 1), 1, 'pairs work too');
+  assert.equal(S.seamLeadAvail(null, 60, 1), 0);
+  // a plan carrying its lead is believed by seamLeadFor; without one the defaults stand
+  assert.equal(S.seamLeadFor({ type: 'beatmix', startB: 60, lead: 0 }), 0);
+  assert.ok(Math.abs(S.seamLeadFor({ type: 'beatmix', startB: 60, lead: 0.4 }) - 0.4) < 1e-9);
+  assert.equal(S.seamLeadFor({ type: 'beatmix', startB: 60 }), S.BEATMIX_LEAD);
+  // wired: arm() and MIX NOW plan from the cue and carry the lead; a hand's record is parked at, and faded in from, its cue
+  assert.match(html, /albumSequential: isAlbumSequential\(A, B\), startB: held \? hs\.cue : undefined \}\)\);/, 'arm plans from the cue');
+  assert.match(html, /lead: BEATMIX_LEAD, startB: held \? hs\.cue : undefined \}\);/, 'the late re-plan too');
+  assert.equal((html.match(/if \(held && plan\.type === 'beatmix'\) plan\.lead = seamLeadAvail\(hd\.a\.buffered, plan\.startB, BEATMIX_LEAD\);/g) || []).length, 2, 'arm and MIX NOW carry the lead');
+  assert.match(html, /\(seekOnly && hs\.owner === 'hand' && hs\.cue > 0 \? hs\.cue : 0\);/, '_preload parks a hand\'s record at its cue for a fade');
+  assert.match(html, /: handCue;\s*\} catch \(e\)\{\}/, 'fire() enters a fade at the cue');
 });
 test('xfadeCurve: monotonic, norm-scaled, correct endpoints per side', () => {
   const out = S.xfadeCurve(0.8, 'out', 32), inc = S.xfadeCurve(0.5, 'in', 32);

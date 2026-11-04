@@ -15858,7 +15858,13 @@ function planTransition(A, B, opts){
   if (startA > durEnd + 1e-9)
     startA -= Math.ceil((startA - durEnd - 1e-9) / barA) * barA;
   if (startA < mA.grid + barA) return fade('no room to mix');
-  const startB = Math.max(0, (mB.in.start || 0) + (opts.offsetBeats || 0) * spbB);
+  let startB = Math.max(0, (mB.in.start || 0) + (opts.offsetBeats || 0) * spbB);
+  /* A HAND'S CUE IS THE ENTRY. A record a DJ parked at a cue used to be planned
+     from its mix-in and seeked there by the arm, while the booth row still
+     said 'cued at': the incoming enters from the cue, on the nearest line of
+     its own grid (the lock measures phase against startB, so it must BE a
+     beat) — exactly as MIX NOW already does. */
+  if (opts.startB != null && isFinite(opts.startB)) startB = Math.max(0, (mB.grid || 0) + Math.round((opts.startB - (mB.grid || 0)) / spbB) * spbB);
   return {
     type: 'beatmix', beats,
     startA, startB,
@@ -22596,10 +22602,28 @@ const BEATMIX_LEAD = 1.0;
 // 0.1 s lead and an honest degradation rather than a silently wrong grid. A
 // gapless pair takes none: the artist sequenced those two to touch.
 function seamLeadFor(plan, want){
-  const p = plan || {}, w = want == null ? (p.type === 'beatmix' ? BEATMIX_LEAD : SEAM_LEAD) : want;
+  // a plan that says how much lead it can take (a hand's cue: what the deck holds before it, seamLeadAvail) is believed
+  const p = plan || {}, w = want == null ? (p.lead != null && isFinite(p.lead) ? p.lead : (p.type === 'beatmix' ? BEATMIX_LEAD : SEAM_LEAD)) : want;
   if (!(w > 0) || p.type === 'gapless') return 0;
   if (p.type !== 'beatmix') return w;
   return Math.max(0, Math.min(w, p.startB || 0));
+}
+/* THE LEAD-IN A CUED RECORD CAN TAKE. A hand's record is parked at its cue,
+   and a browser buffers forward from a seek: the second before the cue is
+   usually not there. The seam asked for a window starting a lead before the
+   cue, found it missing, deferred bar after bar ('On the bar' for ten
+   seconds), and finally faded the record in from 0:00. The lead is what the
+   deck holds before the cue in the range the cue sits in — down to none,
+   which costs the start-latency learning and nothing audible. */
+function seamLeadAvail(ranges, startB, want){
+  const w = want > 0 ? want : 0, b = startB > 0 ? startB : 0;
+  if (!ranges || !(w > 0) || !(ranges.length > 0)) return 0;
+  const eps = 0.05;
+  for (let i = 0; i < ranges.length; i++){
+    const st = typeof ranges.start === 'function' ? ranges.start(i) : ranges[i][0], en = typeof ranges.end === 'function' ? ranges.end(i) : ranges[i][1];
+    if (st <= b + eps && en >= b) return Math.max(0, Math.min(w, b - st));
+  }
+  return 0;
 }
 // WHERE THE INCOMING DECK MUST START — the seam's most important line.
 // A beatmix is a relationship between two BEAT GRIDS, not a wall-clock event.
@@ -25478,7 +25502,7 @@ const MIXER = {
     let plan = planTransition(
       Object.assign({}, A, { mix: mixOf(A) }),
       Object.assign({}, B, { mix: mixOf(B) }),
-      stylePlanOpts(seamStyle, { override: MIXFIX.pairOverride(A, B), albumSequential: isAlbumSequential(A, B) }));
+      stylePlanOpts(seamStyle, { override: MIXFIX.pairOverride(A, B), albumSequential: isAlbumSequential(A, B), startB: held ? hs.cue : undefined }));
     plan = styleAdjustPlan(seamStyle, plan);            // musical lets the song play out
     /* A PLAN THAT IS ALREADY LATE. The planner places the seam in A's mix-out
        region; if the playhead is already past that (a seek, or a track put on
@@ -25489,7 +25513,7 @@ const MIXER = {
       const d0 = activeDeck();
       const t0 = d0 ? d0.a.currentTime : 0;
       if (plan.type === 'beatmix' && isFinite(t0) && t0 > plan.startA - seamLeadFor(plan) - 0.05){
-        const late = planMixNow(mixOf(A), mixOf(B), t0, { durA: d0.a.duration, quickFade: 0.8, lead: BEATMIX_LEAD });
+        const late = planMixNow(mixOf(A), mixOf(B), t0, { durA: d0.a.duration, quickFade: 0.8, lead: BEATMIX_LEAD, startB: held ? hs.cue : undefined });
         plan = late.type === 'beatmix' ? late : { type: 'fade', seconds: 4, why: 'mix-out passed' };
       }
     }
@@ -25498,6 +25522,7 @@ const MIXER = {
       plan = { type: 'fade', seconds: 4, why: 'screen off — coarse timers' };
     // …and rates that play clean: an iPhone's captured decks hold 1×, so two tempi meet in the fade (iosSeamPlan)
     plan = iosSeamPlan(plan, !ratesHeld());
+    if (held && plan.type === 'beatmix') plan.lead = seamLeadAvail(hd.a.buffered, plan.startB, BEATMIX_LEAD);   // the lead the parked deck can give (seamLeadAvail)
     this.plan = plan;
     this.next = i;
     this._cueReset(B);
@@ -25545,7 +25570,9 @@ const MIXER = {
        hand's record (seekOnly) is never rolled by the auto-DJ and keeps the
        park it always had. */
     const cueAt = seekOnly ? null : this._cuePark(plan);
-    const seekTo = cueAt != null ? cueAt : plan.type === 'beatmix' ? Math.max(0, plan.startB - seamLeadFor(plan)) : 0;
+    const hs = DECKS.slots[1 - AE.active];
+    // a hand's record (seekOnly) enters a fade or a gapless join from its cue, never from 0:00
+    const seekTo = cueAt != null ? cueAt : plan.type === 'beatmix' ? Math.max(0, plan.startB - seamLeadFor(plan)) : (seekOnly && hs.owner === 'hand' && hs.cue > 0 ? hs.cue : 0);
     nd._seekTo = seekTo;
     nd._cueAt = cueAt;
     if (seekOnly){
@@ -25922,6 +25949,7 @@ const MIXER = {
       }
       return false;
     }
+    if (held && plan.type === 'beatmix') plan.lead = seamLeadAvail(hd.a.buffered, plan.startB, BEATMIX_LEAD);   // the lead the parked deck can give (seamLeadAvail)
     if (this.phase === 'armed') this.cancel('replan');
     this.plan = plan;
     this.next = i;
@@ -26040,10 +26068,12 @@ const MIXER = {
        late. The sampler measures that first error on every seam (_startLat), so
        B is placed that much further in and the lock usually has nothing to take. */
     // (a cue is already there: no placement, and its first error is no start latency to learn from)
+    // a hand's record enters a fade from its cue (a beatmix's entry is the plan's, which already carries the cue)
+    const hsIn = DECKS.slots[AE.decks.indexOf(nd)], handCue = hsIn && hsIn.owner === 'hand' && hsIn.cue > 0 ? hsIn.cue : 0;
     if (!cue) try {
       nd.a.currentTime = p.type === 'beatmix'
         ? seamEntry(p, od.a.currentTime) + (this._startLat || 0) * (glideRates(p.bpmA, p.bpmB, 0).rateB || 1) * seamPitchCarry(this._pA, 0)
-        : 0;
+        : handCue;
     } catch (e){}
     this._firstErr = !cue;
     this._bT = nd.a.currentTime;      // the latch watches for this to move
