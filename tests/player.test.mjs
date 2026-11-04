@@ -5183,6 +5183,10 @@ test('MIXER.fire: the incoming deck takes its own record\'s trim; the hold sits 
   assert.ok(plBody.indexOf('nd.norm = normLin(B);') > plBody.indexOf('ws.trackIdx = player.tracks.indexOf(B);'), '_preload trims the deck as it seats the record');
   const se = html.indexOf('  _seat(nd, B){');
   assert.match(html.slice(se, se + 300), /nd\.norm = normLin\(B\);/, '_seat trims it too');
+  // nothing is loaded into a deck the transport is still fading out (it cut the outgoing record dead)
+  assert.match(html, /if \(AE\.xfading\) return;\s*if \(d\.a\.duration - t < 90 && player\.hasNext\(\)\) this\.arm\(\);/, 'MIXER.update arms nothing during a transport crossfade');
+  const tm = html.indexOf('  tryMixNow(){');
+  assert.match(html.slice(tm, tm + 1800), /if \(AE\.xfading\) return false;/, 'tryMixNow plans nothing onto a retiring deck');
   // a pause during a take re-takes at once: a kept EQ press rides it
   const op = html.indexOf('  onPause(){');
   assert.match(html.slice(op, op + 2200), /this\.abortTake\('pause'\);\s*if \(BOOTH\.open\) this\.take\('pause'\);\s*if \(eq && this\.phase === 'taking' && \(eq\.lo \|\| eq\.mid \|\| eq\.hi\)\)\{ Object\.assign\(FX\.eq, eq\);/);
@@ -13056,7 +13060,7 @@ test('the mixer on held rates: the take seeks with the learned refill, and a pul
 test('a refused seam start holds the auto-DJ off that record: no re-arm, no commit/uncommit churn until a new record is on air', () => {
   const mx = html.slice(html.indexOf('const MIXER = {'), html.indexOf('const MIXER = {') + 200000);
   const up = mx.slice(mx.indexOf('  update(now, dt){'), mx.indexOf('  exitTime(dur, plan, track){'));
-  assert.ok(/if \(this\._holdRec && this\._holdRec === player\.tracks\[player\.cur\]\) return;\n\s+if \(d\.a\.duration - t < 90 && player\.hasNext\(\)\) this\.arm\(\);/.test(up), 'update() does not arm a held record');
+  assert.ok(/if \(this\._holdRec && this\._holdRec === player\.tracks\[player\.cur\]\) return;\n[\s\S]{0,900}?if \(d\.a\.duration - t < 90 && player\.hasNext\(\)\) this\.arm\(\);/.test(up), 'update() does not arm a held record');
   const rf = mx.slice(mx.indexOf('  _refused(od, nd){'), mx.indexOf('  setVolumes(f){'));
   assert.ok(rf.indexOf('this._holdRec = player.tracks[player.cur]') > rf.indexOf('player.uncommitMix();'), '_refused holds the record back on air (after the un-commit)');
   assert.ok(mx.includes("this._holdRec = player.tracks[player.cur] || null; this.cancel('unblessed');"), 'an unblessed start holds the same way');

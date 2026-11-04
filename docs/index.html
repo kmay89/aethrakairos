@@ -25321,6 +25321,13 @@ const MIXER = {
          title and Now Playing flapping, the rack released — until the record
          ended. The plain path takes this record's end, as the refusal promised. */
       if (this._holdRec && this._holdRec === player.tracks[player.cur]) return;
+      /* NOT WHILE THE TRANSPORT'S OWN CROSSFADE RUNS. The idle deck is then the
+         one fading out (DECKS.retiring): arming loads the next record into it,
+         and the record still being heard stopped dead at the start of its fade
+         — a short record, or one started from a late cue, is under ninety
+         seconds the moment its metadata lands. crateMixNext keeps the same
+         rule; the first frame after the fade arms as usual. */
+      if (AE.xfading) return;
       if (d.a.duration - t < 90 && player.hasNext()) this.arm();
       return;
     }
@@ -25804,6 +25811,7 @@ const MIXER = {
     const d = activeDeck();
     if (!d || !isFinite(d.a.duration) || d.a.duration <= 0) return false;
     if (this.phase === 'running' || this.phase === 'manual') return false;   // one seam at a time
+    if (AE.xfading) return false;        // the idle deck is still fading out (DECKS.retiring): nothing may be loaded into it — the plain path takes this NEXT
     const A = player.tracks[player.cur];
     // a hand's record on the idle deck is the next, and the blend enters from
     // ITS cue (snapped to its grid by the planner); rolling already, it is a
