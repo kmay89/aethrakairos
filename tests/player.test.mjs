@@ -97,7 +97,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' lavaCohesion, lavaRestDensity, lavaRestGrad, lavaCohesionScale, lavaBudget,' +
   ' makeLava, lavaNeighbours, lavaConfine, lavaStep, lavaWallDensity, lavaDensityError,' +
   ' LIMITER, dbToLin, linToDb, interPeak, makeLimiter, limiterProcess, limiterWorkletSource, BAND_HZ, bandBins,' +
-  ' VINYL_REV_SEC, VINYL_RING_SEC, VINYL_RAMP_SEC, PLATTER, makePlatter, platterStep, platterHandRate, platterDelta, hermite4,' +
+  ' VINYL_REV_SEC, VINYL_RING_SEC, VINYL_RING_IOS_SEC, VINYL_RAMP_SEC, PLATTER, makePlatter, platterStep, platterHandRate, platterDelta, hermite4, vinylThrowSpeed, vinylBackLead,' +
   ' platterHandFollow, makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylWorkletSource,' +
   ' VINYL_CUT_SEC, vinylReadAir, vinylToneK, vinylCutSpec, vinylScriptStep, vinylScriptCut, vinylScriptBlock, vinylSnap, VINYL_PRESETS, vinylPresetSteps, vinylLanding, vinylNextLine, VINYL_SONG_LOW_SR,' +
   ' WAVE_V, WAVE_HZ, WAVE_SR, WAVE_TILT, WAVE_PLANES, WAVE_MIPS, waveBiquad, wavePct, waveDetail, waveQuant, waveFromEnv, waveRange, waveGrid, waveBeatPos, waveWorkerSource,' +
@@ -5250,6 +5250,46 @@ test('the tempo gates are one number: SYNC refuses beyond it, the vinyl ride is 
   assert.ok(!/d\.filter\.Q\.setTargetAtTime\(qd, now, tau\); d\.hp\.Q\.setTargetAtTime\(qd, now, tau\);/.test(html), 'one Q no longer lands on both');
   // the CUT law's edge
   assert.match(html, /this\.gainWrite\(d\.fader\.gain, gi, this\.fader\.curve === 'cut' \? 0\.0015 : 0\.006\);/);
+});
+test('the hand on the platter: a dropped hand re-takes the record, a still finger throws nothing, a hold-release lands where the tape will be, a re-grab survives the landing', () => {
+  // a still finger throws nothing
+  assert.equal(S.vinylThrowSpeed(5, 0), 5);
+  assert.ok(S.vinylThrowSpeed(5, 0.02) > 2 && S.vinylThrowSpeed(5, 0.02) < 5, 'twenty milliseconds keeps most of it');
+  assert.equal(S.vinylThrowSpeed(5, 0.06), 0, 'three frames still: a put-down');
+  assert.equal(S.vinylThrowSpeed(NaN, 0), 0); assert.equal(S.vinylThrowSpeed(3, -1), 0);
+  // the seek is aimed where the tape will be through the release ramp
+  assert.ok(Math.abs(S.vinylBackLead(0.3, 1) - 0.3) < 1e-9, 'already at speed: the whole latency');
+  const fromRest = S.vinylBackLead(0.3, 0);
+  assert.ok(fromRest > 0.3 - S.PLATTER.releaseTau && fromRest < 0.3, 'from a dead stop the tape covers ~a release tau less: ' + fromRest.toFixed(4));
+  assert.ok(Math.abs(S.vinylBackLead(0.3, 0) - (0.3 - S.PLATTER.releaseTau * (1 - Math.exp(-0.3 / S.PLATTER.releaseTau)))) < 1e-12, 'the closed form');
+  assert.equal(S.vinylBackLead(0, 0), 0);
+  // the rebase: the head goes to the live edge and the finger's place moves with it
+  const V = S.makeVinyl(48000, 2);
+  S.vinylCommand(V, { op: 'engage', gen: 1 }); V.written = 48000; V.pos = 48000 - 3 - 9000; V.gain = 1;
+  S.vinylCommand(V, { op: 'grab' }); S.vinylCommand(V, { op: 'handAt', x: 0.1 });
+  const before = { from: V.handFrom, to: V.handTo, pos: V.pos };
+  V.written = 60000;
+  S.vinylCommand(V, { op: 'rebase' });
+  assert.equal(V.pos, 60000 - 3, 'the head is at the live edge');
+  assert.equal(V.handFrom - before.from, V.pos - before.pos, 'the grab point moved with it');
+  assert.equal(V.handTo - before.to, V.pos - before.pos, 'and so did the finger\'s place (not cleared)');
+  assert.ok(V.snapFrom === before.pos && V.snapU === 0, 'under the snap\'s own fade');
+  assert.equal(S.VINYL_RING_IOS_SEC, 12);
+  // wired: both grabs re-engage a dropped hand; the lift ages the speed; the landing rebases a held record; the latched brake restarts
+  assert.equal((html.match(/if \(!this\.engaged && !this\.engage\(!this\.armed\)\)\{ toast\(this\.why\(\)\); return false; \}/g) || []).length, 2, 'grab and grabLine');
+  assert.ok(!/if \(!this\.armed && !this\.engage\(true\)\)/.test(html), 'the hole is closed');
+  assert.match(html, /const v = vinylThrowSpeed\(p\.v, Math\.max\(0, \(performance\.now\(\) - p\.t\) \/ 1000\)\);/);
+  assert.match(html, /const to = Math\.max\(0, this\._landing\(place\) \+ vinylBackLead\(this\._seekLat, this\.rate\)\);/);
+  assert.match(html, /if \(holding\(\)\)\{ this\.post\(\{ op: 'rebase' \}\); return; \}\s*this\.drop\(\);/);
+  assert.match(html, /if \(idle && this\.mode === 'stopped'\)\{/, 'the stopped platter restarts, latched or one-shot');
+  assert.match(html, /this\.lag > \(this\.song\(\) \? VINYL_RING_SEC : VINYL\.ringSec\(\)\) - 3/, 'the reach is the ring\'s real length');
+  assert.match(html, /processorOptions: \{ seconds: VINYL\.ringSec\(\) \}/);
+  // the booth closing lets go; a lost capture lifts; a cancel keeps a hand's focus
+  assert.match(html, /this\.releaseCues\(\);[^\n]*\n\s*VINYL\.drop\(\);/, 'BOOTH.toggle(false) drops every hand');
+  assert.match(html, /if \(jog && ev\.pointerId === jog\.id\)\{ const hand = VINYL\.for\(jog\.deck\); jog = null; hand\.lift\(\); VINYL\._cursor\(\); return; \}/, 'lostpointercapture lifts a scratch');
+  assert.match(html, /if \(!this\.inHand\(this\.focus\)\) this\.focus = -1;/, 'settle keeps a focus on a deck in hand');
+  assert.equal((html.match(/this\.focus = slot;\s*\/\/ the cancel's settle looked before/g) || []).length, 1, 'play re-asserts');
+  assert.match(html, /s\.owner = 'hand'; this\.focus = slot; this\._gainTo\(d, d\.norm \|\| 1\);/, 'cue re-asserts');
 });
 test('xfadeCurve: monotonic, norm-scaled, correct endpoints per side', () => {
   const out = S.xfadeCurve(0.8, 'out', 32), inc = S.xfadeCurve(0.5, 'in', 32);
