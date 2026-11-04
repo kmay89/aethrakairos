@@ -23821,13 +23821,27 @@ function driveMakeup(k){
    bars; after a unit ends the room rests eight bars; the gate is allowed
    four bars at a time and once per thirty-two. The one thing that may
    interrupt all of that is the hand-off echo, because the seam comes once.
+   AN EAR THAT HAS NOT SETTLED DECIDES NOTHING (`o.earFor`, the seconds the
+   graph's own analyser has been the room's ear). Where the decks play direct
+   — an iPhone before its booth takes them — the features are the SCORE's,
+   which reads hotter than the analyser, and the band followers carry that
+   number across the switch for a few of their time constants. Read in that
+   moment it once dealt a quarter-beat GATE onto the master the instant the
+   decks joined — a chop that sounds exactly like the take breaking (the
+   probe: 1.0 carried off the score, where the analyser itself never read
+   above 0.83). So the bar is not spent: the decision is taken once the ear
+   has settled (half a second, six of the slowest follower's constants),
+   still inside the bar's first quarter or at the next. The seam's echo
+   reads the mixer's arithmetic, not the ear, and is never held.
    Returns { st, change, unit }. */
-const FX_AUTO = { hyst: 0.06, holdBars: 2, restBars: 8, gateBars: 4, gateEvery: 32, barTop: 0.25 };
+const FX_AUTO = { hyst: 0.06, holdBars: 2, restBars: 8, gateBars: 4, gateEvery: 32, barTop: 0.25, earSec: 0.5 };
 function makeFxAuto(){ return { unit: 'none', since: -1e9, endedAt: -1e9, gateAt: -1e9, bar: -1 }; }
 function fxAutoStep(st, o, barPhase, nowBars){
   const s = st || makeFxAuto();
   const bar = Math.floor(nowBars > 0 ? nowBars : 0);
   if (!(barPhase < FX_AUTO.barTop) || bar === s.bar) return { st: s, change: false, unit: s.unit };
+  if (o && o.earFor != null && !(o.earFor >= FX_AUTO.earSec) && !(o.toSeam != null && o.toSeam <= o.bar))
+    return { st: s, change: false, unit: s.unit };
   const on = s.unit !== 'none';
   const inp = Object.assign({}, o || {});
   inp.energy = (inp.energy || 0) + (on ? FX_AUTO.hyst : -FX_AUTO.hyst);
@@ -29005,7 +29019,7 @@ const FX = {
   brakeT: -1, _brakeFrom: 1,
   _handT: 0,                     // how long ago a hand last touched something (display only)
   _autoUnit: '', _autoSt: makeFxAuto(), _tailHold: false, _gateAt: 0, _pads: 'loop',
-  _ft: 0, _ftIdle: 0, _switchT: 0, _echoBpm: 0, _sweepEnd: 0,
+  _ft: 0, _ftIdle: 0, _switchT: 0, _echoBpm: 0, _sweepEnd: 0, _earFor: 0,
 
   live(){ return !!(AE.graphLive && AE.ctx && AE.fx); },
   bpm(){ return (CLOCK.haveGrid && CLOCK.bpm > 0) ? CLOCK.bpm : (AE.f.bpm > 0 ? AE.f.bpm : 120); },
@@ -29827,6 +29841,9 @@ const FX = {
      Never under a loop, a scratch, or a seam in flight — those are a hand's
      or the mixer's, and the room keeps its hands still. */
   autoTick(dt){
+    /* how long the analyser has been the room's ear: analyse() reads it from
+       the frame the graph is live, smoothing with this same dt (fxAutoStep) */
+    this._earFor = this.live() ? (this._earFor || 0) + (dt > 0 ? dt : 0) : 0;
     if (!this.auto || !this.live() || !player.playing) return;
     const d = activeDeck();
     const b = d ? this.barLineAt(d) : null;
@@ -29874,7 +29891,7 @@ const FX = {
     const o = {
       ceil: hidden ? 0 : director.ceil, act: director.act,
       phase: (lab === 'build' || lab === 'peak' || lab === 'break') ? lab : director.phase,
-      energy: AE.f.energy, bar, barsIn, toSeam,
+      energy: AE.f.energy, bar, barsIn, toSeam, earFor: this._earFor,
       struggling: (typeof PERF !== 'undefined' && PERF.struggling),
     };
     const r = fxAutoStep(this._autoSt, o, barPhase, bars);

@@ -11790,6 +11790,28 @@ test('fxAutoStep: a decision a bar, hysteresis on the line, two bars held, eight
   assert.equal(S.fxAutoPick({ ...base, phase: 'break', energy: 0.4, barsIn: 1 }), 'reverb', 'a break\'s first bars are a wash');
   assert.equal(S.fxAutoPick({ ...base, phase: 'break', energy: 0.4, barsIn: 3 }), 'none', '…and only its first bars');
 });
+test('fxAutoStep: an ear that has not settled decides nothing — the bar is not spent, and the seam echo is never held', () => {
+  /* an iPhone's take: the graph's analyser becomes the room's ear on a downbeat, with the
+     band followers still carrying the score's hotter reading (1.0 there, where the analyser
+     itself never reads above 0.83) — the step that read it dealt a GATE onto the master
+     the instant the decks joined */
+  const base = { ceil: 0.56, act: 2, phase: 'peak', bar: 1.94, toSeam: null };
+  const st0 = S.makeFxAuto();
+  assert.ok(S.FX_AUTO.earSec >= 6 * 0.08, 'six of the slowest band follower\'s time constants (0.08 s) at least');
+  const held = S.fxAutoStep(st0, { ...base, energy: 1, earFor: 0.017 }, 0.005, 1.005);
+  assert.ok(!held.change && held.unit === 'none', 'the carried-over reading deals nothing');
+  assert.equal(held.st.bar, st0.bar, '…and does not spend the bar');
+  // settled inside the same first quarter: the decision is taken then, on the ear's own reading
+  const settled = S.fxAutoStep(held.st, { ...base, energy: 0.83, earFor: 0.5 }, 0.2, 1.2);
+  assert.ok(settled.change === false && settled.st.bar === 1, 'the analyser\'s 0.83 is no peak to gate: a decision, for silence');
+  const earned = S.fxAutoStep(held.st, { ...base, energy: 0.95, earFor: 0.6 }, 0.2, 1.2);
+  assert.ok(earned.change && earned.unit === 'gate', 'a peak the ear itself hears is still the gate\'s');
+  // the hand-off echo reads the mixer's arithmetic, not the ear
+  const seam = S.fxAutoStep(st0, { ...base, energy: 0.4, earFor: 0.05, toSeam: 1.2 }, 0.01, 7.01);
+  assert.ok(seam.change && seam.unit === 'echo', 'the seam comes once: its echo is never held');
+  // no ear reported (the old callers, the tests above): the step is what it always was
+  assert.ok(S.fxAutoStep(st0, { ...base, energy: 1 }, 0.005, 1.005).change);
+});
 test('fxAutoSweep: a build earns a highpass up to the vocals, over the bars it has left, let go a beat before the drop', () => {
   const s = S.fxAutoSweep(16, 120, 0.9);
   assert.ok(s.hzTop >= 900 && s.hzTop <= 1400, 'the top sits under the vocals, got ' + s.hzTop);

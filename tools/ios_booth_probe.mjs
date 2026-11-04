@@ -22,7 +22,9 @@
  * What it holds the route to (scenario names follow the design's probe plan):
  *   S1  boot is direct, exactly as today
  *   S2  the open booth takes the decks mid-track: no stop, no false pause, the
- *       swap lined up, and the speaker hears the graph right after
+ *       swap lined up, and the speaker hears the graph right after (an ear on
+ *       the audio thread, read on the context's clock); the room's performer
+ *       makes no gesture before the graph's analyser has settled as its ear
  *   S3  the probe can see taint: a capture of a no-CORS element is silent
  *   S4  under the graph: deck B loads and plays, the crossfader blends both,
  *       both platters scratch, MIX NOW changes the record (rates held at 1×:
@@ -188,22 +190,46 @@ const pressPlay = async page => {
   });
   await page.tap('#__probePlay');
 };
-// the instruments: a 50 ms sampler of the transport and the route, and an ear at the speaker (the graph's output)
-const instrument = page => page.evaluate(() => {
+/* the instruments: a 50 ms sampler of the transport and the route, and an ear at the speaker (the graph's output).
+   THE EAR LISTENS ON THE AUDIO THREAD. A ScriptProcessor hears on the main thread, and a starved one drops,
+   repeats or late-stamps its blocks — it can call a steady speaker silent, or step over a real hole. So where
+   the page may load an AudioWorklet (not under ?worklets=0, whose bench must load none) the ear is a worklet
+   tap at AE.out posting each 1024-frame block's RMS stamped with the context's own clock; the sampler stamps
+   that clock too (`at`), and the speaker checks read their windows on it. Elsewhere the old ear stays, its
+   blocks stamped with the context clock as the main thread saw it. window.__ear says which one listened. */
+const EAR_SRC = 'class ProbeEar extends AudioWorkletProcessor{constructor(){super();this.q=0;this.n=0;}'
+  + 'process(i){const c=i[0]&&i[0][0];if(c)for(let k=0;k<c.length;k++)this.q+=c[k]*c[k];this.n+=128;'
+  + 'if(this.n>=1024){this.port.postMessage({t:currentTime,rms:Math.sqrt(this.q/this.n)});this.q=0;this.n=0;}return true;}}'
+  + 'registerProcessor("probe-ear",ProbeEar);';
+const instrument = page => page.evaluate(async src => {
   window.__S = []; window.__lv = [];
-  const sp = AE.ctx.createScriptProcessor(1024, 2, 1);
-  sp.onaudioprocess = e => { const x = e.inputBuffer.getChannelData(0); let q = 0; for (const v of x) q += v * v; window.__lv.push({ w: performance.now(), rms: Math.sqrt(q / x.length) }); };
-  const z = AE.ctx.createGain(); z.gain.value = 0; AE.out.connect(sp); sp.connect(z); z.connect(AE.ctx.destination);
+  const z = AE.ctx.createGain(); z.gain.value = 0; z.connect(AE.ctx.destination);
+  window.__ear = 'main thread';
+  if (IOS_WORKLETS && typeof AudioWorkletNode === 'function'){
+    try {
+      await AE.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+      const n = new AudioWorkletNode(AE.ctx, 'probe-ear');
+      n.port.onmessage = e => window.__lv.push({ w: performance.now(), t: e.data.t, rms: e.data.rms });
+      AE.out.connect(n); n.connect(z);
+      window.__ear = 'audio thread';
+    } catch (e){}
+  }
+  if (window.__ear !== 'audio thread'){
+    const sp = AE.ctx.createScriptProcessor(1024, 2, 1);
+    sp.onaudioprocess = e => { const x = e.inputBuffer.getChannelData(0); let q = 0; for (const v of x) q += v * v;
+      window.__lv.push({ w: performance.now(), t: AE.ctx.currentTime, rms: Math.sqrt(q / x.length) }); };
+    AE.out.connect(sp); sp.connect(z);
+  }
   window.__mark = () => { window.__S = []; window.__lv = []; };
   clearInterval(window.__si);
   window.__si = setInterval(() => {
     const d = AE.decks && AE.decks[AE.active];
     const els = (AE.decks || []).map(k => k.a).concat(DECKROUTE.twins.map(t => t.a));
-    window.__S.push({ w: performance.now(), playing: player.playing, active: AE.active, ct: d ? d.a.currentTime : -1,
+    window.__S.push({ w: performance.now(), at: AE.ctx.currentTime, playing: player.playing, active: AE.active, ct: d ? d.a.currentTime : -1,
       paused: d ? d.a.paused : true, muted: d ? d.a.muted : false, phase: DECKROUTE.phase, graph: AE.graphLive, cur: player.cur,
       srcs: els.filter(a => a.src && !/^data:/.test(a.src)).length });
   }, 50);
-});
+}, EAR_SRC);
 const samples = page => page.evaluate(() => ({ S: window.__S.slice(), lv: window.__lv.slice() }));
 const sysPauses = page => page.evaluate(() => (ACTIVITY.list || []).filter(e => /system paused/.test(e.m || '')).length).catch(() => -1);
 // the transport through a window: never paused, the on-air clock never jumping
@@ -220,8 +246,10 @@ function continuity(S){
   }
   return { stops, jumps, maxSrc, worst: +worst.toFixed(3) };
 }
-const peakAfter = (lv, w0, ms) => lv.filter(x => x.w >= w0 && x.w < w0 + ms).reduce((m, x) => Math.max(m, x.rms), 0);
-const quietestBlockAfter = (lv, w0, ms) => { const v = lv.filter(x => x.w >= w0 && x.w < w0 + ms); return v.length ? Math.min(...v.map(x => x.rms)) : 0; };
+// the ear's blocks in a window of the context's clock (seconds), and what they heard
+const earWindow = (lv, t0, sec) => lv.filter(x => x.t >= t0 && x.t < t0 + sec);
+const peakAfter = (lv, t0, sec) => earWindow(lv, t0, sec).reduce((m, x) => Math.max(m, x.rms), 0);
+const quietestBlockAfter = (lv, t0, sec) => { const v = earWindow(lv, t0, sec); return v.length ? Math.min(...v.map(x => x.rms)) : 0; };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 // ===========================================================================
@@ -242,6 +270,14 @@ if (!ONLY || ONLY === 'main'){
   await instrument(page);
 
   // S2 — take mid-track, in the tap that opens the booth
+  /* the room's own hands (FX's performer) stay on, as a listener has them — and every gesture they make is
+     logged with how long the graph's analyser had been their ear: one read off the score's hotter numbers,
+     carried across the switch, once chopped the master with a GATE the instant the decks joined */
+  await page.evaluate(() => {
+    window.__fxDeals = [];
+    const begin = FX._autoBegin.bind(FX);
+    FX._autoBegin = (unit, o) => { window.__fxDeals.push({ unit, ear: +(FX._earFor || 0).toFixed(3), energy: +AE.f.energy.toFixed(2) }); return begin(unit, o); };
+  });
   await page.evaluate(() => window.__mark());
   const t0 = await page.evaluate(() => performance.now());
   await tapBooth(page);
@@ -250,22 +286,27 @@ if (!ONLY || ONLY === 'main'){
   const s2 = await page.evaluate(() => ({ route: window.__mb8Route(), active: AE.active, graph: AE.graphLive,
     cors: AE.decks.map(d => d.a.crossOrigin), src: activeDeck().a.currentSrc, vinyl: window.__mb8VinylDecks,
     gain: activeDeck().gain ? activeDeck().gain.gain.value : -1, swapAt: (window.__S.find(x => x.graph) || {}).w,
-    session: navigator.audioSession.type, held: ratesHeld(), rate: activeDeck().a.playbackRate }));
+    session: navigator.audioSession.type, held: ratesHeld(), rate: activeDeck().a.playbackRate,
+    ear: window.__ear, rack: FX.unit ? FX.unit + (FX._autoUnit === FX.unit ? ' (the room\'s performer)' : ' (a hand)') : 'none', deals: window.__fxDeals.slice(), earSec: FX_AUTO.earSec }));
 
   const { S, lv } = await samples(page);
   const c2 = continuity(S);
-  const swapW = (S.find(x => x.phase !== 'taking' && x.active !== S[0].active) || {}).w;
+  const swapS = S.find(x => x.phase !== 'taking' && x.active !== S[0].active), swapW = swapS && swapS.w;
   R('S2 the open booth takes the decks into the graph within 4 s', took && s2.graph && s2.route.phase === 'graph' && (swapW ? swapW - t0 < 4000 : false),
     swapW ? 'swapped ' + Math.round(swapW - t0) + ' ms after the tap' : JSON.stringify(s2.route));
   R('S2 the air moved to deck B; both decks are CORS-mode now; the record on air is CORS or a blob', s2.active !== S[0].active && s2.cors.every(c => c === 'anonymous')
     && (s2.src.startsWith(MEDIA) || s2.src.startsWith('blob:')), 'active ' + S[0].active + '→' + s2.active + ' · ' + s2.src.slice(0, 40));
   R('S2 the music never stopped and the clock never jumped (|Δ| ≤ 0.3 s per 50 ms)', c2.stops === 0 && c2.jumps === 0, JSON.stringify(c2));
   R('S2 at most two deck decoders at every sample (twins stay empty)', c2.maxSrc <= 2, 'max ' + c2.maxSrc);
-  if (swapW){
-    const p300 = peakAfter(lv, swapW, 400), floor = quietestBlockAfter(lv, swapW + 400, 2000);
-    R('S2 the speaker hears the graph within 300 ms of the swap, and steadily for 2 s', p300 > 0.01 && floor > 0.003,
-      'peak ' + p300.toFixed(4) + ' · quietest block ' + floor.toFixed(4));
+  if (swapS){
+    // on the context's clock, from the sample that saw the air move
+    const T = swapS.at, p300 = peakAfter(lv, T, 0.4), floor = quietestBlockAfter(lv, T + 0.4, 2.0);
+    const win = earWindow(lv, T + 0.4, 2.0), quiet = win.filter(x => x.rms < 0.003).length;
+    R('S2 the speaker hears the graph within 300 ms of the swap, and steadily for 2 s (an ear on the ' + s2.ear + ')', p300 > 0.01 && floor > 0.003 && win.length >= 60,
+      'peak ' + p300.toFixed(4) + ' · quietest block ' + floor.toFixed(4) + ' · quiet blocks ' + quiet + '/' + win.length + ' · rack ' + s2.rack);
   } else R('S2 the speaker hears the graph after the swap', false, 'no swap seen');
+  R('S2 the room\'s own hands waited for the graph\'s ear: no gesture on a reading carried over from the direct path',
+    s2.deals.every(d => d.unit === 'echo' || d.ear >= s2.earSec), JSON.stringify(s2.deals));
   R('S2 the session says playback; both platters are seated; the rates are held at 1×', s2.session === 'playback'
     && s2.vinyl && s2.vinyl.A === 'worklet' && s2.vinyl.B === 'worklet' && s2.held && s2.rate === 1, JSON.stringify({ s: s2.session, v: s2.vinyl, held: s2.held, r: s2.rate }));
   R('S2 no false "the system paused the audio"', (await sysPauses(page)) === 0);
@@ -517,9 +558,9 @@ if (!ONLY || ONLY === 'taint'){
   const joined = await page.waitForFunction('AE.graphLive && DECKROUTE.phase === "graph" && player.playing && activeDeck().a.currentTime > 0.5', null, { timeout: 15000 }).then(() => true).catch(() => false);
   await wait(2500);
   const S8b = await samples(page);
-  const roll = (S8b.S.find(x => x.graph && x.ct > 0.2) || {}).w;
-  let gap = 0, last = null;
-  for (const x of S8b.lv){ if (roll && x.w < roll) continue; if (x.rms < 0.003){ if (last == null) last = x.w; gap = Math.max(gap, x.w - last); } else last = null; }
+  const rollS = S8b.S.find(x => x.graph && x.ct > 0.2), roll = rollS && rollS.w;
+  let gap = 0, last = null;     // the longest run of quiet blocks, on the context's clock (ms)
+  for (const x of S8b.lv){ if (rollS && x.t < rollS.at) continue; if (x.rms < 0.003){ if (last == null) last = x.t; gap = Math.max(gap, (x.t - last) * 1000); } else last = null; }
   R('S8 at the boundary the decks join, and the next record is heard with no dropout over 300 ms', joined && roll && gap <= 300, (roll ? Math.round(roll - n0) + ' ms to roll' : 'never rolled') + ' · longest quiet ' + Math.round(gap) + ' ms');
 
   // S9 — the record on air fails CORS mid-track (one later range without the header)
