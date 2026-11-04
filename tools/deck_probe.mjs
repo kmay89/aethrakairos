@@ -161,6 +161,39 @@ const warm = await page.evaluate(async () => {
 R('a record warmed into memory and loaded by hand plays from the copy, unrevoked',
   warm.held && warm.ok && warm.onCopy && !warm.err && warm.rs >= 1 && warm.readable && warm.same && warm.owner === 'hand',
   JSON.stringify(warm));
+// ---- 6 · a seam whose start the browser refuses
+/* A browser that wants a gesture refuses the incoming deck's play() at the
+   seam (NotAllowedError) while the record on air rolls on. The rescue
+   (MIXER._refused) puts the record back on air and promises the plain path
+   takes its end — and the auto-DJ must not arm and fire the same seam again
+   on the next frame: that looped, a commit, an un-commit and a toast every
+   few hundred ms, the title flapping, until the record ended. */
+await page.waitForFunction('MIXER.phase !== "running" && MIXER.phase !== "manual" && !AE.xfading', null, { timeout: 60000 }).catch(() => {});
+const refusal = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  if (MIXER.phase !== 'idle') MIXER.cancel('probe');
+  for (const d of AE.decks){ d._play0 = d.a.play; }
+  const on = activeDeck(), idle = AE.decks[1 - AE.active];
+  idle.a.play = () => Promise.reject(new DOMException('the probe refuses', 'NotAllowedError'));
+  let commits = 0, refusals = 0;
+  const cm = player.commitMix, rf = MIXER._refused;
+  player.commitMix = function(){ commits++; return cm.apply(this, arguments); };
+  MIXER._refused = function(){ refusals++; return rf.apply(this, arguments); };
+  const cur0 = player.cur;
+  // to just before the armed seam's exit: it fires, is refused, and the next four seconds must be quiet
+  for (let k = 0; k < 40 && MIXER.phase !== 'armed'; k++) await sleep(100);
+  const exitAt = MIXER.phase === 'armed' ? MIXER.exitTime(on.a.duration, MIXER.plan, player.tracks[player.cur]) : on.a.duration - 12;
+  const left = on.a.duration - exitAt;
+  if (exitAt - 1 > on.a.currentTime) on.a.currentTime = exitAt - 1;
+  for (let k = 0; k < 80 && !refusals; k++) await sleep(100);
+  await sleep(4000);
+  const out = { commits, refusals, left: +left.toFixed(1), sameRecord: player.cur === cur0, onAir: activeDeck() === on, rolling: !on.a.paused && !on.a.ended, phase: MIXER.phase };
+  player.commitMix = cm; MIXER._refused = rf;
+  delete idle.a.play;
+  return out;
+});
+R('a refused seam start is rescued once — the record on air plays on, and the same seam is not fired again',
+  refusal.refusals === 1 && refusal.commits === 1 && refusal.sameRecord && refusal.onAir && refusal.rolling && refusal.phase === 'idle', JSON.stringify(refusal));
 R('no page errors', errors === 0, errors + ' errors');
 console.log(`\n${results.filter(Boolean).length}/${results.length} deck checks passed`);
 await browser.close(); server.close();

@@ -53,17 +53,37 @@ const check = (name, ok, detail) => {
   if (!ok) bad++;
 };
 
-// start a real track and let it get somewhere
-await page.evaluate(() => player.playIndex(0));
+/* START A REAL TRACK AND LET IT GET SOMEWHERE — a track this machine can
+   actually fetch. The shipped catalog points at the media host, which a
+   probe box usually cannot reach; the synthesized demo is a blob the page
+   builds itself, so the route change is measured on a record that really
+   sounds. Looped, because the demo is shorter than the probe. */
+await page.evaluate(async () => {
+  ensureCtx();
+  if (AE.ctx.state !== 'running') await AE.ctx.resume().catch(() => {});
+  await player.synthesizeDemo();
+  activeDeck().a.loop = true;
+  /* AN EAR AT THE SPEAKER. Element state says a deck is playing; only the
+     samples say it can be HEARD. The return from AirPlay used to rebuild the
+     graph with the on-air deck's gain at zero — playing, advancing, silent —
+     and every check below that reads the element passed straight over it. */
+  const sp = AE.ctx.createScriptProcessor(2048, 2, 1); window.__lv = [];
+  sp.onaudioprocess = e => { const x = e.inputBuffer.getChannelData(0); let q = 0; for (const v of x) q += v * v; window.__lv.push(Math.sqrt(q / x.length)); };
+  const z = AE.ctx.createGain(); z.gain.value = 0; AE.out.connect(sp); sp.connect(z); z.connect(AE.ctx.destination);
+});
 await page.waitForTimeout(3500);
+// the level the speaker got over the last `ms`: the loudest block, so one quiet bar is not silence
+const heard = ms => page.evaluate(n => { const v = window.__lv.slice(-n); return v.length ? Math.max(...v) : 0; }, Math.max(4, Math.round(ms / 46)));
 const before = await page.evaluate(() => ({
   graphLive: AE.graphLive, playing: player.playing, cur: player.cur,
   t: activeDeck().a.currentTime, src: activeDeck().a.currentSrc,
   hasGraph: !!activeDeck().gain, paused: activeDeck().a.paused,
 }));
+const beforeLv = await heard(800);
 check('a track is really playing through the graph',
   before.playing && before.graphLive && before.hasGraph && before.t > 0.3 && !before.paused,
   JSON.stringify(before));
+check('…and the probe can hear it (the ear works before it is trusted)', beforeLv > 0.003, 'peak block rms ' + beforeLv.toFixed(4));
 
 // a hand's FILTER on the deck before the music leaves: the chain it sits on is torn down and rebuilt
 const filt0 = await page.evaluate(async () => {
@@ -77,9 +97,11 @@ check('a hand\'s lowpass is on the deck filter before the route change', filt0.h
 
 // --- go element-direct, the way the route button does ---
 const direct = await page.evaluate(async () => {
+  const left = activeDeck().a.currentTime;          // where the record was the instant the route changed
   const ok = await AIRPLAY.setDirect(true);
+  const landed = activeDeck().a.currentTime;        // …and where the new element is the instant it resolves
   await new Promise(r => setTimeout(r, 1200));
-  return { ok, graphLive: AE.graphLive, playing: player.playing, cur: player.cur,
+  return { ok, left, landed, graphLive: AE.graphLive, playing: player.playing, cur: player.cur,
            t: activeDeck().a.currentTime, src: activeDeck().a.currentSrc,
            hasGraph: !!activeDeck().gain, hasSrcNode: !!activeDeck().src,
            paused: activeDeck().a.paused, vol: activeDeck().a.volume };
@@ -89,8 +111,12 @@ check('the graph is genuinely gone', !direct.graphLive && !direct.hasGraph && !d
   `graphLive=${direct.graphLive} gain=${direct.hasGraph} src=${direct.hasSrcNode}`);
 check('the same track is still loaded', direct.src === before.src);
 check('it is still playing, not paused', direct.playing && !direct.paused);
-check('it resumed where it left off (±3 s)', Math.abs(direct.t - before.t) < 3,
-  `${before.t.toFixed(2)} -> ${direct.t.toFixed(2)}`);
+/* where it left off: read at the instant the route changed and the instant
+   the rebuild resolved, so the time the record plays on through the probe's
+   own waits (seconds, on a slow bench) is not mistaken for a jump. A restart
+   from the top reads as far behind the spot it left. */
+check('it resumed where it left off (±1.5 s)', Math.abs(direct.landed - direct.left) < 1.5,
+  `${direct.left.toFixed(2)} -> ${direct.landed.toFixed(2)}`);
 check('the element carries the volume now', direct.vol > 0, 'volume=' + direct.vol);
 
 // the element must be able to move: it is the playback path now
@@ -109,6 +135,14 @@ const backT = await page.evaluate(async () => {
 });
 check('setDirect(false) rebuilds the graph', backT.graphLive && backT.hasGraph && backT.hasSrcNode,
   JSON.stringify(backT));
+/* …AND IT IS HEARD. The rebuilt deck's gain is born at zero (AE._deckGraph),
+   and a deck on air must be brought up to its loudness trim or the return is
+   a playing, advancing, silent player — everything on screen says yes. */
+const home = await page.evaluate(() => { const d = activeDeck(); return { gain: d.gain ? d.gain.gain.value : -1, norm: d.norm || 1 }; });
+const homeLv = await heard(800);
+check('the on-air deck comes home at its loudness trim, not at zero', Math.abs(home.gain - home.norm) < 0.05,
+  'gain ' + home.gain.toFixed(3) + ' · trim ' + home.norm.toFixed(3));
+check('…and the speaker hears it after the route comes home', homeLv > 0.003, 'peak block rms ' + homeLv.toFixed(4));
 check('same track, still playing, after coming home', backT.playing && !backT.paused && backT.src === before.src);
 check('position survived the round trip', backT.t > moved - 3, `${moved.toFixed(2)} -> ${backT.t.toFixed(2)}`);
 // the rebuilt chain is born open; the filter the hand still holds must be written onto it, not lost to a stale cache

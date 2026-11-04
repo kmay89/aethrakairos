@@ -314,6 +314,40 @@ R('NEXT on a beatmixable pair changes the record (never swallowed as a blend the
   !!nx && nx.before === 'alpha' && nx.after === 'beta',
   nx ? nx.before + ' → ' + nx.after + ' · mixer ' + nx.mixer : 'fixture lacks alpha/beta');
 
+/* WITH THE TWO-DECK ROUTE OPTED IN, A CLOSED BOOTH IS TODAY'S PHONE. The
+ * route (DECKROUTE, ?decks=graph) only ever takes the decks into the graph
+ * from an open booth; until then boot, every hand-off and NEXT must be the
+ * same-element advance on the one blessed element, byte for byte. */
+{
+  const ctx2 = await browser.newContext({ userAgent: iPhone.userAgent, viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  await ctx2.addInitScript(() => { if (!navigator.audioSession) Object.defineProperty(navigator, 'audioSession', { value: { type: 'auto' }, configurable: true }); });
+  const p2 = await ctx2.newPage();
+  p2.on('pageerror', e => { const m = String(e).split('\n')[0]; if (!NOISE.test(m.slice(0, 60))) errs.push(m); });
+  await p2.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+  await p2.goto(base + '?decks=graph', { waitUntil: 'domcontentloaded' });
+  await p2.waitForFunction('window.__mb8Booted === true', null, { timeout: 60000 });
+  const g = await p2.evaluate(async () => {
+    for (const id of ['firstRun', 'help', 'coach', 'onboard', 'library', 'console', 'playlist', 'emptyState', 'splash'])
+      { const n = document.getElementById(id); if (n) n.style.display = 'none'; }
+    const i = player.tracks.findIndex(t => t.title === 'alpha'), j = player.tracks.findIndex(t => t.title === 'beta');
+    if (i < 0 || j < 0) return null;
+    player.repeat = 'off'; player.shuffle = false; MIXER.setOn(true);
+    player._committedNext = j; player.playIndex(i);
+    const t0 = performance.now();
+    while (performance.now() - t0 < 15000 && !(player.playing && activeDeck().a.currentTime > 0.5)) await new Promise(r => setTimeout(r, 100));
+    const boot = { gate: IOS_GRAPH, graph: AE.graphLive, phase: DECKROUTE.phase, booth: BOOTH.open };
+    const el0 = activeDeck().a, deck0 = AE.active;
+    player._committedNext = j;
+    player.next();
+    await new Promise(r => setTimeout(r, 1500));
+    return { boot, after: player.tracks[player.cur].title, same: activeDeck().a === el0 && AE.active === deck0, graph: AE.graphLive, playing: player.playing };
+  });
+  R('?decks=graph, booth closed: boot is direct and NEXT is the same-element advance, exactly as today',
+    !!g && g.boot.gate && !g.boot.graph && g.boot.phase === 'direct' && !g.boot.booth && g.after === 'beta' && g.same && !g.graph && g.playing,
+    g ? JSON.stringify(g) : 'fixture lacks alpha/beta');
+  await ctx2.close();
+}
+
 if (errs.length){
   console.log('\n  page errors:');
   for (const e of errs.slice(0, 6)) console.log('   ' + e.slice(0, 200));

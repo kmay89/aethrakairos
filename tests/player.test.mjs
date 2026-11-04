@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { auditDevelop, dieVerdict } from '../tools/develop_audit.mjs';
 import { dirname, join } from 'path';
 import assert from 'assert';
+import vm from 'vm';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const html = readFileSync(join(root, 'docs/index.html'), 'utf8');
@@ -40,8 +41,8 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' driveCurve, drivePre, driveTiltDb, driveTrimDb, drivePinkRef, driveMakeup, FX_AUTO, makeFxAuto, fxAutoStep, fxAutoSweep,'  +
   ' FX_GAIN_DB, FX_BUDGET_DB, fxGainBudget, FX_PARK,'  +
   ' LOOP_XFADE, LOOP_RING_SEC, loopXfadeLen, loopHeadBlend, ringIndexOf, ringSlice,' +
-  ' loopHandoverAt, loopLateHandover, loopPhaseAt, loopHandbackPos, loopInPoint,' +
-  ' TEAR_HOLD, TEAR_MIN, makeTearWatch, tapeTearStep, tapeTearSilent, ringTornIn, loopDeckReady, loopHandbackAt,' +
+  ' loopPhaseAt, loopHandbackPos, loopInPoint, tapeLoopPos, loopMediaAt, loopAlignErr, loopDeckReady, loopHandbackAt, loopTempo, loopBeatsOf, tapeFadeRead,' +
+  ' TAPE_RAMP, TAPE_GUARD, tapeXfade, tapeFits, makeLoopTape, tapeHolds, tapeLoopAt, tapeFadeFrom, tapeRefuse, loopTapeWrite, loopTapeCommand, loopTapeProcess,' +
   ' CUE_SLOTS, CUE_COLORS, cueSnap, autoCuePoints, AUTOCUE, cueJumpAt, cueJumpLand, beatJumpTarget, EQ_KILL_DB, EQ_BANDS, fxEqToggle, fxEqIsFlat,' +
   ' MIX_STYLES, MIX_STYLE_ORDER, resolveMixStyle, stylePlanOpts, styleAdjustPlan, styleExitBase,' +
   ' matchTrack, mixsetSectionAt, mixsetStyleAt, mixsetForbids, sectionPool, sectionTargetEnergy, dueAnchor, mixsetPick,' +
@@ -102,7 +103,10 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' WAVE_V, WAVE_HZ, WAVE_SR, WAVE_TILT, WAVE_PLANES, WAVE_MIPS, waveBiquad, wavePct, waveDetail, waveQuant, waveFromEnv, waveRange, waveGrid, waveBeatPos, waveWorkerSource,' +
   ' waveTrailMean, waveTrailMax, waveTilt, waveMip, waveNorm, wavePack, waveLevel, waveRangeAt, waveFoldPeaks, waveOnsets, waveBandColours, waveTiltAt, waveTiltLUT, waveGridStyle, waveDeckTime, waveRateStep, waveClock,' +
   ' VINYL_SONG_FRAMES, vinylSongRate, vinylToTape, makeVinylSong, vinylSongCommand, vinylSongProcess,' +
-  ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed, synLookahead };';
+  ' SYN_TUNING, synSectionAt, synAhead, synFeatAhead, synCue, synSeamGlide, synKeyTerm, synDealSeed, synLookahead,' +
+  ' iosMajor, iosGraphAllowed, iosRatesOk, IOS_SAME_TEMPO, IOS_SAME_DRIFT, IOS_SEAM_SEEK, IOS_SEAM_SEEKS, iosSeamPlan, pickOverride, lagOverride, srcClean, crossoverSource,' +
+  ' XO_TOL, XO_ACCEPT, XO_SEEKS, crossoverAligned, giveWinner, HIDE_RESOLVE_S, HIDE_RETRY_S, HIDE_TRIES, hideAction, stayPutRule,' +
+  ' SENTINEL_FLOOR, sentinelTrip };';
 const S = new Function(code)();
 
 let passed = 0, failed = 0;
@@ -5727,38 +5731,6 @@ test('ringIndexOf: the tape and the music share one index, at any speed', () => 
   assert.equal(S.ringIndexOf(0, 0, sr, 0, 1), sr, 'a nonsense rate falls back to 1×');
 });
 
-test('loopHandoverAt: the handover is the deck\'s own clock, not the graph\'s', () => {
-  // deck at 12.0 s of music at context time 100.0; a 2 s loop that began at 11.5
-  assert.ok(Math.abs(S.loopHandoverAt(100, 12, 11.5, 2, 1) - 101.5) < 1e-9);
-  // half a loop already gone by → half a loop of real time left
-  assert.ok(Math.abs(S.loopHandoverAt(100, 12.5, 11.5, 2, 1) - 101) < 1e-9);
-  // at double speed the same music arrives in half the time
-  assert.ok(Math.abs(S.loopHandoverAt(100, 12, 11.5, 2, 2) - 100.75) < 1e-9);
-  assert.ok(Math.abs(S.loopHandoverAt(100, 12, 11.5, 2, 0) - 101.5) < 1e-9, 'a zero rate is 1×');
-});
-
-test('loopLateHandover: miss it and take another lap — never land late', () => {
-  const len = 2, lead = 0.03;
-  // comfortably in time → untouched
-  assert.equal(S.loopLateHandover(101.5, 101.0, len, lead), 101.5);
-  assert.equal(S.loopLateHandover(101.5, 101.47, len, lead), 101.5, 'right on the deadline still stands');
-  /* PAST IT → a WHOLE loop later, so the in-point stays exactly where it was on
-     the grid. Pushing by anything else would move the phrase, which is the one
-     thing a loop may never do. */
-  const a = S.loopLateHandover(101.5, 101.48, len, lead);
-  assert.ok(Math.abs(a - 103.5) < 1e-9, 'one lap, got ' + a);
-  const b = S.loopLateHandover(101.5, 106.2, len, lead);   // a very bad stall
-  assert.ok(Math.abs(b - 107.5) < 1e-9, 'three laps, got ' + b);
-  assert.ok(b > 106.2, 'and the answer is always still in the future');
-  for (let n = 1; n < 40; n++){
-    const now = 101.5 + n * 0.37;
-    const at = S.loopLateHandover(101.5, now, len, lead);
-    assert.ok(at - now >= lead - 1e-9, 'always leaves time to cut, at n=' + n);
-    assert.ok(Math.abs(((at - 101.5) / len) - Math.round((at - 101.5) / len)) < 1e-9,
-      'always a whole number of loops on, at n=' + n);
-  }
-});
-
 test('loopHeadBlend: the buffer starts on the audio that really did follow', () => {
   const n = 64;
   const a = S.loopHeadBlend(0, n);
@@ -6953,53 +6925,7 @@ test('the generalized doctor holds every shipped pack to the golden contract', a
   });
 }
 
-// ---------------------------------------------------------------- the tape tears, the deck is asked
-test('tapeTearStep: jitter is not a tear, a stall that drains is not a tear, a drop that stays is', () => {
-  const B = 4096, SR = 44100, w = S.makeTearWatch();
-  let at = 0, ct = 0, tears = [];
-  // an ordinary event: one block of tape, one block of clock
-  const step = lag => { const r = S.tapeTearStep(w, lag, at, ct, B); at += B; ct += B / SR; if (r != null) tears.push(r); };
-  // a burst event: one block of tape at a FROZEN clock (a backlog draining)
-  const burst = lag => { const r = S.tapeTearStep(w, lag, at, ct, B); at += B; if (r != null) tears.push(r); };
-  const jit = [0.2, 0.6, 0.1, 0.9, 0.3, 0.7, 0.05, 0.5, 0.4, 0.8, 0.2, 0.3];
-  for (let i = 0; i < 60; i++) step(B * (0.3 + jit[i % jit.length]));
-  assert.deepEqual(tears, [], 'ordinary jitter never tears the tape');
-  // a five-second stall: fifty-four blocks queue, then drain one per event at one clock time
-  ct += 5.0;
-  for (let k = 54; k >= 0; k--) burst(B * (k + 0.4));
-  for (let i = 0; i < 60; i++) step(B * (0.3 + jit[i % jit.length]));
-  assert.deepEqual(tears, [], 'a backlog that drains is not a hole, however long the stall');
-  // a real drop: two blocks never arrive, so the lag rises by two and stays while the clock runs
-  const dropAt = at;
-  for (let i = 0; i < 12; i++) step(B * (2.3 + jit[i % jit.length]));
-  assert.equal(tears.length, 1, 'one tear');
-  assert.ok(Math.abs(tears[0] - dropAt) <= B, 'placed where the rise began (a jitter block early is fine): ' + tears[0] + ' vs ' + dropAt);
-  assert.ok(w.base > B * 2, 'the floor moved up to the new lag');
-  for (let i = 0; i < 40; i++) step(B * (2.3 + jit[i % jit.length]));
-  assert.equal(tears.length, 1, 'the same jitter at the new floor is not another tear');
-  const drop2 = at;
-  for (let i = 0; i < 12; i++) step(B * (3.4 + jit[i % jit.length]));
-  assert.equal(tears.length, 2); assert.ok(Math.abs(tears[1] - drop2) <= B);
-  assert.equal(S.tapeTearStep(null, 1, 0, 0, B), null, 'no watch, no tear');
-  assert.equal(S.tapeTearStep(S.makeTearWatch(), NaN, 0, 0, B), null, 'a broken reading is ignored');
-});
-test('tapeTearSilent: a block of exact zeros is a tear on its face; the quietest music is not', () => {
-  const z = new Float32Array(4096);
-  assert.equal(S.tapeTearSilent(z, 4096), true);
-  z[2000] = 1e-5;
-  assert.equal(S.tapeTearSilent(z, 4096), false, 'one sample of anything and it is music');
-  assert.equal(S.tapeTearSilent(null, 4096), false);
-  assert.equal(S.tapeTearSilent(z, 0), false);
-});
-test('ringTornIn: a cut is refused only when a tear falls strictly inside it', () => {
-  assert.equal(S.ringTornIn([], 100, 50), false);
-  assert.equal(S.ringTornIn([120], 100, 50), true, 'inside');
-  assert.equal(S.ringTornIn([100], 100, 50), false, 'a join right before the first sample is not in the cut');
-  assert.equal(S.ringTornIn([150], 100, 50), false, 'a join right after the last sample is not in the cut');
-  assert.equal(S.ringTornIn([10, 99, 151, 900], 100, 50), false, 'all around, none within');
-  assert.equal(S.ringTornIn([10, 149], 100, 50), true);
-  assert.equal(S.ringTornIn(null, 100, 50), false);
-});
+// ---------------------------------------------------------------- the deck is asked
 test('loopDeckReady: real data and buffered bytes across the window, or not ready', () => {
   const ranges = arr => ({ length: arr.length, start: i => arr[i][0], end: i => arr[i][1] });
   assert.equal(S.loopDeckReady(4, ranges([[0, 30]]), 12, 0.4), true);
@@ -10154,7 +10080,8 @@ await Promise.all(pending);
   test('wave deck time: under a tape loop the needle shows the loop\'s audible position; a roll and a free deck keep the deck\'s own time', () => {
     const L = { on: true, mode: 'loop', start: 20, len: 0.5, handAt: 10, deckRate: 1 };
     assert.ok(Math.abs(S.waveDeckTime(99, L, 11.3) - 20.3) < 1e-9, '1.3 s after the handover: 0.3 into the loop');
-    assert.ok(Math.abs(S.waveDeckTime(99, Object.assign({}, L, { deckRate: 1.03 }), 11.3) - (20 + (0.3 * 1.03) % 0.5)) < 1e-9, 'at the tape\'s rate: the phase scaled by the rate the tape was cut at');
+    // a deck at 1.03× plays the loop's half second of music in 0.485 s: the phase runs at the deck's rate and wraps on the music
+    assert.ok(Math.abs(S.waveDeckTime(99, Object.assign({}, L, { deckRate: 1.03 }), 11.3) - (20 + (1.3 * 1.03) % 0.5)) < 1e-9, 'at the deck\'s rate: the phase runs at the rate the tape was cut at, and wraps on the music');
     assert.ok(Math.abs(S.waveDeckTime(99, L, 9) - 20) < 1e-9, 'before the handover is audible: the in-point');
     assert.equal(S.waveDeckTime(99, Object.assign({}, L, { mode: 'roll' }), 11.3), 99, 'a roll runs on underneath');
     assert.equal(S.waveDeckTime(99, Object.assign({}, L, { on: false }), 11.3), 99, 'no loop, the deck');
@@ -11787,6 +11714,219 @@ test('fxAutoStep: a decision a bar, hysteresis on the line, two bars held, eight
   assert.equal(S.fxAutoPick({ ...base, phase: 'break', energy: 0.4, barsIn: 1 }), 'reverb', 'a break\'s first bars are a wash');
   assert.equal(S.fxAutoPick({ ...base, phase: 'break', energy: 0.4, barsIn: 3 }), 'none', '…and only its first bars');
 });
+test('fxAutoStep: an ear that has not settled decides nothing — the bar is not spent, and the seam echo is never held', () => {
+  /* an iPhone's take: the graph's analyser becomes the room's ear on a downbeat, with the
+     band followers still carrying the score's hotter reading (1.0 there, where the analyser
+     itself never reads above 0.83) — the step that read it dealt a GATE onto the master
+     the instant the decks joined */
+  const base = { ceil: 0.56, act: 2, phase: 'peak', bar: 1.94, toSeam: null };
+  const st0 = S.makeFxAuto();
+  assert.ok(S.FX_AUTO.earSec >= 6 * 0.08, 'six of the slowest band follower\'s time constants (0.08 s) at least');
+  const held = S.fxAutoStep(st0, { ...base, energy: 1, earFor: 0.017 }, 0.005, 1.005);
+  assert.ok(!held.change && held.unit === 'none', 'the carried-over reading deals nothing');
+  assert.equal(held.st.bar, st0.bar, '…and does not spend the bar');
+  // settled inside the same first quarter: the decision is taken then, on the ear's own reading
+  const settled = S.fxAutoStep(held.st, { ...base, energy: 0.83, earFor: 0.5 }, 0.2, 1.2);
+  assert.ok(settled.change === false && settled.st.bar === 1, 'the analyser\'s 0.83 is no peak to gate: a decision, for silence');
+  const earned = S.fxAutoStep(held.st, { ...base, energy: 0.95, earFor: 0.6 }, 0.2, 1.2);
+  assert.ok(earned.change && earned.unit === 'gate', 'a peak the ear itself hears is still the gate\'s');
+  // the hand-off echo reads the mixer's arithmetic, not the ear
+  const seam = S.fxAutoStep(st0, { ...base, energy: 0.4, earFor: 0.05, toSeam: 1.2 }, 0.01, 7.01);
+  assert.ok(seam.change && seam.unit === 'echo', 'the seam comes once: its echo is never held');
+  // no ear reported (the old callers, the tests above): the step is what it always was
+  assert.ok(S.fxAutoStep(st0, { ...base, energy: 1 }, 0.005, 1.005).change);
+  // ONLY A BEGINNING IS HELD: a unit up winds down on an unsettled ear (a hidden tab's ceiling of zero settles no ear)
+  for (const unit of ['gate', 'echo', 'filter', 'reverb']){
+    const up = Object.assign(S.makeFxAuto(), { unit, since: 100, gateAt: 100, bar: 120 });
+    const down = S.fxAutoStep(up, { ...base, ceil: 0, energy: 0.9, earFor: 0 }, 0.05, 121.05);
+    assert.ok(down.change && down.unit === 'none', unit + ' up, ceil 0, ear unsettled: it ends, got ' + JSON.stringify(down));
+    assert.equal(down.st.bar, 121, '…and that bar is spent');
+  }
+  // the gate's four bars are an ending too
+  const gate4 = Object.assign(S.makeFxAuto(), { unit: 'gate', since: 100, gateAt: 100, bar: 103 });
+  const g4 = S.fxAutoStep(gate4, { ...base, energy: 1, earFor: 0.1 }, 0.05, 104.05);
+  assert.ok(g4.change && g4.unit === 'none', 'the gate lets go after its four bars, settled ear or not');
+  // a change of mind that would START another unit only ends the one up (an ending); the new one waits for the ear
+  const filt = Object.assign(S.makeFxAuto(), { unit: 'filter', since: 100, bar: 110 });
+  const swap = S.fxAutoStep(filt, { ...base, energy: 1, earFor: 0.1 }, 0.05, 111.05);
+  assert.ok(swap.change && swap.unit === 'none', 'the filter ends; the gate is not dealt on the carried-over reading');
+  // a unit up that the hot reading would keep: nothing changes, and the bar is not spent
+  const keep = S.fxAutoStep(Object.assign(S.makeFxAuto(), { unit: 'gate', since: 200, gateAt: 200, bar: 200 }), { ...base, energy: 1, earFor: 0.1 }, 0.05, 201.05);
+  assert.ok(!keep.change && keep.unit === 'gate' && keep.st.bar === 200, 'held up, unspent');
+  // the ear's clock: reset whenever the rack is not live, and a hidden tab's coarse tick (no analyse()) settles nothing
+  const at = html.indexOf('  autoTick(dt){\n    /* how long the analyser');
+  assert.ok(at > 0, 'FX.autoTick keeps the ear\'s clock');
+  const head = html.slice(at, at + 700);
+  assert.match(head, /this\._earFor = this\.live\(\) \? /, 'the clock resets when the rack is not live');
+  assert.match(head, /!document\.hidden/, 'a hidden tick runs no analyse(), so it adds no settled time');
+  // a hop to AirPlay releases the rack: no gesture outlives the graph it was written on
+  const sd = html.indexOf('  async setDirect(direct){');
+  assert.ok(sd > 0);
+  const sdBody = html.slice(sd, sd + 3000);
+  assert.match(sdBody, /if \(direct && typeof FX !== 'undefined'\) try \{ FX\.leaveGraph\(\); \} catch \(e\)\{\}/, 'setDirect(true) lets go what is held and the room\'s gesture');
+  assert.ok(!/FX\.release\(/.test(sdBody.slice(0, sdBody.indexOf('AE.xfading = false;'))), '…and does not release the rack: the hand\'s channel filter and rack come home with the graph (airplay_probe)');
+});
+test('FX.letGoTail: a held hand-off tail never outlives the graph — setDirect(true) and its own timer both let it go', () => {
+  /* the real FX object in a sandbox: the @fx block and `const FX = {…};`, with the
+     audio graph stubbed down to params that record their writes */
+  const L = html.split('\n');
+  const f0 = L.findIndex(l => l.includes('// @fx-start')), f1 = L.findIndex(l => l.includes('// @fx-end'));
+  const o0 = L.findIndex(l => l.startsWith('const FX = {')); let o1 = o0; while (L[o1] !== '};') o1++;
+  const make = () => {
+    const timers = [], P = {};
+    const prm = (n, v) => (P[n] = { value: v, writes: [] });
+    const gn = n => ({ gain: prm(n, n === 'gate' ? 1 : 0) });
+    const AE = {
+      graphLive: true, ctx: { currentTime: 100, sampleRate: 48000 }, active: 0,
+      decks: [{ a: { playbackRate: 1 } }, { a: { playbackRate: 1 } }],
+      fx: { lp: { frequency: prm('lp', 0), Q: prm('lpQ', 0) }, hp: { frequency: prm('hp', 0), Q: prm('hpQ', 0) }, gate: gn('gate'),
+        send: gn('send'), fb: gn('fb'), fbX: gn('fbX'), wet: gn('wet'), rvSend: gn('rvSend'), rvWet: gn('rvWet'),
+        insWet: gn('insWet'), insDry: gn('insDry'), eqLo: gn('eqLo'), eqMid: gn('eqMid'), eqHi: gn('eqHi'), inL: gn('inL'), inR: gn('inR'),
+        hpLoop: { frequency: prm('hpLoop', 0) }, lpLoop: { frequency: prm('lpLoop', 0) }, units: {}, insert: '', rvOn: false },
+      f: { bpm: 120 },
+    };
+    const ctx = {
+      AE, console, Math, Object, JSON, Array, Number, isFinite, Float32Array,
+      setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearTimeout: () => {}, setInterval: () => 1, clearInterval: () => {},
+      DECKS: { gainWrite: (p, v) => { if (v != null){ p.writes.push(v); p.value = v; } }, hand(){}, pitch: () => 1, handSlot: () => 0 },
+      CLOCK: { haveGrid: true, bpm: 120, grid: 0 }, LOOPER: { cancel(){}, engaged: () => false },
+      VINYL: { drop(){} }, MIXER: { phase: 'running' }, SPEED: { rate: 1 }, deckRate: r => r, activeDeck: () => AE.decks[0],
+      syncFxHud(){}, FXPADS: { paint(){} }, document: { hidden: false },
+      ECHO_HOLD_FB: S.ECHO_HOLD_FB != null ? S.ECHO_HOLD_FB : 0.94, DEBUG: false, clamp01: x => Math.max(0, Math.min(1, x)),
+      ramp: (p, v) => { if (p && v != null){ p.writes.push(v); p.value = v; } },
+    };
+    vm.createContext(ctx);
+    vm.runInContext(L.slice(f0 + 1, f1).join('\n').replace(/^const /gm, 'var ').replace(/^let /gm, 'var ')
+      + '\n' + L.slice(o0, o1 + 1).join('\n').replace(/^const FX = /, 'var FX = '), ctx);
+    const FX = ctx.FX;
+    FX._echoTime = () => {};
+    // the performer's echo is up at a seam, and the seam commits: the tail is held, its timer armed
+    FX.auto = true; FX.unit = 'echo'; FX.amount = 0.65; FX.wet = 0.55; FX._autoSt = Object.assign(ctx.makeFxAuto(), { unit: 'echo' });
+    P.send.value = 0.5; P.fb.value = 0.4; P.fbX.value = 0.4; P.wet.value = 0.3;
+    FX.release({ keepPlatters: true });
+    assert.ok(FX._tailHold && FX.hold, 'the seam holds the tail');
+    return { FX, AE, P, timers };
+  };
+  // 1. a hop to AirPlay inside the two bars: setDirect(true) lets the tail go while the graph can still be written
+  {
+    const { FX, AE, P, timers } = make();
+    FX.leaveGraph(); AE.graphLive = false;   // setDirect(true)
+    assert.ok(!FX._tailHold && !FX.hold, 'the hold is let go before the graph goes');
+    for (const k of ['send', 'fb', 'fbX', 'wet']) assert.equal(P[k].value, 0, k + ' parked, not left ringing at the hold');
+    timers.forEach(t => t.fn());                                  // the old timer fires later: nothing to do, nothing thrown
+    AE.graphLive = true; FX.release(); FX.set('echo', 0.65, 0.55);
+    assert.ok(P.send.value > 0, 'back from AirPlay, the next echo is fed (was 0: the HOLD survived the round trip)');
+  }
+  // 2. the graph goes some other way first: the tail's own timer still lets everything go
+  {
+    const { FX, AE, P, timers } = make();
+    AE.graphLive = false;
+    timers.forEach(t => t.fn());
+    assert.ok(!FX._tailHold && !FX.hold, 'the timer clears the hold with the graph down (echoHold could not)');
+    for (const k of ['send', 'fb', 'fbX', 'wet']) assert.equal(P[k].value, 0, k + ' parked by the timer');
+  }
+  // 3. the room's unit goes with the graph; the hand's stays (it comes home with the graph, like its channel filter)
+  {
+    const { FX, AE } = make();
+    FX.letGoTail();
+    FX.set('gate', 0.6); FX._autoSt = Object.assign(FX._autoSt, { unit: 'gate' }); FX._autoUnit = 'gate';
+    FX.leaveGraph(); AE.graphLive = false;
+    assert.equal(FX.unit, '', 'the performer\'s gate is parked before the graph goes');
+    AE.graphLive = true;
+    FX.set('echo', 0.5, 0.5);
+    FX.leaveGraph(); AE.graphLive = false;
+    assert.equal(FX.unit, '', 'a hand\'s echo parks too: an effect plays in time with the graph the hop takes away');
+    AE.graphLive = true;
+    FX.set('filter', 0.25);
+    FX.leaveGraph(); AE.graphLive = false;
+    assert.ok(FX.unit === 'filter' && FX.amount === 0.25, 'the hand\'s FILTER is its channel filter: it comes home (airplay_probe)');
+  }
+  // 4. a hand's own HOLD (no hand-off tail): leaving the graph lets it go too — a frozen loop has nowhere to be heard but the device
+  {
+    const { FX, AE, P } = make();
+    FX.letGoTail();
+    FX.set('echo', 0.65, 0.55); FX.echoHold(true);
+    assert.ok(FX.hold && !FX._tailHold && P.fbX.value + P.fb.value > 0.9, 'a hand\'s HOLD is up');
+    FX.leaveGraph(); AE.graphLive = false;
+    assert.ok(!FX.hold, 'the hand\'s HOLD lets go before the graph goes');
+    assert.ok(P.fb.value < 0.9 && P.fbX.value < 0.9, 'the loop is no longer frozen');
+  }
+  // 5. …and where the graph went with no exit run (a route that skipped leaveGraph), the next FX.release() still lets it go
+  {
+    const { FX, AE, P } = make();
+    FX.letGoTail();
+    FX.set('echo', 0.65, 0.55); FX.echoHold(true);
+    AE.graphLive = false;
+    FX.release();
+    assert.ok(!FX.hold && !FX._tailHold, 'release() with the graph down clears the hold (it used to return first)');
+    for (const k of ['send', 'fb', 'fbX', 'wet']) assert.equal(P[k].value, 0, k + ' parked');
+  }
+  // 6. ACROSS AN AIRPLAY HOP nothing comes home a ghost: the hand's gate parks open as the graph leaves…
+  {
+    const { FX, AE, P } = make();
+    FX.letGoTail(); FX.auto = false;
+    FX.set('gate', 0.6); P.gate.value = 0.001;                   // mid-slice, on the gate's floor
+    FX.leaveGraph(); AE.graphLive = false;
+    assert.ok(FX.unit === '' && P.gate.value === 1, 'the hand\'s gate is parked open before the graph goes (it came home on a stale grid, or on its floor)');
+  }
+  // …and anything still set when a release comes with the graph down is parked by it, not left on the node
+  {
+    const { FX, AE, P } = make();
+    FX.letGoTail();
+    FX.set('filter', 0.25); AE.graphLive = false; P.gate.value = 0.001;
+    FX.release();
+    assert.equal(P.gate.value, 1, 'release() with the graph down parks the rack (it used to return before FX_PARK)');
+  }
+  {
+    const { FX, AE, P } = make();
+    FX.letGoTail();
+    FX.set('echo', 0.6, 0.6); P.eqLo.value = -40; FX.eq.lo = -40; AE.decks[0]._fxHand = { lp: 400 };
+    FX.leaveGraph(); AE.graphLive = false;
+    FX.release();
+    for (const k of ['send', 'wet']) assert.equal(P[k].value, 0, 'echo ' + k + ' parked');
+    assert.equal(P.eqLo.value, 0, 'the EQ kill is parked with the graph down');
+    assert.equal(AE.decks[0]._fxHand, null, 'the deck filter\'s hand is let go');
+  }
+  // the EQ is written with the graph down: a kill lifted while away is lifted on the node
+  {
+    const { FX, AE, P } = make();
+    FX.letGoTail();
+    FX.eq.lo = -36; FX.applyEq();
+    FX.leaveGraph(); AE.graphLive = false;
+    assert.equal(P.eqLo.value, -36, 'the EQ is a mixer setting: it crosses the hop');
+    FX.eq.lo = 0; FX.applyEq();
+    assert.equal(P.eqLo.value, 0, 'lifted while the decks play direct, it is lifted on the node (it came home stuck at -36 under flat pads)');
+  }
+  // a brake in flight leaves no air on the deck when the graph goes
+  {
+    const { FX, AE } = make();
+    FX.letGoTail();
+    FX.brakeT = 0.3; FX._brakeDeck = AE.decks[0]; AE.decks[0]._fxBrake = 5070;
+    FX.leaveGraph(); AE.graphLive = false;
+    assert.ok(FX.brakeT === -1 && AE.decks[0]._fxBrake === 0, 'the brake ends and its lowpass goes with it (the new deck\'s filter closed to 5070)');
+  }
+  // a touch on the rack with the graph down turns the unit off, nodes and all
+  {
+    const { FX, AE, P } = make();
+    FX.letGoTail();
+    FX.set('gate', 0.6); AE.graphLive = false; P.gate.value = 0.001;
+    FX.set('', 0);
+    assert.ok(FX.unit === '' && P.gate.value === 1, 'set() with the graph down parks the unit it turns off');
+  }
+  // the room deals nothing into a graph that is leaving (an iPhone's hand-back)
+  assert.match(html, /const leaving = typeof DECKROUTE !== 'undefined' && DECKROUTE\.phase === 'giving';\s*const busy = [^;]*\|\| leaving;/, 'FX.autoTick stands down while DECKROUTE is giving');
+  assert.match(html, /d\._fxBrake = 0;\s*\/\/ graph or no graph/, 'brakeTick clears the brake\'s air whether or not the graph is live');
+  // the exits call it, in that order
+  const sd = html.indexOf('  async setDirect(direct){');
+  assert.match(html.slice(sd, sd + 3000), /if \(direct && typeof FX !== 'undefined'\) try \{ FX\.leaveGraph\(\); \} catch \(e\)\{\}/, 'setDirect(true)');
+  const ro = html.indexOf('  _resolveOne(){');
+  assert.match(html.slice(ro, ro + 600), /FX\.leaveGraph\(\); FX\.release\(\);/, 'DECKROUTE._resolveOne (the iPhone hand-back)');
+  const fg = html.indexOf('  _finishGive(){');
+  const fgBody = html.slice(fg, fg + 3200);
+  const fgAt = fgBody.indexOf('FX.leaveGraph(); FX.release();'), offAt = fgBody.indexOf('AE.graphLive = false;');
+  assert.ok(fgAt > 0 && offAt > fgAt, 'DECKROUTE._finishGive (every way to direct, the emergency included) lets the rack go before the graph does');
+  assert.ok(fgBody.indexOf("this.phase = 'graph'; this._gv = null;") < fgAt, '…after the backstop that keeps the graph live has had its say');
+});
 test('fxAutoSweep: a build earns a highpass up to the vocals, over the bars it has left, let go a beat before the drop', () => {
   const s = S.fxAutoSweep(16, 120, 0.9);
   assert.ok(s.hzTop >= 900 && s.hzTop <= 1400, 'the top sits under the vocals, got ' + s.hzTop);
@@ -11929,15 +12069,16 @@ test('the decks in the player: slots by identity, the restore onto the idle deck
   assert.ok(decks.includes("this.load(this.idle(), t, { at: r.cue, by: 'restore' });"), 'R10: the hand\'s record returns to the idle deck');
   assert.ok(!decks.includes('const slot = r.slot === 1 ? 1 : 0;'), 'R10: the saved letter is not where it goes');
   assert.ok(decks.includes('if (!cued) s.cue = 0;'), 'R29: a transport start cues the record at its top');
-  assert.ok(decks.includes('try { if (d.a.playbackRate !== SPEED.rate) d.a.playbackRate = SPEED.rate; } catch (e){}\n    setPitchLock(d.a, SPEED.keyLock);'),
+  // (through deckRate, the one door every deck rate passes: on an iPhone with the decks in the graph it holds 1×)
+  assert.ok(decks.includes('{ const r = deckRate(SPEED.rate); try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){} }\n    setPitchLock(d.a, SPEED.keyLock);'),
     'R13: the element follows the slot it resets');
   const mixer = html.slice(html.indexOf('const MIXER = {'), html.indexOf('/* hidden tabs get no rAF'));
   assert.ok(mixer.includes("this._pA = (typeof DECKS !== 'undefined') ? DECKS.pitch(AE.active) : 1;"), 'R13: the on-air pitch is read at fire');
-  assert.ok(mixer.includes('od.a.playbackRate = this._lastRateA = g.rateA * k * SPEED.rate;') && mixer.includes('nd.a.playbackRate = this._lastRateB = g.rateB * k * SPEED.rate;'), 'R13: fire carries it');
-  assert.ok(mixer.includes('k = seamPitchCarry(this._pA, f);') && mixer.includes('const rA = g.rateA * k * SPEED.rate, rB = g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate;'), 'R13: the glide carries it home');
+  assert.ok(mixer.includes('od.a.playbackRate = this._lastRateA = deckRate(g.rateA * k * SPEED.rate);') && mixer.includes('nd.a.playbackRate = this._lastRateB = deckRate(g.rateB * k * SPEED.rate);'), 'R13: fire carries it');
+  assert.ok(mixer.includes('k = seamPitchCarry(this._pA, f);') && mixer.includes('const rA = deckRate(g.rateA * k * SPEED.rate), rB = deckRate(g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate);'), 'R13: the glide carries it home');
   assert.equal((mixer.match(/this\._lastRateA = this\._lastRateB = 1; this\._pA = 1;/g) || []).length, 2, 'R13: finish and cancel let it go');
   assert.ok(mixer.includes('const fresh = ws.rec !== had;') && mixer.includes('if (fresh){ const mB = mixOf(B); ws.cue = (mB && mB.in && mB.in.start) || 0; }'), 'R29: the auto-DJ\'s record gets its own cue');
-  assert.ok(mixer.includes('if (fresh && nd.a.paused){\n      try { if (nd.a.playbackRate !== SPEED.rate) nd.a.playbackRate = SPEED.rate; } catch (e){}\n      setPitchLock(nd.a, SPEED.keyLock);'),
+  assert.ok(mixer.includes('if (fresh && nd.a.paused){\n      { const r = deckRate(SPEED.rate); try { if (nd.a.playbackRate !== r) nd.a.playbackRate = r; } catch (e){} }\n      setPitchLock(nd.a, SPEED.keyLock);'),
     'R13: a new record on the idle deck plays at the listener\'s rate, never a retired match');
   assert.ok(decks.includes('if (retired != null && retired >= 0){ r.trackIdx = retired; r.pitch = 1; r.synced = false; }'), 'R13: the retired deck\'s sync retires with it');
   assert.ok(decks.includes('onPlayIndex(newIdx, retired, fadeDur, cued, idx){') && decks.includes('if (idx != null && idx >= 0) s.trackIdx = idx;'), 'R13: the on-air slot names the record it plays');
@@ -11977,6 +12118,607 @@ test('the armed seam holds its record: MIXER.next is read through the queue as i
   const pl = html.slice(html.indexOf('  playNext(i){'), html.indexOf('  remove(i){'));
   assert.ok(pl.includes("_upNextReplan(){\n    if (typeof MIXER !== 'undefined' && MIXER.phase === 'armed') MIXER.cancel('replan');"));
   assert.equal((pl.match(/this\._upNextReplan\(\);/g) || []).length, 2, 'play-next and queue-next both re-plan');
+});
+
+// ---------------------------------------------------------------- the deck tape: the loop on the audio thread
+/* A DECK THAT CAN BE CHECKED SAMPLE BY SAMPLE. The input at context frame f is
+   the song at frame f − lag (lag moves only when the deck seeks), a waveform
+   with no period anywhere near a loop's, so any frame of output names exactly
+   which moment of the song it came from — and a splice, a hole or a lap of the
+   wrong length cannot hide. Run in 128-frame blocks, as the audio thread does. */
+const TAPE_SR = 8000;
+// rounded to what a Float32Array holds, so a frame passed through untouched compares exactly
+const song = m => Math.fround(0.5 * Math.sin(m * 0.0123) + 0.3 * Math.sin(m * 0.00071 + 1) + 0.1 * Math.sin(m * 0.0517));
+const tapeOpen = (cap) => {
+  const T = S.makeLoopTape(TAPE_SR);
+  S.loopTapeCommand(T, { op: 'open', L: new Float32Array(cap), R: new Float32Array(cap) });
+  return T;
+};
+// run `blocks` blocks from frame f0; deck(f) gives the input; returns { out, outR, f } with out indexed from f0
+const tapeRun = (T, deck, f0, blocks, onBlock) => {
+  const n = 128, out = [], outR = [];
+  for (let b = 0; b < blocks; b++){
+    const f = f0 + b * n;
+    if (onBlock) onBlock(f, T);
+    const inL = new Float32Array(n), inR = new Float32Array(n), oL = new Float32Array(n), oR = new Float32Array(n);
+    for (let i = 0; i < n; i++){ inL[i] = deck(f + i); inR[i] = -inL[i]; }
+    S.loopTapeProcess(T, inL, inR, oL, oR, n, f);
+    for (let i = 0; i < n; i++){ out.push(oL[i]); outR.push(oR[i]); }
+  }
+  return { out, outR, f: f0 + blocks * 128 };
+};
+// what the loop should be playing at position p: the song at A+p, the head blended with what followed the out-point
+const loopWant = (A, N, xn, p) => {
+  if (p >= xn) return song(A + p);
+  const w = S.loopHeadBlend(p, xn);
+  return song(A + p) * w.head + song(A + N + p) * w.tail;
+};
+
+test('deck tape: the loop takes over at A+N on the very frame, every lap is the first pass, and the join is the sample that followed', () => {
+  const T = tapeOpen(4 * TAPE_SR), f0 = 100000;
+  const pre = tapeRun(T, song, f0, 10);
+  assert.ok(pre.out.every((v, i) => v === song(f0 + i)), 'unarmed, the deck goes through untouched');
+  assert.equal(T.rec0, f0, 'the tape\'s continuous past starts at the first block it heard');
+  const A = f0 + 300, N = 1000, H = A + N;                // an in-point already behind the playhead
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 7 });
+  assert.equal(T.mode, 'armed');
+  const xn = S.tapeXfade(N, TAPE_SR);
+  assert.equal(xn, 96, 'a 12 ms blend at 8 kHz');
+  const r = tapeRun(T, song, pre.f, 80);
+  let worst = 0, before = true;
+  for (let i = 0; i < r.out.length; i++){
+    const f = pre.f + i;
+    const want = f < H ? song(f) : loopWant(A, N, xn, (f - H) % N);
+    worst = Math.max(worst, Math.abs(r.out[i] - want));
+    if (f < H && r.out[i] !== song(f)) before = false;
+  }
+  assert.ok(before, 'until the out-point the room hears the deck itself — the pass the loop is being cut from');
+  assert.ok(worst < 1e-6, 'from the out-point on, every frame is the loop it should be, lap after lap: worst ' + worst);
+  assert.equal(r.out[H - pre.f], song(H), 'the first frame of the loop IS the frame the deck was about to play');
+  // the period IS the period: the output repeats every N frames, exactly, forever
+  let period = 0;
+  for (let i = H - pre.f + N; i < r.out.length; i++) period = Math.max(period, Math.abs(r.out[i] - r.out[i - N]));
+  assert.ok(period < 1e-7, 'the cycle is N frames and not one frame more: ' + period);
+  // and no lap is a step the song itself does not take
+  let songStep = 0, wrapStep = 0;
+  for (let m = A; m < A + 2 * N; m++) songStep = Math.max(songStep, Math.abs(song(m + 1) - song(m)));
+  for (let k = 0; H + k * N < pre.f + r.out.length; k++){ const i = H + k * N - pre.f; if (i > 0) wrapStep = Math.max(wrapStep, Math.abs(r.out[i] - r.out[i - 1])); }
+  assert.ok(wrapStep <= songStep * 1.05, 'every wrap is a step the music already contains: ' + wrapStep.toFixed(4) + ' vs ' + songStep.toFixed(4));
+  assert.ok(r.outR.every((v, i) => Math.abs(v + r.out[i]) < 1e-6), 'both channels, each its own');
+  assert.equal(T.mode, 'loop'); assert.ok(T.laps >= 7, 'and it kept going: ' + T.laps + ' laps');
+});
+
+test('deck tape: an out-point already gone by is entered at once, at the grid\'s phase, crossed over from the deck', () => {
+  const T = tapeOpen(4 * TAPE_SR), f0 = 50000;
+  const pre = tapeRun(T, song, f0, 30);                     // 3840 frames of tape
+  const N = 200, A = pre.f - 700, H = A + N;                // a tiny loop whose out-point is 500 frames behind
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 1 });
+  const r = tapeRun(T, song, pre.f, 10);
+  const xn = S.tapeXfade(N, TAPE_SR), ramp = Math.round(S.TAPE_RAMP * TAPE_SR);
+  assert.equal(T.mode, 'loop', 'it took the loop in the very next block');
+  // the phase is the grid's: (f − H) mod N, exactly as if it had taken over on time
+  let worst = 0;
+  for (let i = ramp + 2; i < r.out.length; i++) worst = Math.max(worst, Math.abs(r.out[i] - loopWant(A, N, xn, (pre.f + i - H) % N)));
+  assert.ok(worst < 1e-6, 'after the crossover, the loop on the grid\'s phase: ' + worst);
+  // …and the crossover is a crossover, not a cut: half way through it is half of each
+  const h = Math.round(ramp / 2), u = h / ramp;
+  const mix = song(pre.f + h) * (1 - u) + loopWant(A, N, xn, (pre.f + h - H) % N) * u;
+  assert.ok(Math.abs(r.out[h] - mix) < 0.03, 'half way through the crossover, half of each');
+  assert.ok(Math.abs(r.out[0] - song(pre.f)) < 0.05, 'and it starts from the deck');
+});
+
+test('deck tape: a cut the tape does not hold is refused and says so; a loop longer than the tape is refused at once', () => {
+  const T = tapeOpen(2 * TAPE_SR), f0 = 200000;
+  const pre = tapeRun(T, song, f0, 4);
+  S.loopTapeCommand(T, { op: 'arm', A: f0 - 2000, N: 2400, gen: 3 });   // its in-point is before the tape started
+  const r = tapeRun(T, song, pre.f, 6);
+  assert.equal(T.mode, 'pass', 'refused');
+  assert.equal(T.refusedGen, 3, 'and it says which loop');
+  assert.equal(T.why, 'tape');
+  assert.ok(r.out.every((v, i) => v === song(pre.f + i)), 'and the deck never stopped being what was heard');
+  S.loopTapeCommand(T, { op: 'arm', A: pre.f, N: 2 * TAPE_SR, gen: 4 });  // a loop as long as the tape
+  assert.equal(T.mode, 'pass'); assert.equal(T.refusedGen, 4); assert.equal(T.why, 'length');
+  assert.equal(S.tapeFits(2 * TAPE_SR, 2 * TAPE_SR, TAPE_SR), false);
+  assert.equal(S.tapeFits(TAPE_SR, 2 * TAPE_SR, TAPE_SR), true);
+  const closed = S.makeLoopTape(TAPE_SR);
+  S.loopTapeCommand(closed, { op: 'arm', A: 0, N: 100, gen: 5 });
+  assert.equal(closed.refusedGen, 5, 'no tape at all: refused, never a loop of nothing');
+});
+
+test('deck tape: letting go is a crossfade on the frame asked for, to the deck, from the loop still playing under it', () => {
+  const T = tapeOpen(4 * TAPE_SR), f0 = 300000;
+  const pre = tapeRun(T, song, f0, 20);
+  const A = pre.f - 500, N = 800, H = A + N, xn = S.tapeXfade(N, TAPE_SR), ramp = Math.round(S.TAPE_RAMP * TAPE_SR);
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 1 });
+  // the deck runs on under the loop; the handback seeks it back to where the loop is (here: the song at loop phase)
+  const X = H + 3 * N + 300;
+  const deck = f => f < X ? song(f) : song(A + ((f - H) % N));   // put back exactly where the loop will be
+  // the exit is asked once the loop is audible, for a frame still ahead — as the handback asks it
+  const r = tapeRun(T, deck, pre.f, 50, f => { if (f >= H + N && f < H + N + 128) S.loopTapeCommand(T, { op: 'exit', at: X }); });
+  for (let i = 0; i < r.out.length; i++){
+    const f = pre.f + i;
+    if (f >= H && f < X) assert.ok(Math.abs(r.out[i] - loopWant(A, N, xn, (f - H) % N)) < 1e-6, 'the loop until the frame asked for');
+  }
+  // across the crossover the two sides are the same music, so the output IS that music throughout (a linear blend sums to one)
+  let worst = 0;
+  for (let f = X; f < X + ramp + 4; f++) worst = Math.max(worst, Math.abs(r.out[f - pre.f] - deck(f)));
+  assert.ok(worst < 0.02, 'a handback onto the loop\'s own place is inaudible: ' + worst);
+  assert.equal(T.mode, 'pass'); assert.equal(T.fade, null);
+  const tail = r.out.slice(X + ramp + 1 - pre.f);
+  assert.ok(tail.every((v, j) => v === deck(X + ramp + 1 + j)), 'and after it, the deck untouched');
+  // a CANCEL is the same crossover, now — and an exit asked of a loop not yet audible simply never happens
+  const U = tapeOpen(4 * TAPE_SR);
+  const p2 = tapeRun(U, song, 0, 20);
+  S.loopTapeCommand(U, { op: 'arm', A: p2.f + 1000, N: 400, gen: 2 });
+  S.loopTapeCommand(U, { op: 'exit', at: 0 });
+  assert.equal(U.mode, 'pass', 'not audible yet: the deck never stopped being heard');
+  S.loopTapeCommand(U, { op: 'arm', A: p2.f - 900, N: 400, gen: 3 });
+  const p3 = tapeRun(U, song, p2.f, 2);
+  assert.equal(U.mode, 'loop');
+  S.loopTapeCommand(U, { op: 'cancel' });
+  const p4 = tapeRun(U, song, p3.f, 3);
+  assert.equal(U.mode, 'pass');
+  assert.ok(p4.out.slice(ramp + 1).every((v, j) => v === song(p3.f + ramp + 1 + j)), 'cancelled: the deck, after one crossover');
+  assert.ok(Math.abs(p4.out[1] - p4.out[0]) < 0.1, 'never a cut');
+});
+
+test('deck tape: halving is immediate and exact from the same in-point; doubling waits for the tape and takes it on a wrap', () => {
+  const T = tapeOpen(6 * TAPE_SR), f0 = 400000;
+  const pre = tapeRun(T, song, f0, 20);
+  const A = pre.f - 400, N = 1600, H = A + N;
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 1 });
+  // run until the head is in the second half, then halve
+  let r = tapeRun(T, song, pre.f, Math.ceil((H - pre.f + 1200) / 128));
+  assert.ok(T.pos >= 800, 'in the second half: ' + T.pos);
+  const posBefore = T.pos;
+  S.loopTapeCommand(T, { op: 'len', N: 800 });
+  assert.equal(T.N, 800, 'shorter is at once');
+  assert.equal(T.pos, posBefore % 800, 'and the head comes back inside it at the same phase');
+  assert.ok(T.fade && T.fade.kind === 'loop', 'under a crossfade from where it was');
+  const xn8 = S.tapeXfade(800, TAPE_SR), ramp = Math.round(S.TAPE_RAMP * TAPE_SR);
+  const p0 = T.pos, fh = r.f;
+  r = tapeRun(T, song, r.f, 40);
+  let worst = 0;
+  for (let i = ramp + 1; i < r.out.length; i++) worst = Math.max(worst, Math.abs(r.out[i] - loopWant(A, 800, xn8, (p0 + i) % 800)));
+  assert.ok(worst < 1e-6, 'the half loop, from the same in-point, exact: ' + worst);
+  // DOUBLE right away: the tape past the out-point is still being recorded by the deck running on underneath
+  const deckOn = song;                                      // the deck ran on: its tape is the song in order
+  S.loopTapeCommand(T, { op: 'len', N: 3200 });
+  assert.equal(T.N, 800, 'longer is not faked before the tape holds it');
+  assert.equal(T.Nwant, 3200);
+  r = tapeRun(T, deckOn, r.f, 120);
+  assert.equal(T.N, 3200, 'and taken once it does');
+  assert.equal(T.Nwant, 0);
+  // from the wrap that took it, the loop runs the whole 3200 from the same in-point
+  const xn32 = S.tapeXfade(3200, TAPE_SR);
+  const p1 = T.pos, f1 = r.f;
+  r = tapeRun(T, deckOn, r.f, 60);
+  worst = 0;
+  for (let i = 0; i < r.out.length; i++) worst = Math.max(worst, Math.abs(r.out[i] - loopWant(A, 3200, xn32, (p1 + i) % 3200)));
+  assert.ok(worst < 1e-6, 'the doubled loop is the song from the same in-point, its join blended: ' + worst);
+  // a run-on that is not the song in order (the deck jumped under the loop) never feeds a doubling
+  const U = tapeOpen(6 * TAPE_SR);
+  const q = tapeRun(U, song, 0, 20);
+  S.loopTapeCommand(U, { op: 'arm', A: q.f - 400, N: 800, gen: 1 });
+  tapeRun(U, song, q.f, 4);
+  S.loopTapeCommand(U, { op: 'lin', at: q.f + 900 });
+  S.loopTapeCommand(U, { op: 'len', N: 1600 });
+  tapeRun(U, song, q.f + 512, 200);
+  assert.equal(U.N, 800, 'past a jump the tape is not the song, and the loop stays as it was');
+});
+
+test('deck tape: a held loop\'s own stretch is never written over, and the tape\'s past starts again once it is let go', () => {
+  const cap = 4000, T = tapeOpen(cap), f0 = 10000;
+  const pre = tapeRun(T, song, f0, 12);
+  const A = pre.f - 600, N = 1000, H = A + N, xn = S.tapeXfade(N, TAPE_SR);
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 1 });
+  // hold it for three tapes' worth of frames: the deck runs on and would have lapped the ring twice over
+  const deckOn = f => f < H ? song(f) : Math.fround(song(f) * 0.5 + 0.25);   // the first pass, then whatever the deck runs on into
+  const r = tapeRun(T, deckOn, pre.f, Math.ceil(3 * cap / 128));
+  let worst = 0;
+  // (the join blends with what really followed the out-point: whatever the deck ran on into)
+  const want = p => { if (p >= xn) return song(A + p); const w = S.loopHeadBlend(p, xn); return song(A + p) * w.head + deckOn(A + N + p) * w.tail; };
+  for (let i = 0; i < r.out.length; i++){ const f = pre.f + i; if (f >= H) worst = Math.max(worst, Math.abs(r.out[i] - want((f - H) % N))); }
+  assert.ok(T.frozen, 'the tape stopped short of the loop\'s own stretch');
+  assert.ok(worst < 1e-6, 'and the loop is still exactly the first pass, laps after the ring would have come round: ' + worst);
+  S.loopTapeCommand(T, { op: 'cancel' });
+  const after = tapeRun(T, deckOn, r.f, 4);
+  assert.equal(T.mode, 'pass');
+  assert.equal(T.rec0, r.f + 128, 'recording starts again once the crossover has let the old stretch go, and the past counts from there');
+  assert.ok(!S.tapeHolds(T, A, N), 'the old loop is no longer on offer as tape');
+  assert.ok(S.tapeHolds(T, r.f + 128, 128), 'the new past is');
+});
+
+test('deck tape: a tempo moving under a held loop moves the loop with it — eased, never stepped', () => {
+  const T = tapeOpen(4 * TAPE_SR), f0 = 0;
+  const pre = tapeRun(T, song, f0, 30);
+  S.loopTapeCommand(T, { op: 'arm', A: pre.f - 1000, N: 1200, gen: 1 });
+  let r = tapeRun(T, song, pre.f, 4);
+  assert.equal(T.mode, 'loop');
+  S.loopTapeCommand(T, { op: 'speed', v: 1.04 });
+  assert.equal(T.speedTo, 1.04);
+  const s1 = (() => { tapeRun(T, song, r.f, 1); return T.speed; })();
+  assert.ok(s1 > 1 && s1 < 1.04, 'eased toward the new rate, not stepped: ' + s1);
+  r = tapeRun(T, song, r.f + 128, 200);
+  assert.ok(Math.abs(T.speed - 1.04) < 1e-6, 'and there in well under a second');
+  const p = T.pos;
+  tapeRun(T, song, r.f, 1);
+  assert.ok(Math.abs(((T.pos - p + 1200) % 1200) - 128 * 1.04) < 1e-6, 'the head moves 1.04 frames a frame');
+  S.loopTapeCommand(T, { op: 'speed', v: -2 });
+  assert.equal(T.speedTo, 1.04, 'a nonsense rate is ignored');
+});
+
+test('deck tape: a new loop over a held one is crossed out of; closing lets the rings go; the arithmetic of where a loop is', () => {
+  const T = tapeOpen(4 * TAPE_SR);
+  const pre = tapeRun(T, song, 0, 30);
+  S.loopTapeCommand(T, { op: 'arm', A: pre.f - 1500, N: 600, gen: 1 });
+  let r = tapeRun(T, song, pre.f, 3);
+  S.loopTapeCommand(T, { op: 'arm', A: r.f + 200, N: 400, gen: 2 });   // the next loop's first pass is the deck, live
+  assert.ok(T.fade && T.fade.kind === 'loop', 'the held loop fades out under the deck');
+  assert.equal(T.mode, 'armed');
+  r = tapeRun(T, song, r.f, 2);
+  assert.equal(T.fade, null, 'gone within the ramp');
+  assert.ok(r.out.slice(64).every((v, j) => v === song(r.f - 256 + 64 + j)), 'and then the deck, live, for the new loop\'s first pass');
+  S.loopTapeCommand(T, { op: 'close' });
+  assert.equal(T.ring, null); assert.equal(T.mode, 'pass');
+  const c = tapeRun(T, song, r.f, 2);
+  assert.ok(c.out.every((v, i) => v === song(r.f + i)), 'closed, the processor is a wire');
+  // where a loop is, between reports
+  assert.equal(S.tapeLoopPos(100, 5000, 5000, 1, 400), 100);
+  assert.equal(S.tapeLoopPos(100, 5000, 5350, 1, 400), 50, 'it wraps');
+  assert.ok(Math.abs(S.tapeLoopPos(0, 0, 100, 1.5, 400) - 150) < 1e-9, 'at the deck\'s rate');
+  assert.equal(S.tapeLoopPos(0, 0, 10, 1, 0), 0);
+  assert.equal(S.loopMediaAt(30, 2, 100, 1, 99), 30, 'before the handover: the in-point');
+  assert.ok(Math.abs(S.loopMediaAt(30, 2, 100, 1, 105.5) - 31.5) < 1e-9);
+  assert.ok(Math.abs(S.loopMediaAt(30, 2, 100, 1.25, 101.2) - 31.5) < 1e-9, 'a 1.25× deck plays the loop\'s music faster, and wraps on the music');
+  // how far a deck sits from the loop it is taking back: signed, not folded round the loop…
+  assert.ok(Math.abs(S.loopAlignErr(31.003, 31, 2) - 0.003) < 1e-9);
+  assert.ok(Math.abs(S.loopAlignErr(33, 31, 2) - 2) < 1e-9, 'a whole lap ahead is a lap late, not a match');
+  // …except for a stutter-short loop, where a lap or two is the same place to the ear
+  assert.ok(Math.abs(S.loopAlignErr(31.121, 31, 0.06)) < 0.002, 'two laps of a 60 ms roll: ' + S.loopAlignErr(31.121, 31, 0.06));
+  assert.ok(Math.abs(S.loopAlignErr(31.6, 31, 0.06)) > 0.5, 'but not half a second of them');
+});
+
+test('deck tape: the worklet module carries the loop processor — a wire until armed, then the loop on its frame, reporting as it holds', () => {
+  const src = S.vinylWorkletSource();
+  for (const f of ['function loopTapeProcess(', 'function loopTapeCommand(', 'function loopHeadBlend(', 'function equalPowerXfade(', 'function ringSlice('])
+    assert.ok(src.includes(f), f + ' is in the module');
+  const reg = {}, posts = [];
+  class AWP { constructor(){ this.port = { postMessage(m){ posts.push(m); }, onmessage: null }; } }
+  new Function('AudioWorkletProcessor', 'registerProcessor', 'sampleRate', 'currentTime', src)(AWP, (n, c) => { reg[n] = c; }, TAPE_SR, 0);
+  assert.ok(reg['mb8-loop'] && reg['mb8-vinyl'] && reg['mb8-vinyl-song'], 'all three processors register: ' + Object.keys(reg).join(', '));
+  const p = new reg['mb8-loop']();
+  const blk = f => { const a = new Float32Array(128); for (let i = 0; i < 128; i++) a[i] = song(f + i); return a; };
+  const out = [new Float32Array(128), new Float32Array(128)];
+  globalThis.currentFrame = 1000;
+  try {
+    assert.equal(p.process([[blk(1000), blk(1000)]], [out]), true, 'seated and closed: alive');
+    assert.ok(out[0].every((v, i) => v === song(1000 + i)), 'a wire');
+    p.port.onmessage({ data: { op: 'open', L: new Float32Array(TAPE_SR * 2), R: new Float32Array(TAPE_SR * 2) } });
+    let f = 1128;
+    for (let b = 0; b < 10; b++, f += 128){ globalThis.currentFrame = f; p.process([[blk(f), blk(f)]], [out]); }
+    p.port.onmessage({ data: { op: 'arm', A: f - 600, N: 500, gen: 9 } });
+    posts.length = 0;
+    for (let b = 0; b < 24; b++, f += 128){ globalThis.currentFrame = f; p.process([[blk(f), blk(f)]], [out]); }
+    const on = posts.filter(m => m.gen === 9 && m.mode === 'loop');
+    assert.ok(on.length >= 2, 'it reports while it holds the loop: ' + posts.length + ' posts');
+    const last = on[on.length - 1];
+    assert.equal(last.N, 500);
+    assert.ok(last.f > 0 && last.pos >= 0 && last.pos < 500 && last.speed === 1, JSON.stringify(last));
+    p.port.onmessage({ data: { op: 'bye' } });
+    assert.equal(p.process([[blk(f), blk(f)]], [out]), false, 'bye: process answers false, so the node can be collected');
+  } finally { delete globalThis.currentFrame; }
+});
+
+test('the re-seek wrap never touches a deck whose tape holds the loop — not even on the pass the loop is cut from', () => {
+  const t0 = html.indexOf('  _wrapLegacy(L, d){'), t1 = html.indexOf('  resizeLoop(dir){', t0);
+  assert.ok(t0 > 0 && t1 > t0, 'FX._wrapLegacy is where the test looks');
+  const run = engaged => {
+    const LOOPER = { engaged: () => engaged };
+    const m = new Function('LOOPER', 'loopWrap', 'return {' + html.slice(t0, t1) + '};')(LOOPER, S.loopWrap);
+    let seeks = 0, ct = 9.995;
+    const d = { a: { get currentTime(){ return ct; }, set currentTime(v){ seeks++; ct = v; } } };
+    m._wrapLegacy({ start: 8, len: 2, roll: false }, d);
+    return { seeks, ct };
+  };
+  assert.deepEqual(run(true), { seeks: 0, ct: 9.995 }, 'the tape has it: the playhead is not touched');
+  const legacy = run(false);
+  assert.equal(legacy.seeks, 1, 'no tape: the re-seek loop still holds it');
+  assert.ok(Math.abs(legacy.ct - 8) < 1e-9);
+  // and setLoop hands the loop to the deck's own tape, keeping the re-seek only for where there is none
+  const s0 = html.indexOf('  setLoop(beats, roll, landed){'), s1 = html.indexOf('  /* THE LEGACY WRAP RUNS ON ITS OWN CLOCK.', s0);
+  assert.ok(s0 > 0 && s1 > s0, 'FX.setLoop is where the test looks');
+  const body = html.slice(s0, s1);
+  assert.ok(/const took = taped && LOOPER\.arm\(b\.start, b\.len, roll \? 'roll' : 'loop', slot\)/.test(body), 'armed on the record on air\'s own tape');
+  assert.ok(/if \(!took\) this\._legacyPoll\(\);/.test(body), 'and the re-seek only where the tape cannot take it');
+  assert.ok(/const taped = LOOPER\.ok\(slot\) && LOOPER\.open\(\) && !!LOOPER\.tapes\[slot\];/.test(body), 'taped only by this deck\'s own tape');
+});
+
+test('a commit lets a tape loop go at once on the deck it retires; a hand lets go and waits for the deck to be found', () => {
+  const t0 = html.indexOf('  /* `byCommit`: the loop is being let go by a DECK action'), t1 = html.indexOf('  loopTick(){', t0);
+  const run = opts => {
+    const calls = [];
+    const LOOPER = { on: true, engaged: () => true, handBack(...a){ calls.push(a); }, cancel(){ calls.push('cancel'); } };
+    const fx = Object.assign({ auto: false, loop: { start: 8, len: 1, beats: 2, roll: false }, bpm: () => 120, hand(){} },
+      new Function('LOOPER', 'activeDeck', 'rollReturn', 'return {' + html.slice(t0, t1) + '};')(LOOPER, () => null, () => 0));
+    fx.clearLoop(opts);
+    return calls;
+  };
+  assert.deepEqual(run({ byCommit: true }), [[null, { quiet: true }]], 'the retired deck is under a fader at zero: crossed over to at once');
+  assert.deepEqual(run(), [[null, null]], 'a hand: the handback asks the deck where it is first');
+  const h0 = html.indexOf('  handBack(seekTo, opts){'), h1 = html.indexOf('  _backPoll(){', h0);
+  assert.ok(h0 > 0 && /if \(opts && opts\.quiet\)\{ this\._finishBack\(now \+ LOOP_MIN_LEAD\); return LOOP_MIN_LEAD; \}/.test(html.slice(h0, h1)),
+    'quiet: the crossover is written at once, nothing is polled');
+});
+
+// ---------------------------------------------------------------- the deck tape, second pass: what review found
+test('a loop re-cut just after a jump starts past the settle — never back across the jump (A)', () => {
+  const bpm = 120;                                             // 0.5 s a beat, grid at 0
+  // a deck that has only just jumped owes its tape LOOP_SETTLE: the in-point is the first line at least that far AHEAD
+  const a = S.loopInPoint(10.49, 0, bpm, 4, -0.1);
+  assert.ok(a.start >= 10.59 - 1e-9, 'past the settle, got ' + a.start);
+  assert.ok(Math.abs(a.start / 0.5 - Math.round(a.start / 0.5)) < 1e-9, 'on a grid line');
+  assert.ok(Math.abs(a.start - 11) < 1e-9, 'the first one: ' + a.start);
+  assert.ok(Math.abs(S.loopInPoint(10.0, 0, bpm, 4, -0.1).start - 10.5) < 1e-9, 'on a line, still owing the settle: the next one');
+  assert.ok(Math.abs(S.loopInPoint(10.2, 0, bpm, 4, -0.7).start - 11) < 1e-9, 'a longer debt, further on');
+  assert.ok(Math.abs(S.loopInPoint(10.0, 0, bpm, 4, -0.5).start - 10.5) < 1e-9, 'exactly a beat owed is exactly a beat on');
+  // and nothing else moves: no tape at all, plenty of tape, none, and a broken reading
+  assert.ok(Math.abs(S.loopInPoint(10.3, 0, bpm, 4, Infinity).start - 10) < 1e-9);
+  assert.ok(Math.abs(S.loopInPoint(10.3, 0, bpm, 4, 24).start - 10) < 1e-9);
+  assert.ok(Math.abs(S.loopInPoint(10.3, 0, bpm, 4, 0).start - 10.5) < 1e-9);
+  assert.ok(Math.abs(S.loopInPoint(10.3, 0, bpm, 4, NaN).start - 10.5) < 1e-9, 'NaN reads as no tape');
+});
+
+test('a loop is beats of the RECORD: at any rate the lap lasts that many beats of what the room hears (B)', () => {
+  const sr = 48000;
+  for (const r of [0.75, 1, 1.032, 1.25]){
+    const heard = 124 * r;                                     // the clock's tempo is the record's times the deck's rate
+    const len = S.beatLen(4, S.loopTempo(heard, r));           // song seconds, as setLoop sizes it now
+    const N = Math.round(len / r * sr);                         // …and the tape's frames, as LOOPER.arm cuts it
+    const want = Math.round(4 * 60 / heard * sr);               // four beats of what the room hears, in real frames
+    assert.ok(Math.abs(N - want) <= 1, `at ×${r}: ${N} frames vs ${want}`);
+    // the bug, for the record: sized at the heard tempo, the lap was 4/r beats
+    if (r !== 1) assert.ok(Math.abs(Math.round(S.beatLen(4, heard) / r * sr) - want) > 100, 'the old sizing was off at ×' + r);
+  }
+  assert.equal(S.loopTempo(150, 0), 150, 'a nonsense rate is 1×');
+  assert.equal(S.loopTempo(0, 1), 120, 'no tempo: the house default');
+  assert.equal(S.loopBeatsOf(2, 120), 4, 'two seconds at 120 is four beats');
+  assert.equal(S.loopBeatsOf(0.99, 120), 2, 'the nearest pad');
+  assert.equal(S.loopBeatsOf(100, 120), 16, 'clamped to the ladder');
+});
+
+test('a tempo moving under a held loop ends the run-on a doubling may use — it is never spliced in at the new density (D)', () => {
+  const T = tapeOpen(6 * TAPE_SR);
+  const pre = tapeRun(T, song, 0, 20);
+  const A = pre.f - 400, N = 800;
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 1 });
+  let r = tapeRun(T, song, pre.f, 10);
+  assert.equal(T.mode, 'loop');
+  const written = T.written, foot = A + N + S.tapeXfade(N, TAPE_SR) + 4;
+  S.loopTapeCommand(T, { op: 'speed', v: 1.04 });
+  assert.ok(T.lin <= written, 'a 4 % move drifts past the bound at once, dated back to when the tick last saw the old rate — lin ' + T.lin);
+  assert.ok(T.lin >= foot, 'and never inside the loop\'s own footprint: the cut is not the run-on');
+  S.loopTapeCommand(T, { op: 'len', N: 1600 });
+  r = tapeRun(T, song, r.f, 200);
+  assert.equal(T.N, 800, 'the doubling was never taken from tape cut at another rate');
+  assert.equal(T.Nwant, 0, '…and it was let go of, so the pads can say so');
+  // the same rate again is not a change
+  const U = tapeOpen(6 * TAPE_SR);
+  const q = tapeRun(U, song, 0, 20);
+  S.loopTapeCommand(U, { op: 'arm', A: q.f - 400, N: 800, gen: 1 });
+  tapeRun(U, song, q.f, 10);
+  S.loopTapeCommand(U, { op: 'speed', v: 1 });
+  assert.equal(U.lin, Infinity, 'a speed that did not change marks nothing');
+});
+
+test('a phase-lock nudge under a held loop drifts too little to hear: a doubling is still taken (D, without refusing the inaudible)', () => {
+  const T = tapeOpen(8 * TAPE_SR);
+  const pre = tapeRun(T, song, 0, 20);
+  const A = pre.f - 400, N = 1600;
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 1 });
+  let r = tapeRun(T, song, pre.f, 12);
+  assert.equal(T.mode, 'loop', 'held');
+  S.loopTapeCommand(T, { op: 'speed', v: 1.0006 });        // the seam's servo trim: 0.06 %
+  S.loopTapeCommand(T, { op: 'len', N: 3200 });
+  r = tapeRun(T, song, r.f, 160);
+  assert.equal(T.N, 3200, 'taken: 0.06 % of a second of run-on is well under TAPE_DRIFT');
+  assert.equal(T.lin, Infinity, 'and nothing was marked');
+  // …but a sustained move, summed block by block, still crosses the bound and stops the run-on there
+  const U = tapeOpen(8 * TAPE_SR);
+  const q = tapeRun(U, song, 0, 20);
+  S.loopTapeCommand(U, { op: 'arm', A: q.f - 400, N: 1600, gen: 1 });
+  const q2 = tapeRun(U, song, q.f, 6);
+  S.loopTapeCommand(U, { op: 'speed', v: 1.003 });
+  tapeRun(U, song, q2.f, 120);
+  assert.ok(isFinite(U.lin), 'a 0.3 % move held for long enough drifts past TAPE_DRIFT: lin ' + U.lin);
+});
+
+test('the loop\'s own length stays reachable: a rate move right after the handover, then halve and double back, restores it (4)', () => {
+  const T = tapeOpen(8 * TAPE_SR);
+  const pre = tapeRun(T, song, 0, 20);
+  const A = pre.f - 400, N = 1600;
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 1 });
+  let r = tapeRun(T, song, pre.f, 12);                      // a block past the out-point
+  assert.equal(T.mode, 'loop');
+  S.loopTapeCommand(T, { op: 'speed', v: 1.04 });           // a real move, just after the handover
+  S.loopTapeCommand(T, { op: 'len', N: 800 });              // halve…
+  r = tapeRun(T, song, r.f, 4);
+  assert.ok(isFinite(T.lin), 'the move drifted past the bound: the run-on is cut off');
+  S.loopTapeCommand(T, { op: 'len', N: 1600 });             // …and back
+  r = tapeRun(T, song, r.f, 80);
+  assert.equal(T.N, 1600, 'the length it was already playing is granted again: that tape is the loop, not run-on');
+  // a stall heard right after the handover is floored the same way
+  const U = tapeOpen(8 * TAPE_SR);
+  const q = tapeRun(U, song, 0, 20);
+  S.loopTapeCommand(U, { op: 'arm', A: q.f - 400, N: 1600, gen: 1 });
+  const q2 = tapeRun(U, song, q.f, 12);
+  assert.equal(U.mode, 'loop');
+  S.loopTapeCommand(U, { op: 'lin', at: q2.f - 1000 });     // a mark dated back across the out-point
+  S.loopTapeCommand(U, { op: 'len', N: 800 });
+  const q3 = tapeRun(U, song, q2.f, 4);
+  S.loopTapeCommand(U, { op: 'len', N: 1600 });
+  tapeRun(U, song, q3.f, 80);
+  assert.equal(U.N, 1600);
+  // and past its own footprint a doubling still waits on — and is dropped by — the mark
+  S.loopTapeCommand(U, { op: 'len', N: 3200 });
+  tapeRun(U, song, q3.f + 80 * 128, 120);
+  assert.equal(U.N, 1600); assert.equal(U.Nwant, 0);
+});
+
+test('a deck that goes silent inside the pass a loop is being cut from is heard doing it: the cut is refused, with no word from the main thread (3)', () => {
+  // the deck is already stalled when the loop is pressed, and stays stalled into the pass
+  const T = tapeOpen(4 * TAPE_SR);
+  const pre = tapeRun(T, song, 0, 20);
+  const stall = f => (f >= pre.f - 100 && f < pre.f + 400) ? 0 : song(f);
+  S.loopTapeCommand(T, { op: 'arm', A: pre.f - 300, N: 1200, gen: 6 });
+  const r = tapeRun(T, stall, pre.f, 20);
+  assert.equal(T.mode, 'pass', 'refused at the out-point, though nothing marked it');
+  assert.equal(T.refusedGen, 6);
+  assert.ok(r.out.every((v, i) => v === Math.fround(stall(pre.f + i))), 'and the room heard the deck, never a loop of the stall');
+  // a stall that begins just before the out-point — its 'waiting' would reach the main thread after it
+  const U = tapeOpen(4 * TAPE_SR);
+  const p2 = tapeRun(U, song, 0, 20);
+  const H = p2.f + 900, late = f => (f >= H - 80 && f < H + 600) ? 0 : song(f);
+  S.loopTapeCommand(U, { op: 'arm', A: H - 1200, N: 1200, gen: 7 });
+  tapeRun(U, late, p2.f, 20);
+  assert.equal(U.mode, 'pass'); assert.equal(U.refusedGen, 7, 'refused: the silence is inside the cut');
+  // a deck that plays on through the pass is taken as ever
+  const V = tapeOpen(4 * TAPE_SR);
+  const p3 = tapeRun(V, song, 0, 20);
+  S.loopTapeCommand(V, { op: 'arm', A: p3.f - 300, N: 1200, gen: 8 });
+  tapeRun(V, song, p3.f, 20);
+  assert.equal(V.mode, 'loop');
+  // under a HELD loop a stall only bounds a doubling — the loop plays on over it
+  const W = tapeOpen(6 * TAPE_SR);
+  const p4 = tapeRun(W, song, 0, 20);
+  S.loopTapeCommand(W, { op: 'arm', A: p4.f - 300, N: 800, gen: 9 });
+  const p5 = tapeRun(W, song, p4.f, 10);
+  const held = f => (f >= p5.f + 50 && f < p5.f + 700) ? 0 : song(f);
+  tapeRun(W, held, p5.f, 10);
+  assert.equal(W.mode, 'loop', 'held on');
+  assert.ok(W.lin >= W.A + W.Ncut + S.tapeXfade(W.Ncut, TAPE_SR) + 4 && W.lin <= p5.f + 60, 'the run-on is cut off where the deck fell silent');
+});
+
+test('a jump or a stall inside the pass a loop is cut from is refused, never looped; a stale mark from before the arm does not count (E)', () => {
+  const T = tapeOpen(4 * TAPE_SR);
+  const pre = tapeRun(T, song, 0, 20);
+  const A = pre.f - 200, N = 1200, H = A + N;
+  S.loopTapeCommand(T, { op: 'lin', at: pre.f - 5000 });     // a mark from an older loop
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 4 });
+  assert.equal(T.lin, Infinity, 'arming forgets every mark from before it');
+  S.loopTapeCommand(T, { op: 'lin', at: pre.f + 300 });      // the deck stalls inside the first pass
+  // (and the deck really did stall: 200 frames of silence, then the song again, shifted)
+  const deck = f => f < pre.f + 300 ? song(f) : f < pre.f + 500 ? 0 : song(f - 200);
+  const r = tapeRun(T, deck, pre.f, 20);
+  assert.equal(T.mode, 'pass', 'refused at the out-point');
+  assert.equal(T.refusedGen, 4); assert.equal(T.why, 'jump');
+  assert.ok(r.out.every((v, i) => v === Math.fround(deck(pre.f + i))), 'and the room heard the deck, never a loop of the stall');
+  // without the mark the same pass is taken (the processor cannot see a stall itself: the main thread marks it)
+  const U = tapeOpen(4 * TAPE_SR);
+  const p2 = tapeRun(U, song, 0, 20);
+  S.loopTapeCommand(U, { op: 'arm', A: p2.f - 200, N: 1200, gen: 5 });
+  tapeRun(U, song, p2.f, 20);
+  assert.equal(U.mode, 'loop');
+});
+
+test('halving back to a length a doubling is still waiting on cancels the doubling — the loop never grows behind the pads (G)', () => {
+  const T = tapeOpen(6 * TAPE_SR);
+  const pre = tapeRun(T, song, 0, 20);
+  const A = pre.f - 300, N = 600;
+  S.loopTapeCommand(T, { op: 'arm', A, N, gen: 1 });
+  let r = tapeRun(T, song, pre.f, 6);
+  S.loopTapeCommand(T, { op: 'len', N: 1200 });               // double: waits for the tape
+  assert.equal(T.Nwant, 1200);
+  S.loopTapeCommand(T, { op: 'len', N: 600 });                // and straight back
+  assert.equal(T.Nwant, 0, 'the same length cancels the doubling still waiting');
+  r = tapeRun(T, song, r.f, 300);
+  assert.equal(T.N, 600, 'and many laps later the loop is still the one the pads show');
+  // a doubling the run-on can never feed (a jump under the loop) is let go of, not held forever
+  const U = tapeOpen(6 * TAPE_SR);
+  const q = tapeRun(U, song, 0, 20);
+  S.loopTapeCommand(U, { op: 'arm', A: q.f - 300, N: 600, gen: 1 });
+  const q2 = tapeRun(U, song, q.f, 6);
+  S.loopTapeCommand(U, { op: 'lin', at: q2.f });
+  S.loopTapeCommand(U, { op: 'len', N: 2400 });
+  tapeRun(U, song, q2.f, 200);
+  assert.equal(U.N, 600); assert.equal(U.Nwant, 0, 'dropped once the tape can never hold it');
+});
+
+test('two changes of source inside one crossfade nest — the sound is never cut (H)', () => {
+  const worstStep = cmds => {
+    const T = tapeOpen(8 * TAPE_SR);
+    const pre = tapeRun(T, song, 0, 30);
+    const N = 3200;
+    S.loopTapeCommand(T, { op: 'arm', A: pre.f - 3300, N, gen: 1 });
+    let r = tapeRun(T, song, pre.f, 1);
+    // run until the head is at about 0.78 of the loop
+    while (T.pos < 0.78 * N || T.pos > 0.8 * N) r = tapeRun(T, song, r.f, 1);
+    let last = r.out[r.out.length - 1], worst = 0;
+    const r2 = tapeRun(T, song, r.f, 6, (f, Tt) => { for (const c of cmds) if (c.at === f - r.f) S.loopTapeCommand(Tt, c.m); });
+    for (const v of r2.out){ worst = Math.max(worst, Math.abs(v - last)); last = v; }
+    return worst;
+  };
+  const one = worstStep([{ at: 0, m: { op: 'len', N: 1600 } }]);
+  const two = worstStep([{ at: 0, m: { op: 'len', N: 1600 } }, { at: 0, m: { op: 'len', N: 800 } }]);
+  const apart = worstStep([{ at: 0, m: { op: 'len', N: 1600 } }, { at: 128, m: { op: 'len', N: 800 } }]);
+  let songStep = 0; for (let m = 0; m < 8000; m++) songStep = Math.max(songStep, Math.abs(song(m + 1) - song(m)));
+  assert.ok(one < songStep * 3, 'one halving is smooth: ' + one.toFixed(4));
+  assert.ok(two < songStep * 3, 'two in one block are smooth too, not a cut: ' + two.toFixed(4) + ' (music ' + songStep.toFixed(4) + ')');
+  assert.ok(apart < songStep * 3, '…and two a block apart: ' + apart.toFixed(4));
+});
+
+test('a roll the tape had not yet taken never moves the deck on release — it played straight through (F)', () => {
+  const t0 = html.indexOf('  /* `byCommit`: the loop is being let go by a DECK action'), t1 = html.indexOf('  loopTick(){', t0);
+  const run = (on, engaged) => {
+    const calls = [];
+    const LOOPER = { on, engaged: () => engaged, handBack(){ calls.push('handBack'); }, cancel(){ calls.push('cancel'); } };
+    let seeks = 0;
+    const deck = { a: { duration: 200, get currentTime(){ return 10; }, set currentTime(v){ seeks++; } } };
+    const fx = Object.assign({ auto: false, loop: { start: 9.5, len: 1, beats: 2, roll: true }, bpm: () => 120, hand(){} },
+      new Function('LOOPER', 'activeDeck', 'rollReturn', 'return {' + html.slice(t0, t1) + '};')(LOOPER, () => deck, S.rollReturn));
+    fx.clearLoop();
+    return { calls, seeks };
+  };
+  assert.deepEqual(run(false, true), { calls: ['cancel'], seeks: 0 }, 'pending on the tape: let go, the deck untouched');
+  assert.deepEqual(run(false, false), { calls: [], seeks: 1 }, 'the re-seek roll (no tape) still puts the deck back in real time');
+});
+
+test('halving, doubling and the loop itself are sized at the record\'s tempo — through FX._resizeTo and FX.setLoop themselves (B)', () => {
+  const m0 = html.indexOf('  mediaBpm(d){'), m1 = html.indexOf('\n', m0);
+  const r0 = html.indexOf('  _resizeTo(beats){'), r1 = html.indexOf('  /* `byCommit`', r0);
+  const s0 = html.indexOf('  setLoop(beats, roll, landed){'), s1 = html.indexOf('  /* THE LEGACY WRAP RUNS ON ITS OWN CLOCK.', s0);
+  assert.ok(m0 > 0 && r0 > 0 && r1 > r0 && s0 > 0 && s1 > s0, 'FX.mediaBpm / _resizeTo / setLoop are where the test looks');
+  const sr = 48000;
+  for (const r of [0.75, 1, 1.032, 1.25]){
+    const want = beats => Math.round(beats * 60 / (124 * r) * sr);   // beats of what the room hears, in real frames
+    const posted = [];
+    const deck = { a: { currentTime: 10.3, playbackRate: r, seeking: false, readyState: 4 } };
+    const LOOPER = { engaged: () => posted.length > 0, ok: () => true, open: () => true, tapes: [{}], have: () => 24, cancel(){},
+      arm(start, len){ posted.push(len); return true; }, retarget(len){ posted.push(len); return true; } };
+    const body = 'return {' + html.slice(m0, m1 + 1) + html.slice(s0, s1) + html.slice(r0, r1) + '};';
+    const fx = Object.assign({ loop: null, _latchGen: 0, bpm: () => 124 * r, grid: () => 0, hand(){}, _legacyPoll(){}, _latchLanded(){} },
+      new Function('LOOPER', 'activeDeck', 'player', 'DECKS', 'AE', 'VINYL', 'HAPTICS', 'beatLen', 'loopTempo', 'loopInPoint', 'loopBounds', body)(
+        LOOPER, () => deck, { playing: true }, { handSlot: () => 0 }, { active: 0 }, undefined, { pulse(){} },
+        S.beatLen, S.loopTempo, S.loopInPoint, S.loopBounds));
+    fx.setLoop(4, false);
+    assert.ok(Math.abs(Math.round(posted[0] / r * sr) - want(4)) <= 1, `setLoop at ×${r}: ${Math.round(posted[0] / r * sr)} frames vs ${want(4)}`);
+    fx._resizeTo(8);
+    assert.ok(Math.abs(Math.round(posted[1] / r * sr) - want(8)) <= 1, `doubling at ×${r}: ${Math.round(posted[1] / r * sr)} frames vs ${want(8)}`);
+    assert.equal(fx.loop.len, posted[1]);
+    fx._resizeTo(2);
+    assert.ok(Math.abs(Math.round(posted[2] / r * sr) - want(2)) <= 1, `halving at ×${r}`);
+  }
+});
+
+test('a jump\'s re-latch belongs to the record that jumped: the hand on the other deck does not refuse it, and nothing strands the covering loop (1)', () => {
+  const s0 = html.indexOf('  setLoop(beats, roll, landed){'), s1 = html.indexOf('  /* THE LEGACY WRAP RUNS ON ITS OWN CLOCK.', s0);
+  assert.ok(/if \(!landed && typeof DECKS !== 'undefined' && DECKS\.handSlot\(\) !== AE\.active\) return;/.test(html.slice(s0, s1)),
+    'only a hand\'s own press is refused by the hand\'s focus');
+  const l0 = html.indexOf('  _latchLanded(d, beats, roll){'), l1 = html.indexOf('  _rolling(d)', l0) > 0 ? html.indexOf('\n  },', l0) : -1;
+  const look = html.slice(l0, l1);
+  assert.ok(/this\.setLoop\(L\.beats \|\| beats, roll, true\);[\s\S]*if \(!this\.loop && LOOPER\.engaged\(\)\)\{ LOOPER\.cancel\(\); this\.hand\(\); \}/.test(look),
+    'and a latch that did not take lets the covering loop go');
+  assert.ok(/if \(this\._scrubbing === d\)/.test(look), 'a lane still in hand holds the re-latch (2)');
 });
 
 // ------------------------------------------------- the cued deck (@mix, seamCue*)
@@ -12182,6 +12924,323 @@ test('the cued deck in the player: parked by the warm, rolled silent, skipped by
   assert.ok(html.includes("rolling(){ const d = this.deck(); return !!(d && !d.a.paused && !d.a.ended && !(typeof MIXER !== 'undefined' && MIXER.cueing(d))); },"), 'the platter waits for PLAY');
   assert.ok(html.includes("if (d && DECKS.track(slot) && !d.a.paused && !d.a.ended && !MIXER.cueing(d)){ DECKS.pause(slot); return true; }"), 'PLAY starts it by hand');
   assert.ok(html.includes("if (typeof MIXER !== 'undefined' && MIXER.cueing(d)) return;   // a rolling cue takes its rate from the seam"), 'SPEED leaves its rate to the seam');
+});
+
+// ---------------------------------------------------------------- two decks on an iPhone (DECKROUTE, @media)
+const UA18 = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+const UA176 = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1';
+const UA26 = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1';
+const UACRIOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/129.0.6668.69 Mobile/15E148 Safari/604.1';
+const UAPAD = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15';
+test('iosMajor: the OS figure and Version/ both read, the larger wins; iPadOS-as-Mac reads Version/ only; 10_15 is never a version', () => {
+  assert.equal(S.iosMajor(UA18, 'iPhone', 5), 18);
+  assert.equal(S.iosMajor(UA176, 'iPhone', 5), 17);
+  assert.equal(S.iosMajor(UA26, 'iPhone', 5), 26, 'iOS 26 Safari froze the UA at 18_6 and says 26 in Version/');
+  assert.equal(S.iosMajor(UACRIOS, 'iPhone', 5), 18, 'Chrome on iOS carries the OS figure only');
+  assert.equal(S.iosMajor(UAPAD, 'MacIntel', 5), 18, 'an iPad in desktop mode');
+  assert.equal(S.iosMajor(UAPAD, 'MacIntel', 0), 0, 'a real Mac is not iOS');
+  assert.notEqual(S.iosMajor('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 'MacIntel', 5), 10, 'Mac OS X 10_15 is not iOS 10');
+  assert.equal(S.iosMajor('garbage', 'Linux', 0), 0);
+});
+test('iosGraphAllowed: needs iOS, audioSession and a worklet always; direct is final; graph skips the floor; the default gates the rest', () => {
+  const base = { ios: true, major: 18, hasAudioSession: true, hasWorklet: true, override: '', defaultOn: true };
+  assert.equal(S.iosGraphAllowed(base), true, 'iOS 18 with the default on');
+  assert.equal(S.iosGraphAllowed({ ...base, major: 17 }), false, '17.6 keeps the music direct');
+  assert.equal(S.iosGraphAllowed({ ...base, major: S.iosMajor(UA26, 'iPhone', 5) }), true, 'iOS 26');
+  assert.equal(S.iosGraphAllowed({ ...base, major: S.iosMajor(UACRIOS, 'iPhone', 5) }), true, 'CriOS on 18');
+  assert.equal(S.iosGraphAllowed({ ...base, major: S.iosMajor(UAPAD, 'MacIntel', 5) }), true, 'iPadOS in desktop mode');
+  assert.equal(S.iosGraphAllowed({ ...base, hasAudioSession: false }), false, 'no audioSession, no graph');
+  assert.equal(S.iosGraphAllowed({ ...base, hasWorklet: false }), false, 'no worklet, no platters, no graph');
+  assert.equal(S.iosGraphAllowed({ ...base, override: 'direct' }), false, 'decks=direct is final');
+  assert.equal(S.iosGraphAllowed({ ...base, major: 17, override: 'graph' }), true, 'decks=graph skips the version floor');
+  assert.equal(S.iosGraphAllowed({ ...base, override: 'graph', hasAudioSession: false }), false, '…but never the platform');
+  assert.equal(S.iosGraphAllowed({ ...base, defaultOn: false }), false, 'shipped off: nothing without the override');
+  assert.equal(S.iosGraphAllowed({ ...base, ios: false, override: 'graph' }), false, 'not iOS: nothing to take');
+});
+test('iosRatesOk: one place decides — free off iOS and on the direct path; held at 1 on an iOS graph unless overridden', () => {
+  assert.equal(S.iosRatesOk({ ios: false, graph: true, override: false }), true, 'desktop');
+  assert.equal(S.iosRatesOk({ ios: true, graph: false, override: false }), true, 'iOS direct: element rates are clean');
+  assert.equal(S.iosRatesOk({ ios: true, graph: true, override: false }), false, 'iOS in the graph: WebKit 240405');
+  assert.equal(S.iosRatesOk({ ios: true, graph: true, override: true }), true, '?rates=1 for a WebKit that has the fix');
+});
+test('iosSeamPlan: with the rates held a beatmix between two tempi becomes the fade; one tempo still beatmixes; fades and gapless pass', () => {
+  const bm = (a, b) => ({ type: 'beatmix', bpmA: a, bpmB: b, beats: 16, seconds: 7.7 });
+  assert.equal(S.iosSeamPlan(bm(124, 126), true).type, 'beatmix', 'rates free: untouched');
+  const f = S.iosSeamPlan(bm(124, 126), false);
+  assert.equal(f.type, 'fade'); assert.equal(f.seconds, 4);
+  assert.equal(S.iosSeamPlan(bm(124, 126), false, 0.8).seconds, 0.8, 'MIX NOW keeps its quick fade');
+  assert.equal(S.iosSeamPlan(bm(124, 124), false).type, 'beatmix', 'one tempo: no glide needed, beatmixed at 1×');
+  assert.equal(S.iosSeamPlan(bm(124, 124.1), false).type, 'beatmix', '0.08 % across 7.7 s drifts 6 ms: still one tempo');
+  assert.equal(S.iosSeamPlan(bm(124, 124.5), false).type, 'fade', 'outside 0.3 %: the fade');
+  assert.equal(S.iosSeamPlan({ type: 'beatmix', bpmA: 124, bpmB: 124.1, beats: 64 }, false).type, 'fade', 'no seconds: the beats and B\'s tempo size it (31 s, 25 ms)');
+  assert.equal(S.iosSeamPlan({ type: 'gapless' }, false).type, 'gapless');
+  assert.equal(S.iosSeamPlan({ type: 'fade', seconds: 3 }, false).seconds, 3);
+  assert.equal(S.iosSeamPlan(null, false), null);
+});
+test('iosSeamPlan: one tempo is judged over the seam\'s own length — nothing can steer the phase once B is heard on held rates', () => {
+  const bm = (a, b, beats) => ({ type: 'beatmix', bpmA: a, bpmB: b, beats, seconds: Math.round(beats * 60 / a * 100) / 100 });
+  // 124.0 against 124.3: 0.24 % — inside the old flat bound, which let 19 ms of flam through a 16-beat seam
+  assert.equal(S.iosSeamPlan(bm(124, 124.3, 16), false).type, 'fade', '16 beats at 0.24 % drifts 19 ms: the fade');
+  assert.equal(S.iosSeamPlan(bm(124, 124.3, 4), false).type, 'beatmix', '4 beats drifts under 5 ms: still a beatmix');
+  assert.equal(S.iosSeamPlan(bm(124, 124.1, 32), false).type, 'fade', 'a tuner\'s 32-beat seam needs the tempi closer still (12 ms)');
+  assert.equal(S.iosSeamPlan(bm(124, 124.1, 16), false).type, 'beatmix', '…which 16 beats of the same pair is (6 ms)');
+  // the bound is the drift, at its own constant
+  const secs = 7.74, edge = 124 * (1 + S.IOS_SAME_DRIFT / secs);
+  assert.equal(S.iosSeamPlan({ type: 'beatmix', bpmA: edge * 0.9999, bpmB: 124, seconds: secs }, false).type, 'beatmix');
+  assert.equal(S.iosSeamPlan({ type: 'beatmix', bpmA: edge * 1.0002, bpmB: 124, seconds: secs }, false).type, 'fade');
+  assert.ok(S.IOS_SAME_DRIFT > 0 && S.IOS_SAME_DRIFT <= 0.012, 'about where two kicks begin to flam');
+});
+test('seamTake on held rates: the seek is the only lever — a few ms is sought out, with a bigger budget; never a pull', () => {
+  const held = { tau: 0.25, seekAbove: S.IOS_SEAM_SEEK, done: S.IOS_SEAM_SEEK, maxSeeks: S.IOS_SEAM_SEEKS };
+  assert.equal(S.seamTake(0.02, 0, 0).act, 'pull', 'free rates: 20 ms is a pull');
+  assert.equal(S.seamTake(0.02, 0, 0, held).act, 'seek', 'held rates: 20 ms is a seek (a pull would move nothing)');
+  assert.equal(S.seamTake(0.006, 0, 0, held).act, 'seek', '…and so is 6 ms');
+  assert.equal(S.seamTake(0.003, 0, 0, held).act, 'latch', 'under the seek threshold: done');
+  assert.equal(S.seamTake(0.02, 0, 3, held).act, 'seek', 'more than the free take\'s three seeks');
+  assert.equal(S.seamTake(0.02, 0, S.IOS_SEAM_SEEKS, held).act, 'pull', 'out of budget: seamTake says pull — which the sampler latches on held rates');
+  assert.equal(S.seamTake(0.02, 0.5, 0, held).act, 'latch', 'B audible: never a seek');
+  assert.equal(S.seamTake(0.1, 0, 3).act, 'pull', 'the free take keeps its budget of three');
+  assert.ok(S.IOS_SEAM_SEEK <= 0.005 && S.IOS_SEAM_SEEKS > 3);
+});
+test('the mixer on held rates: the take seeks with the learned refill, and a pull never stands in for a seek', () => {
+  const smp = html.slice(html.indexOf('  _sample(){'), html.indexOf('  // where the seam is, for the sampler'));
+  assert.ok(smp.includes('const held = ratesHeld();'), 'the sampler asks the one decider');
+  assert.ok(smp.includes('{ tau, seekAbove: IOS_SEAM_SEEK, done: IOS_SEAM_SEEK, maxSeeks: IOS_SEAM_SEEKS }'), 'held: the seek take');
+  assert.ok(smp.includes("} else if (take.act === 'pull' && !held){"), 'held: an inert pull is a latch');
+  assert.ok(smp.includes('bNow + errSec + (held ? (this._seekComp || 0) : 0)'), 'held: the refill folded into the aim');
+});
+test('a refused seam start holds the auto-DJ off that record: no re-arm, no commit/uncommit churn until a new record is on air', () => {
+  const mx = html.slice(html.indexOf('const MIXER = {'), html.indexOf('const MIXER = {') + 200000);
+  const up = mx.slice(mx.indexOf('  update(now, dt){'), mx.indexOf('  exitTime(dur, plan, track){'));
+  assert.ok(/if \(this\._holdRec && this\._holdRec === player\.tracks\[player\.cur\]\) return;\n\s+if \(d\.a\.duration - t < 90 && player\.hasNext\(\)\) this\.arm\(\);/.test(up), 'update() does not arm a held record');
+  const rf = mx.slice(mx.indexOf('  _refused(od, nd){'), mx.indexOf('  setVolumes(f){'));
+  assert.ok(rf.indexOf('this._holdRec = player.tracks[player.cur]') > rf.indexOf('player.uncommitMix();'), '_refused holds the record back on air (after the un-commit)');
+  assert.ok(mx.includes("this._holdRec = player.tracks[player.cur] || null; this.cancel('unblessed');"), 'an unblessed start holds the same way');
+  const pi = html.slice(html.indexOf('  playIndex(i, opts){'), html.indexOf('  playIndex(i, opts){') + 400);
+  assert.ok(pi.includes('MIXER._holdRec = null'), 'a new record clears it (playIndex)');
+  const cm = html.slice(html.indexOf('  commitMix(i, opts){'), html.indexOf('  commitMix(i, opts){') + 300);
+  assert.ok(cm.includes('MIXER._holdRec = null'), '…and (commitMix)');
+});
+test('the mixer stands down while an iPhone\'s hand-back is in flight (nothing armed or fired onto the deck it emptied)', () => {
+  const mx = html.slice(html.indexOf('const MIXER = {'), html.indexOf('const MIXER = {') + 200000);
+  const up = mx.slice(mx.indexOf('  update(now, dt){'), mx.indexOf('  exitTime(dur, plan, track){'));
+  assert.ok(up.indexOf("DECKROUTE.phase === 'giving' && (this.phase === 'idle' || this.phase === 'armed')") > up.indexOf('if (!AE.graphLive)'), 'update(): idle and armed stand down, a running seam lands');
+  const tm = mx.slice(mx.indexOf('  tryMixNow(){'), mx.indexOf('  fire(now){'));
+  assert.ok(tm.includes("DECKROUTE.phase === 'giving') return false;"), 'MIX NOW: the plain path');
+  const fi = mx.slice(mx.indexOf('  fire(now){'), mx.indexOf('  fire(now){') + 1200);
+  assert.ok(fi.includes("DECKROUTE.phase === 'giving'){ this.cancel('route'); return; }"), 'fire(): the poller cannot start a seam');
+});
+test('DECKROUTE: a change of record settles an emergency; a pause during a hand-back stands; the decks go direct only with the air direct', () => {
+  const route = html.slice(html.indexOf('const DECKROUTE = {'), html.indexOf('window.__mb8Route = () =>'));
+  const onTrack = route.slice(route.indexOf('  onTrack(i){'), route.indexOf('  onPause(){'));
+  assert.ok(onTrack.includes("this.phase === 'giving' && this._gv && this._gv.emergency){") && onTrack.includes('this._emergencyDrop();'), 'onTrack lets an emergency go');
+  const em = route.slice(route.indexOf('  emergency(why, pos){'), route.indexOf('  _emergencyDrop(reopen){'));
+  assert.ok(em.indexOf('if (AE.active !== k || D.a !== Da || player.cur !== cur0) return this._emergencyDrop(true);') < em.indexOf('this._seat(k, Tw, 120);'), 'the twin is seated only for the record still on air');
+  assert.ok(em.indexOf("I.a.removeAttribute('src')") < em.indexOf('AE._loadAt(a, src, pos);'), 'I4: the idle deck lets go before the twin loads');
+  assert.ok(em.indexOf('setValueAtTime(0, AE.ctx.currentTime)') < em.indexOf('a.muted = false;'), 'the captured chains go quiet before the twin is heard');
+  const op = route.slice(route.indexOf('  onPause(){'), route.indexOf('  onHide(){'));
+  assert.ok(op.includes("this.give('pause', { paused: true });") && op.includes('this._emergencyDrop();'), 'onPause settles both kinds of hand-back');
+  const so = route.slice(route.indexOf('  _swapOut(tok){'), route.indexOf('  _giveFail(tok, why){'));
+  assert.ok(so.indexOf('if (!player.playing || D.a.paused){') < so.indexOf('Tw.a.muted = false;\n    try {'), '_swapOut never unmutes a twin under a paused transport');
+  const fg = route.slice(route.indexOf('  _finishGive(){'), route.indexOf('  /* ---- the booth, the transport'));
+  assert.ok(fg.indexOf('if (on && (on.src || on.gain)){') < fg.indexOf('AE.graphLive = false;'), 'graphLive never drops with the air on a captured deck');
+  const ce = route.slice(route.indexOf('  onCorsError(t){'), route.indexOf('  armSentinel(){'));
+  assert.ok(ce.indexOf("this.give('cors', { at, paused: true });") < ce.indexOf("this.emergency('cors'"), 'a paused record CORS refuses is handed back paused');
+  const bo = route.slice(route.indexOf('  boothOpened(){'), route.indexOf('  boothClosed(){'));
+  assert.ok(bo.includes('else { this.wantTake = true; BOOTH.draw(); }'), 'a booth that waits on a gate wakes on a touch once it clears');
+});
+test('the rates, held from the moment a take starts; and ?worklets=0 loads no AudioWorklet module at all', () => {
+  assert.ok(html.includes("held(){ return IS_IOS && !IOS_GRAPH_RATES && (AE.graphLive || (typeof DECKROUTE !== 'undefined' && DECKROUTE.phase !== 'direct')); },"), 'SPEED.held');
+  assert.ok(html.includes("if (this.held()){ toast(T('Speed stays at 1×"), 'SPEED.cycle asks it');
+  assert.ok(html.includes("if (want !== 0 && SPEED.held()){ toast(T('Speed stays at 1×"), 'the trainer\'s slow practice asks it');
+  const ml = html.slice(html.indexOf('const MASTERLIM = {'), html.indexOf('const MASTERLIM = {') + 3000);
+  assert.ok(ml.includes('const noWorklet = IS_IOS && IOS_GRAPH && !IOS_WORKLETS;') && ml.includes('if (!noWorklet && ctx.audioWorklet'), 'the limiter takes the compressor seat on that run');
+  const ad = html.slice(html.indexOf('  async setDirect(direct){'), html.indexOf('  async setDirect(direct){') + 9000);
+  assert.ok(ad.includes("if (!direct && d.gain && onAir()) rampGain(d.gain, d.norm || 1, 0.25, 'in');"), 'AirPlay home: the gain opens only on a deck that still holds the air');
+  // …and "the same record" is the record, not its queue index (a move, sort or remove above re-indexes it)
+  assert.ok(ad.includes('player.tracks[player.cur] === rec0') && !ad.includes('player.cur === cur0'), 'AirPlay home compares the record');
+  const em = html.slice(html.indexOf('  emergency(why, pos'), html.indexOf('  emergency(why, pos') + 6000);
+  assert.ok(em.includes('player.tracks[player.cur] !== rec0') && !em.includes('player.cur !== cur0'), 'the emergency compares the record');
+  assert.ok(em.includes("if (MIXER.phase !== 'idle') MIXER.cancel('route');"), 'an emergency stands down any seam, so a running one cannot reopen the captured deck');
+  const rh = html.slice(html.indexOf('  resumeHook(d){'), html.indexOf('  resumeHook(d){') + 2500);
+  assert.ok(rh.includes('const refused = asleep && !!(t && this._noGraph.has(t.id));') && rh.includes('if (refused ||'), 'a refused record paused asleep takes the emergency on ▶');
+  assert.ok(rh.includes("if (AE.ctx.state === 'running'){ this._lost = null; return false; }"), 'a running context drops a stale saved spot');
+});
+test('pickOverride / lagOverride: the address bar wins and is remembered, auto clears, nonsense falls back', () => {
+  const A = ['graph', 'direct'];
+  assert.deepEqual(S.pickOverride('graph', '', A), { v: 'graph', save: 'graph' });
+  assert.deepEqual(S.pickOverride(null, 'direct', A), { v: 'direct', save: null }, 'remembered');
+  assert.deepEqual(S.pickOverride('auto', 'graph', A), { v: '', save: '' }, 'cleared');
+  assert.deepEqual(S.pickOverride('bogus', 'graph', A), { v: 'graph', save: null }, 'nonsense ignored');
+  assert.deepEqual(S.pickOverride(null, 'bogus', A), { v: '', save: null });
+  assert.equal(S.lagOverride('70', null, 200, 0.05), 0.07);
+  assert.equal(S.lagOverride(null, '30', 200, 0.05), 0.03, 'stored');
+  assert.equal(S.lagOverride('900', null, 200, 0.05), 0.2, 'clamped');
+  assert.equal(S.lagOverride('-5', null, 200, 0.05), 0, 'clamped at zero');
+  assert.equal(S.lagOverride('x', 'y', 200, 0.05), 0.05, 'the default');
+});
+test('srcClean: blob, data and same-origin are clean; the media host is tainted unless loaded in CORS mode; empty is clean', () => {
+  const page = 'https://aethrakairos.com';
+  assert.equal(S.srcClean('blob:https://aethrakairos.com/0b1c', page, false), true);
+  assert.equal(S.srcClean('data:audio/wav;base64,AAAA', page, false), true);
+  assert.equal(S.srcClean('https://aethrakairos.com/audio/demo.mp3', page, false), true);
+  assert.equal(S.srcClean('audio/demo.mp3', page, false), true, 'relative is same-origin');
+  assert.equal(S.srcClean('https://media.aethrakairos.com/audio/1/01.mp3', page, false), false, 'the catalog host: tainted');
+  assert.equal(S.srcClean('https://media.aethrakairos.com/audio/1/01.mp3', page, 'anonymous'), true, 'unless CORS-mode');
+  assert.equal(S.srcClean('', page, false), true);
+});
+test('crossoverSource: the on-air blob, then bytes in hand, then the network in CORS mode', () => {
+  assert.equal(S.crossoverSource({ onAirSrc: 'blob:x/1', peek: true, trackUrl: 'https://m/1.mp3' }), 'onair');
+  assert.equal(S.crossoverSource({ onAirSrc: 'https://m/1.mp3', peek: true, trackUrl: 'https://m/1.mp3' }), 'bytes');
+  assert.equal(S.crossoverSource({ onAirSrc: 'https://m/1.mp3', peek: null, trackUrl: 'https://m/1.mp3' }), 'cors');
+  assert.equal(S.crossoverSource({ onAirSrc: '', peek: null, trackUrl: 'https://m/1.mp3' }), 'cors');
+});
+test('crossoverAligned: inside 15 ms is the same record; three seeks then anything inside 60 ms; worse fails; a user jump refills the budget', () => {
+  let s = { seeks: 0 };
+  assert.equal(S.crossoverAligned(s, { delta: 0.010 }), 'ok');
+  assert.equal(S.crossoverAligned(s, { delta: -0.012 }), 'ok', 'either side');
+  s = { seeks: 0 };
+  assert.equal(S.crossoverAligned(s, { delta: 0.080 }), 'seek');
+  assert.equal(S.crossoverAligned(s, { delta: 0.040 }), 'seek');
+  assert.equal(S.crossoverAligned(s, { delta: 0.030 }), 'seek');
+  assert.equal(s.seeks, S.XO_SEEKS);
+  assert.equal(S.crossoverAligned(s, { delta: 0.050 }), 'ok', 'after three, inside 60 ms is taken');
+  assert.equal(S.crossoverAligned(s, { delta: 0.070 }), 'fail', 'worse is refused');
+  assert.equal(S.crossoverAligned(s, { delta: 0.070, jump: true }), 'seek', 'a seek on the record on air moves the target and refills');
+  assert.equal(S.crossoverAligned({ seeks: 0 }, { delta: NaN }), 'wait');
+});
+test('giveWinner: every seam and hand state resolves to one record', () => {
+  const g = (x) => x === 0 ? [1, 0] : x === 1 ? [0, 1] : [0.7, 0.7];
+  assert.deepEqual(S.giveWinner({ phase: 'idle', gains: g(0), active: 0, idleOwner: 'free', idleTrack: -1 }), { action: 'none' });
+  assert.deepEqual(S.giveWinner({ phase: 'armed', gains: g(0), active: 0 }), { action: 'cancel' });
+  assert.deepEqual(S.giveWinner({ phase: 'running', gains: g(0), active: 1 }), { action: 'finish' });
+  // a yielded seam: the incoming is on air (fire flipped AE.active)
+  assert.deepEqual(S.giveWinner({ phase: 'manual', gains: g(1), active: 1 }), { action: 'finish-hand' }, 'handle at the incoming');
+  assert.deepEqual(S.giveWinner({ phase: 'manual', gains: g(0.5), active: 1 }), { action: 'finish-hand' }, 'centre: the incoming');
+  assert.deepEqual(S.giveWinner({ phase: 'manual', gains: g(0), active: 1 }), { action: 'abort-hand', slot: 0 }, 'handle at the outgoing');
+  assert.deepEqual(S.giveWinner({ phase: 'idle', gains: g(1), active: 0, idleOwner: 'hand', idleRolling: true, idleTrack: 4, idleCue: 12 }),
+    { action: 'commit', slot: 1 }, 'a hand\'s record rolling and favoured takes the air');
+  assert.deepEqual(S.giveWinner({ phase: 'idle', gains: g(0), active: 0, idleOwner: 'hand', idleRolling: true, idleTrack: 4, idleCue: 12 }),
+    { action: 'next', slot: 1, next: 4, cue: 12 }, 'rolling but not favoured: it plays next, from its cue');
+  assert.deepEqual(S.giveWinner({ phase: 'idle', gains: g(0), active: 0, idleOwner: 'hand', idleRolling: false, idleTrack: 4, idleCue: 30.5 }),
+    { action: 'next', slot: 1, next: 4, cue: 30.5 }, 'cued and paused: next, from its cue');
+});
+test('hideAction: give when single; wait through a blend, resolve after 30 s; emergency on a dead context; keep after three refusals, retry every 30 s', () => {
+  const b = { graph: true, ctxState: 'running', seam: 'idle', handRolling: false, hiddenFor: 1, onAirPlaying: true, tries: 0 };
+  assert.equal(S.hideAction({ ...b, graph: false }), 'none');
+  assert.equal(S.hideAction(b), 'give');
+  assert.equal(S.hideAction({ ...b, seam: 'armed' }), 'give', 'an armed plan is let go of by onHide; nothing is blending');
+  assert.equal(S.hideAction({ ...b, seam: 'running' }), 'wait', 'a running seam lands on its curves');
+  assert.equal(S.hideAction({ ...b, seam: 'manual' }), 'wait');
+  assert.equal(S.hideAction({ ...b, handRolling: true }), 'wait', 'a hand\'s record finishes its roll');
+  assert.equal(S.hideAction({ ...b, seam: 'running', hiddenFor: 30 }), 'resolve', 'thirty seconds: forced to one');
+  assert.equal(S.hideAction({ ...b, ctxState: 'interrupted' }), 'emergency');
+  assert.equal(S.hideAction({ ...b, ctxState: 'suspended', onAirPlaying: false }), 'give', 'nothing sounding: an ordinary give');
+  assert.equal(S.hideAction({ ...b, tries: 1, sinceTry: 0.5 }), 'keep', 'a refused give is not retried at once');
+  assert.equal(S.hideAction({ ...b, tries: 1, sinceTry: 3 }), 'give');
+  assert.equal(S.hideAction({ ...b, tries: 3, sinceTry: 10 }), 'keep', 'three refusals keep the graph');
+  assert.equal(S.hideAction({ ...b, tries: 3, sinceTry: 30 }), 'give', '…and retry every 30 s');
+});
+test('stayPutRule: the element-direct contract unchanged; under the graph only hidden or an unblessed other deck stays put; a cue always wins', () => {
+  const b = { ios: true, xfade: false, playing: true, cued: false, graph: false, hidden: false, otherPrimed: true };
+  assert.equal(S.stayPutRule(b), true, 'iOS direct: the one blessed element');
+  assert.equal(S.stayPutRule({ ...b, ios: false }), false, 'desktop: two decks');
+  assert.equal(S.stayPutRule({ ...b, playing: false }), false, 'paused: nothing to carry');
+  assert.equal(S.stayPutRule({ ...b, xfade: true }), false);
+  assert.equal(S.stayPutRule({ ...b, cued: true }), false, 'a hand\'s cue beats the same-element advance');
+  assert.equal(S.stayPutRule({ ...b, graph: true }), false, 'graph, visible, other deck blessed: the other deck');
+  assert.equal(S.stayPutRule({ ...b, graph: true, hidden: true }), true, 'hidden: no cross-deck start behind a lock');
+  assert.equal(S.stayPutRule({ ...b, graph: true, otherPrimed: false }), true, 'an unblessed deck is never started from a timer');
+});
+test('sentinelTrip: only 2-10 s after a load, only an advancing open deck, under the floor long enough for what the record says', () => {
+  const b = { rms: 0, gainProduct: 1, sinceLoad: 5, quietFor: 3, sectionEnergy: 0.6, advancing: true, gateOpen: true, muted: false };
+  assert.equal(S.sentinelTrip(b), true);
+  assert.equal(S.sentinelTrip({ ...b, sinceLoad: 1.5 }), false, 'too early');
+  assert.equal(S.sentinelTrip({ ...b, sinceLoad: 11 }), false, 'too late: a breakdown is music');
+  assert.equal(S.sentinelTrip({ ...b, rms: 0.01 }), false, 'sounding');
+  assert.equal(S.sentinelTrip({ ...b, quietFor: 2 }), false, 'not quiet for long enough');
+  assert.equal(S.sentinelTrip({ ...b, sectionEnergy: 0.1 }), false, 'a quiet part is allowed to be quiet');
+  assert.equal(S.sentinelTrip({ ...b, sectionEnergy: null, quietFor: 3 }), false, 'no structure: needs 4 s');
+  assert.equal(S.sentinelTrip({ ...b, sectionEnergy: null, quietFor: 4 }), true);
+  assert.equal(S.sentinelTrip({ ...b, advancing: false }), false, 'a stopped deck is the watchdog\'s');
+  assert.equal(S.sentinelTrip({ ...b, muted: true }), false, 'a muted deck is silent on purpose');
+  assert.equal(S.sentinelTrip({ ...b, gainProduct: 0.05 }), false, 'a faded deck is silent on purpose');
+  assert.equal(S.sentinelTrip({ ...b, gateOpen: false }), false, 'a held loop owns the bus');
+});
+
+/* A1: EVERY DECK RATE GOES THROUGH ONE DOOR. On an iPhone with the decks in
+   the graph a captured element plays choppy at any rate but 1 (WebKit
+   240405), so every write of a deck element's playbackRate — SPEED, SYNC's
+   pitch, a seam's glide and phase lock, the cue's steering, finish/cancel,
+   the element brake — must pass through deckRate(), which asks iosRatesOk.
+   A new write that bypasses it would put a choppy record on air; this finds
+   it. (DECKROUTE's own copies of the on-air rate onto an element not yet in
+   the graph, or a direct twin, are the route's and are left out.) */
+test('A1: every deck element rate write passes through deckRate (the one decider, iosRatesOk)', () => {
+  const lines = html.split('\n');
+  const r0 = lines.findIndex(l => l.startsWith('const DECKROUTE = {'));
+  const r1 = lines.findIndex(l => l.startsWith('window.__mb8Route = () =>'));
+  assert.ok(r0 > 0 && r1 > r0, 'the route module is where it is expected');
+  let n = 0;
+  lines.forEach((l, i) => {
+    const m = l.match(/\.a\.playbackRate\s*=\s*([^;=][^;]*);/);
+    if (!m || (i > r0 && i < r1)) return;
+    n++;
+    const rhs = m[1].trim();
+    if (/deckRate\(/.test(rhs) || /deckRate\(/.test(l)) return;
+    const v = rhs.match(/^([A-Za-z_$][\w$]*)$/);
+    assert.ok(v, 'line ' + (i + 1) + ' writes a rate that is neither deckRate(...) nor a variable: ' + l.trim());
+    let found = false;
+    for (let k = i; k >= Math.max(0, i - 15) && !found; k--){
+      if (new RegExp('\\b(const|let)\\s[^;]*\\b' + v[1] + '\\s*=').test(lines[k])){
+        assert.ok(/deckRate\(/.test(lines[k]), 'line ' + (i + 1) + ': `' + v[1] + '` is not computed through deckRate: ' + lines[k].trim());
+        found = true;
+      }
+    }
+    assert.ok(found, 'line ' + (i + 1) + ': could not find where `' + v[1] + '` is computed');
+  });
+  assert.ok(n >= 15, 'the deck rate writes were all found (' + n + ')');
+});
+test('the loop tape stands down on iOS, booth graph included; the route rebuild lets a deck\'s tape go with its chain', () => {
+  const at = html.indexOf('  seat(d, i){\n    if (IS_IOS || !d || !d.src');
+  assert.ok(at > 0, 'LOOPER.seat refuses on iOS before it builds anything');
+  const sa = html.indexOf('  _seat(k, Tw, tearMs){');
+  assert.ok(sa > 0);
+  assert.match(html.slice(sa, sa + 600), /d\.vinyl = d\.tape = null/, 'DECKROUTE._seat clears the deck\'s tape with the rest of its chain');
+  const wd = html.indexOf('  AE._wireDeck = (d, i) => {');
+  const body = html.slice(wd, wd + 4000);
+  assert.ok(body.indexOf('const stale = ') < body.indexOf("['seeking', 'seeked', 'waiting', 'playing', 'emptied', 'loadstart']"), 'the tape\'s listeners are wired per element');
+  assert.match(body, /a\.addEventListener\(ev, \(\) => \{ if \(d\.a === a\) d\._tapeT0/, 'a rebuilt element\'s leftovers stamp nothing');
+  assert.match(body, /if \(d\.a === a && typeof LOOPER !== 'undefined'\) LOOPER\.broke/, '…and break no loop');
+});
+test('the iPhone hand-back keeps its raise: no seam finish or take trim writes the captured deck back to its trim mid-give; the EQ never lies', () => {
+  // MIXER.finish leaves the incoming deck's gain to the hand-back while DECKROUTE is giving (it stepped the swap by 1/norm)
+  const fi = html.indexOf("const handingBack = typeof DECKROUTE !== 'undefined' && DECKROUTE.phase === 'giving';");
+  assert.ok(fi > 0, 'MIXER.finish knows a hand-back is raising the deck');
+  assert.match(html.slice(fi, fi + 300), /if \(AE\.graphLive && nd\.gain && !handingBack\) DECKS\.gainWrite\(nd\.gain\.gain, nd\.norm \|\| 1, 0\.006\);/);
+  // the take's three 300 ms trim glides stand down once the phase has left 'graph'
+  const trims = html.match(/setTimeout\(\(\) => \{ if \(this\.phase === 'graph' && [AB]\.gain && AE\.decks && AE\.decks\[AE\.active\] === [AB]\) DECKS\.gainWrite\([AB]\.gain\.gain, [AB]\.norm \|\| 1, 0\.5\); \}, 300\);/g) || [];
+  assert.equal(trims.length, 3, 'the in-place, swap-in and crossover-fail trims are all guarded');
+  assert.ok(!/setTimeout\(\(\) => \{ if \([AB]\.gain[^}]*norm \|\| 1, 0\.5\); \}, 300\);/.test(html.replace(/this\.phase === 'graph' && /g, 'GUARDED ')), 'no unguarded trim glide is left');
+  // the EQ the pads show is on the rack the moment ensureCtx builds it
+  assert.match(html, /AE\.graphLive = !IS_IOS;\s*\/\/[^\n]*\n\s*try \{ if \(typeof FX !== 'undefined'\) FX\.applyEq\(\); \} catch \(e\)\{\}/, 'ensureCtx applies the remembered EQ');
+  // where the graph can never carry the music the EQ bank says so, as the FX bank does
+  assert.match(html, /if \(IS_IOS && !IOS_GRAPH\)\{ toast\(T\('The EQ needs the engine — on this device the music plays direct'\)\); return; \}/, 'the EQ pad refuses with a word');
+  assert.match(html, /const e = this\.EQS\[key\], dead = IS_IOS && !IOS_GRAPH;[\s\S]{0,300}lit = !dead &&/, 'and is painted dead, never lit');
+});
+test('the route in the player: gated, opt-in, and today\'s code wherever it is not on', () => {
+  assert.ok(html.includes('const IOS_GRAPH_DEFAULT = false;'), 'A4: the route ships off');
+  const boothToggle = html.slice(html.indexOf('const BOOTH = {'), html.indexOf('const BOOTH = {') + 2500);
+  assert.ok(boothToggle.includes('if (IOS_GRAPH) DECKROUTE.boothOpened();\n      else if (VINYL.songMode()) VINYL.pressSong();'), 'the booth takes the decks only where the gate is open, today\'s song tape otherwise');
+  assert.ok(boothToggle.includes('if (IOS_GRAPH) DECKROUTE.boothClosed();'), '…and gives them back on close');
+  assert.ok(html.includes("return !!(IS_IOS && !IOS_GRAPH && !AE.graphLive && AE.ctx"), 'no song tape where the route can run');
+  const route = html.slice(html.indexOf('const DECKROUTE = {'), html.indexOf('window.__mb8Route = () =>'));
+  assert.ok(/onGesture\(ev\)\{\n    if \(!IOS_GRAPH\) return;/.test(route), 'gestures do nothing for the route where the gate is shut');
+  assert.ok(route.indexOf("navigator.audioSession.type = 'playback'") < route.indexOf('this._capture('), 'A3: the session says playback before anything is captured');
+  assert.ok(route.includes("const playing = !!(player.playing && D.a.src && !D.a.paused && !D.a.ended);"), 'the hand-back reads whether the record is rolling');
+  assert.ok(html.includes("const stayPut = stayPutRule({ ios: IS_IOS, xfade, playing: this.playing, cued, graph: AE.graphLive,"), 'playIndex asks the tested rule');
+  assert.ok(html.includes('plan = iosSeamPlan(plan, !ratesHeld());'), 'A1: the auto-DJ\'s seam meets two tempi in the fade on held rates');
+  assert.ok(html.includes('if (ratesHeld()) return false;\n    if (typeof MIXER !== \'undefined\' && (MIXER.phase === \'running\''), 'A1: SYNC stands down on held rates');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
