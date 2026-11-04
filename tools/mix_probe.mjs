@@ -259,6 +259,7 @@ await page.evaluate(() => {
  * position (the shuffle bag is free to reorder), with A jumped to `before`
  * seconds short of its bar line so the probe does not sit through a whole
  * track. Returns everything the gates below read. */
+let lastWalk0 = null;   // the way home as measureSeam caught it starting (walkHome reads it)
 async function measureSeam(title, before, warmFirst){
   const base = await page.evaluate(() => {
     Object.assign(window.__seam, { seamAt: null, bAtSeam: null, bMoved: null, bLate: null });
@@ -311,6 +312,8 @@ async function measureSeam(title, before, warmFirst){
     return a.length ? a.reduce((x, s) => x + s.r, 0) / a.length : 0;
   });
   await page.waitForFunction(n => (window.__mixCompleted || 0) > n, base.done, { timeout: 90000 });
+  // the way home, caught as it starts (walkHome reads it 1.8 s on, by which time a short walk has landed)
+  lastWalk0 = await page.evaluate(() => MIXER._home ? { from: +MIXER._home.from.toFixed(5), secs: +MIXER._home.secs.toFixed(2) } : null);
   await page.waitForTimeout(1800);      // let B play on alone, so it can be measured alone
   const m = await page.evaluate(dur => {
     const s = window.__seam, t0 = s.seamAt;
@@ -456,6 +459,7 @@ function settleGates(settle, tag){
  * on its way, and must land within its walking time, moving one way only. The
  * settle gates below read the deck once it is home. */
 async function walkHome(tag){
+  const w0 = lastWalk0;
   const t0 = Date.now(), rates = [];
   let st, secs = null;
   for (;;){
@@ -472,10 +476,12 @@ async function walkHome(tag){
   const dir = Math.sign(rates[rates.length - 1] - rates[0]);
   const oneWay = rates.every((r, i) => i === 0 || r === rates[i - 1] || Math.sign(r - rates[i - 1]) === dir);
   const landed = !st.home && Math.abs(rates[rates.length - 1] - 1) < 0.002;
-  const inTime = secs == null || took <= secs + 1.5;
-  R(tag + 'the incoming record comes home at a walking pace — one way, in its own time, to its own tempo',
-    landed && oneWay && inTime,
-    (secs == null ? 'already home' : 'from ' + rates[0] + ' over ' + secs + ' s') + ' · took ' + took.toFixed(1) + ' s · ' + rates.length + ' reads · landed ' + rates[rates.length - 1]);
+  // the walk must have been SEEN starting (the fixture's pair is 28 cents apart: a walk of seconds), or the gate would pass an old step as 'already home'
+  const seen = !!(w0 && w0.secs > 0 && Math.abs(w0.from - 1) >= 0.001);
+  const inTime = !seen || (Date.now() - t0) / 1000 + 1.8 <= w0.secs + 1.5;
+  R(tag + 'the incoming record comes home at a walking pace — seen starting, one way, in its own time, to its own tempo',
+    seen && landed && oneWay && inTime,
+    (w0 ? 'from ' + w0.from + ' over ' + w0.secs + ' s' : 'NO WALK SEEN') + ' · read ' + (secs == null ? 'home' : 'at ' + rates[0]) + ' after 1.8 s · ' + rates.length + ' reads · landed ' + rates[rates.length - 1]);
 }
 await walkHome('');
 settleGates(await readSettle(), '');

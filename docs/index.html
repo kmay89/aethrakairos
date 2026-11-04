@@ -11701,6 +11701,18 @@ const DECKS = {
   retiring(i){ return !!AE.xfading && i !== AE.active; },
   // a deck a hand has: its record put there by hand, or its platter under a finger
   inHand(i){ return (i === 0 || i === 1) && (this.slots[i].owner === 'hand' || (typeof VINYL !== 'undefined' && !!VINYL.for(i).engaged)); },
+  /* A CARRIED RATIO. A deck left at the rate it has — a blend handed over as it
+     is heard (a hand-mode cancel), a way home ended early (MIXER._homeDrop) —
+     keeps that rate as its pitch, and is SYNCED by it: it rides a ratio to the
+     record it was matched to, which is what the lamp says and what the key-lock
+     rule reads (within SYNC_VINYL_MAX at 1× it rides vinyl, as the blend did;
+     a lock switched on at that ratio was a step of up to half a semitone). */
+  carry(i, ratio){
+    const s = this.slots[i];
+    if (!s) return;
+    const r = (+ratio > 0 && isFinite(+ratio)) ? +ratio : 1;
+    s.pitch = r; s.synced = Math.abs(r - 1) > 1e-6;
+  },
 
   /* ---- loading, starting, stopping a deck by hand --------------------- */
   /* THE ONE WAY TO WRITE A DECK GAIN. Measured (headless Chromium, offline
@@ -24470,6 +24482,12 @@ function vinylThrowSpeed(v, stillSec){
   if (!isFinite(v) || !(stillSec >= 0)) return 0;
   return stillSec > 0.05 ? 0 : v * Math.exp(-stillSec / 0.03);
 }
+/* ONE INPUT PERIOD IS NOT A STILL FINGER. The last move sample is up to a
+   frame old at the lift wherever pointermove is the feed (no pointerrawupdate:
+   Safari, Firefox, iOS), so a flick read as 'still for 17 ms' lost half its
+   speed to the decay above and a throw became a put-down at random. The lift
+   reads the up's own clock and forgives one period. */
+const VINYL_INPUT_PERIOD = 0.017;
 /* WHERE THE TAPE WILL BE when the deck lands (a hold-release: the deck is
    seeked to the platter's place under cover of the tape). The seek takes
    seekLat seconds; across them the tape runs not at 1× but through the
@@ -24505,6 +24523,7 @@ function makeVinyl(sr, seconds){
   return {
     sr: rate, cap, ring: [new Float32Array(cap), new Float32Array(cap)],
     written: 0,                           // frames ever written: the ring index is written % cap
+    floor: 0,                             // the oldest frame a hand may read: a rebase's hole lies behind it
     pos: 0,                               // the platter's read head, in the same count (fractional)
     engaged: false, gain: 0, gainStep: 1 / (VINYL_RAMP_SEC * rate),
     platter: makePlatter(), hand: null,
@@ -24676,7 +24695,7 @@ function vinylProcess(S, inL, inR, outL, outR, n, now){
   const air = (S.air == null ? PLATTER.air : S.air) && ar > 1.02;
   const K = air ? Math.min(8, 2 * Math.ceil(ar)) : 1, step = air ? 2 * ar / K : 0;
   const sc = S.script;
-  const oldest = Math.max(0, w - cap + 4);
+  const oldest = Math.max(0, w - cap + 4, S.floor || 0);   // (S.floor: the edge of a rebase's hole)
   let pos = S.pos, g = S.gain, lpL = S.lpL, lpR = S.lpR, cg = S.cutG;
   for (let i = 0; i < n; i++){
     if (S.engaged){ if (g < 1){ g += S.gainStep; if (g > 1) g = 1; } }
@@ -24777,6 +24796,7 @@ function vinylCommand(S, m, now){
       const from = S.pos, to = S.written - 3, sh = to - from;
       if (S.gain > 0){ S.snapFrom = from; S.snapU = 0; } else { S.snapFrom = -1; S.snapU = 0; }
       S.pos = to;
+      S.floor = to;   // behind the live edge lies the seek's hole and the pre-seek tape: a back-stroke stalls at its edge (vinylProcess) until the ring has written past it
       if (S.handFrom != null) S.handFrom += sh;
       if (S.handTo != null) S.handTo += sh;
       S.handToLast += sh;
@@ -25419,7 +25439,7 @@ const MIXER = {
          start (onPlayIndex), a load, or SYNC sets it again. */
       if (mode === 'hand' && AE.decks) AE.decks.forEach((d, i) => {
         const r = d.a.playbackRate || SPEED.rate;
-        DECKS.slots[i].pitch = r / (SPEED.rate || 1);
+        DECKS.carry(i, r / (SPEED.rate || 1));          // …and synced by that ratio: the key-lock rule keeps the blend's pitch mode (no step)
       });
     }
     /* a cancel mid-blend used to leave the outgoing element decoding at gain
@@ -25442,10 +25462,7 @@ const MIXER = {
       // that is already where it should be
       const s = DECKS.slots[i], r = deckRate(SPEED.rate * DECKS.pitch(i));
       try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){}
-      // (already equality-guarded; the one rule, SPEED.apply's) — except that a hand-mode cancel hands the blend over AS IT IS
-      // HEARD, pitch mode included: a lock switched on at the ratio a record still rides as vinyl is a step of up to half a
-      // semitone at full level; the next deliberate rate writer (SPEED, SYNC, a load, the next track) applies the rule
-      if (!(mode === 'hand' && Math.abs((s.pitch || 1) - 1) > 1e-6)) setPitchLock(d.a, keyLockFor(SPEED.keyLock, SPEED.rate, s.synced, s.pitch));
+      setPitchLock(d.a, keyLockFor(SPEED.keyLock, SPEED.rate, s.synced, s.pitch));   // (already equality-guarded; the one rule, SPEED.apply's — a carried ratio is synced, so a hand-mode cancel keeps the blend's pitch mode)
       if (d.shelf && d.shelf.gain.value !== 0) DECKS.gainWrite(d.shelf.gain, 0, 0.006);
       /* kill any scheduled crossfade ramp and settle each deck: the surviving
          (active) deck back to full, a hand's deck too (its level is the
@@ -25537,6 +25554,8 @@ const MIXER = {
     }
     if (this.phase === 'armed'){
       if (held){ this.cancel('hand'); return; }
+      // a cue the hand moved after the plan was made: fire() places B from the plan's entry, not the slot's cue, so the plan is re-made from it (the next frame arms afresh)
+      { const hs = DECKS.slots[1 - AE.active]; if (this.plan && this.plan.cueAt != null && hs.owner === 'hand' && hs.cue !== this.plan.cueAt){ this.cancel('replan'); return; } }
       const exitAt = this.exitTime(d.a.duration, this.plan, player.tracks[player.cur]);
       this._warmB(exitAt - t);                   // the second stage of the warm, once, when A can spare the pipe
       this._cueWatch(d, t, exitAt);              // the cued deck: B let go silently ahead of the seam (_cueTick)
@@ -25623,6 +25642,7 @@ const MIXER = {
     // …and rates that play clean: an iPhone's captured decks hold 1×, so two tempi meet in the fade (iosSeamPlan)
     plan = iosSeamPlan(plan, !ratesHeld());
     if (held && plan.type === 'beatmix') plan.lead = seamLeadAvail(hd.a.buffered, plan.startB, BEATMIX_LEAD);   // the lead the parked deck can give (seamLeadAvail)
+    plan.cueAt = held ? hs.cue : null;            // the cue this plan was made from: moved by the hand, the plan is re-made (update)
     this.plan = plan;
     this.next = i;
     this._cueReset(B);
@@ -26697,11 +26717,21 @@ const MIXER = {
     try { h.d.a.playbackRate = deckRate(seamHomeRate(h.from, h.to, u)); } catch (e){}   // (through the one door: an iPhone's graph holds 1×, and the glide is a step to it)
     if (u >= 1){ this._home = null; this._homeLock(h.d); }
   },
+  /* THE WAY HOME ENDS WHERE IT IS. A writer that takes the deck's rate (SPEED,
+     a seam firing, the cancel's retune, a hand on its platter) ends the glide,
+     and the record's rate as it stands becomes its slot's pitch — a ratio it
+     rides to the record it was matched to (DECKS.carry: synced by it) — so what
+     that writer writes next, SPEED.rate × pitch, is the rate it already has.
+     Stepping it to its own tempo instead was a step of whatever gap was left,
+     at full level, at a seam's first sample or under a speed tap. The pitch
+     mode follows the one rule for that ratio; the ratio is let go by the next
+     load, track start or SYNC, as any carried pitch is. */
   _homeDrop(d){
     const h = this._home;
     if (!h || (d && h.d !== d)) return;
     this._home = null;
-    try { h.d.a.playbackRate = deckRate(h.to); } catch (e){}
+    const i = AE.decks ? AE.decks.indexOf(h.d) : -1;
+    if (i >= 0 && typeof DECKS !== 'undefined') DECKS.carry(i, (h.d.a.playbackRate || h.to) / (SPEED.rate || 1));
     this._homeLock(h.d);
   },
   // the landing: the record is at its own tempo, and gets the one key-lock rule's pitch mode (inaudible at 1×)
@@ -26754,6 +26784,8 @@ const MIXER = {
     if (typeof DECKS !== 'undefined') DECKS.settle({ retired, resetPitch: true, force: by === 'hand' });
     if (od){
       od.a.pause();
+      // a hand that was scratching the record going out loses it here: its focus moves on, or every pad and the platter would aim at a silent deck
+      if (typeof DECKS !== 'undefined'){ const oi = AE.decks.indexOf(od); if (DECKS.focus === oi && DECKS.slots[oi] && DECKS.slots[oi].owner !== 'hand') DECKS.focus = -1; }
       try { od.a.playbackRate = deckRate(SPEED.rate); } catch (e){}
       setPitchLock(od.a, SPEED.keyLock);
       if (od.shelf) DECKS.gainWrite(od.shelf.gain, 0, 0.006);
@@ -31331,12 +31363,12 @@ function makeVinylHand(i){
        the hand sized), and the hand lets go once the motor has it back. Put
        down, it is given back musically: armed it stays in the hand (slip
        snapping it home), a touch releases. */
-    lift(){
+    lift(t){
       const p = this._ptr;
       if (!p) return;
       this._ptr = null;
-      // the speed the finger had, aged by how long it has been still: a planted finger puts the record down (vinylThrowSpeed)
-      const v = vinylThrowSpeed(p.v, Math.max(0, (performance.now() - p.t) / 1000));
+      // the speed the finger had, aged by how long it has been still (less one input period): a planted finger puts the record down (vinylThrowSpeed)
+      const v = vinylThrowSpeed(p.v, Math.max(0, ((t > 0 ? t : performance.now()) - p.t) / 1000 - VINYL_INPUT_PERIOD));
       const thrown = !this.slip && !this.seam() && !this.taped() && !p.hold && Math.abs(v) > VINYL_THROW;
       if (thrown) this.post({ op: 'throw', v: Math.max(-PLATTER.maxRate, Math.min(PLATTER.maxRate, v)) });
       else this.post({ op: 'lift' });
@@ -32106,7 +32138,7 @@ function wireBoothScrub(){
      without scratching it, the way a hand flat on the label does; the rim
      scratches. The lanes below stay scrub strips — a seek, not a scratch —
      because those are different gestures with different sounds. */
-  let jog = null;
+  const jogs = new Map();   // pointerId → deck: two fingers on two platters (one `jog` let the second finger erase the first hand's lift, and that record stayed stopped)
   const onJog = ev => {
     const r = cv.getBoundingClientRect();
     const x = ev.clientX - r.left, y = ev.clientY - r.top;
@@ -32123,10 +32155,11 @@ function wireBoothScrub(){
     const j = onJog(ev);
     if (j){
       ev.preventDefault();
+      for (const dk of jogs.values()) if (dk === j.deck) return;   // a platter already under a finger is that finger's
       DECKS.focus = j.deck; DECKS.hand();           // the platter's deck is the hand's from here
       const hand = VINYL.for(j.deck);
       if (hand.grab(j.x, j.y, j.g, ev.timeStamp, ev.pointerType, j.hold)){
-        jog = { id: ev.pointerId, deck: j.deck };
+        jogs.set(ev.pointerId, j.deck);
         try { cv.setPointerCapture(ev.pointerId); } catch (e){}
         cv.style.cursor = 'grabbing';
       }
@@ -32149,18 +32182,19 @@ function wireBoothScrub(){
      it the moment they arrive, and the frame-aligned pointermove feeds
      nothing (it would repeat them); elsewhere pointermove is the feed. */
   const rawFeed = 'onpointerrawupdate' in window;
-  const feed = ev => {
-    const g = jog.deck ? BOOTH._jogB : BOOTH._jogA, hand = VINYL.for(jog.deck);
+  const feed = (ev, deck) => {
+    const g = deck ? BOOTH._jogB : BOOTH._jogA, hand = VINYL.for(deck);
     if (!g) return;
     // every sample the hand made, at the time it made it: a 120 Hz finger is not a 60 Hz one
     const r = cv.getBoundingClientRect();
     const evs = (typeof ev.getCoalescedEvents === 'function' && ev.getCoalescedEvents()) || [];
     for (const e of (evs.length ? evs : [ev])) hand.move(e.clientX - r.left, e.clientY - r.top, g, e.timeStamp);
   };
-  if (rawFeed) cv.addEventListener('pointerrawupdate', ev => { if (jog && ev.pointerId === jog.id) feed(ev); });
+  if (rawFeed) cv.addEventListener('pointerrawupdate', ev => { const dk = jogs.get(ev.pointerId); if (dk != null) feed(ev, dk); });
   cv.addEventListener('pointermove', ev => {
-    if (jog && ev.pointerId === jog.id){
-      if (!rawFeed) feed(ev);
+    const dk = jogs.get(ev.pointerId);
+    if (dk != null){
+      if (!rawFeed) feed(ev, dk);
       ev.preventDefault();
       return;
     }
@@ -32168,15 +32202,22 @@ function wireBoothScrub(){
     const p = at(ev);
     if (p){ try { p.deck.a.currentTime = p.to; } catch (e){} }
   });
+  // the finger that lifts lifts ITS hand (the up's own clock goes to the throw: lift(t))
+  const liftJog = ev => {
+    const dk = jogs.get(ev.pointerId);
+    if (dk == null) return false;
+    jogs.delete(ev.pointerId); VINYL.for(dk).lift(ev.timeStamp); VINYL._cursor();
+    return true;
+  };
   const up = ev => {
-    if (jog && ev.pointerId === jog.id){ const hand = VINYL.for(jog.deck); jog = null; hand.lift(); VINYL._cursor(); return; }
+    if (liftJog(ev)) return;
     if (ev.pointerId === id){ id = null; FX._scrubbing = null; if (typeof mediaSessionPosition === 'function') mediaSessionPosition(); }
   };
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', up);
   // a capture lost without an up (the page hid, the pointer went away) must not hold a loop's re-latch forever
   cv.addEventListener('lostpointercapture', ev => {
-    if (jog && ev.pointerId === jog.id){ const hand = VINYL.for(jog.deck); jog = null; hand.lift(); VINYL._cursor(); return; }   // a scratch whose capture went: the lift that never came
+    if (liftJog(ev)) return;   // a scratch whose capture went: the lift that never came
     if (ev.pointerId === id){ id = null; FX._scrubbing = null; }
   });
   // a wheel over a platter is a push of the record's edge: the motor briefly over or under speed — a pitch bend
@@ -33103,10 +33144,10 @@ function wireDeckWave(){
   const ptrs = new Map();
   let drag = null, pinch = null, lastTap = 0;
   const rel = ev => { const r = cv.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; };
-  const letGo = () => {
+  const letGo = t => {
     if (!drag) return;
     if (drag.scrub){ if (drag.deck === AE.active && typeof mediaSessionPosition === 'function') mediaSessionPosition(); }
-    else VINYL.for(drag.deck).lift();
+    else VINYL.for(drag.deck).lift(t);
     drag = null;
   };
   cv.addEventListener('wheel', ev => {
@@ -33178,10 +33219,11 @@ function wireDeckWave(){
   const up = ev => {
     ptrs.delete(ev.pointerId);
     if (ptrs.size < 2) pinch = null;
-    if (drag && ev.pointerId === drag.id) letGo();
+    if (drag && ev.pointerId === drag.id) letGo(ev.timeStamp);
   };
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', up);
+  cv.addEventListener('lostpointercapture', up);   // a capture lost without an up (the page hid, the strip re-laid out): the lift that never came, as on the jog
 }
 
 const XF_REACH = 22;     // the hand's band reaches this far past each end of the rail, so the stops are under a thumb
