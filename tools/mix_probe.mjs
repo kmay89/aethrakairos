@@ -449,6 +449,35 @@ function settleGates(settle, tag){
     settle.decks.every(d => Math.abs(d.shelf) < 0.01 && d.filter > 15000),
     settle.decks.map(d => 'shelf ' + d.shelf + '/f ' + d.filter).join(' · '));
 }
+/* THE WAY HOME. The blend holds the record on air at its own tempo and pitches
+ * the incoming to it (glideRates: rateA is 1 at every f); once alone on air the
+ * incoming glides home to its own tempo at ten cents a second (seamHomeRate).
+ * So the surviving deck is not at unity the instant the seam finishes — it is
+ * on its way, and must land within its walking time, moving one way only. The
+ * settle gates below read the deck once it is home. */
+async function walkHome(tag){
+  const t0 = Date.now(), rates = [];
+  let st, secs = null;
+  for (;;){
+    st = await page.evaluate(() => {
+      const d = AE.decks[AE.active], h = MIXER._home;
+      return { rate: +d.a.playbackRate.toFixed(5), home: !!h, secs: h ? +h.secs.toFixed(2) : null, from: h ? +h.from.toFixed(5) : null };
+    });
+    if (st.home && secs == null) secs = st.secs;
+    rates.push(st.rate);
+    if (!st.home || Date.now() - t0 > 15000) break;
+    await page.waitForTimeout(100);
+  }
+  const took = (Date.now() - t0) / 1000;
+  const dir = Math.sign(rates[rates.length - 1] - rates[0]);
+  const oneWay = rates.every((r, i) => i === 0 || r === rates[i - 1] || Math.sign(r - rates[i - 1]) === dir);
+  const landed = !st.home && Math.abs(rates[rates.length - 1] - 1) < 0.002;
+  const inTime = secs == null || took <= secs + 1.5;
+  R(tag + 'the incoming record comes home at a walking pace — one way, in its own time, to its own tempo',
+    landed && oneWay && inTime,
+    (secs == null ? 'already home' : 'from ' + rates[0] + ' over ' + secs + ' s') + ' · took ' + took.toFixed(1) + ' s · ' + rates.length + ' reads · landed ' + rates[rates.length - 1]);
+}
+await walkHome('');
 settleGates(await readSettle(), '');
 
 /* THE ROOM CHANGED HANDS WITH THE MUSIC. The seam cues the visual director on
@@ -504,6 +533,7 @@ R('the incoming deck is rolling before the blend can be heard', rolledInTime(s2)
 blendGates(s2, 'cued: ');
 R('cued: the beat lock holds inside its 40 ms contract', s2.m.phase != null && s2.m.phase < 40,
   s2.m.phase == null ? 'not measured' : s2.m.phase.toFixed(1) + ' ms');
+await walkHome('cued: ');
 settleGates(await readSettle(), 'cued: ');
 const left2 = await page.evaluate(() => ({ cue: !!MIXER._cue, poll: !!MIXER._cueT }));
 R('cued: nothing of the cue outlives the seam', !left2.cue && !left2.poll, JSON.stringify(left2));

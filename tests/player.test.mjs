@@ -28,7 +28,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' XFORM_KINDS, XFORM_MIN_DUR, segueFx, segueFxDur,' +
   ' smoothEnv, analyzeStructure, moodOf, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB, STEM_PAL, STEM_OKLCH,' +
   ' SEGUE_BARS, SECTION_CHANGE, sectionChangeClass, LENS_HYST,' +
-  ' camelotParse, camelotCompat, tempoFoldRatio, SYNC_MAX_TEMPO, SYNC_VINYL_MAX, planTransition, glideRates, driftTrim,' +
+  ' camelotParse, camelotCompat, tempoFoldRatio, SYNC_MAX_TEMPO, SYNC_VINYL_MAX, planTransition, glideRates, SEAM_HOME_CENTS_PER_S, seamHomeSecs, seamHomeRate, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamOutHold, seamLeadAvail, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
   ' SEAM_CUE_S, SEAM_CUE_MIN, SEAM_CUE_TOL, SEAM_CUE_LAT, seamCueTarget, seamCuePoint, seamCueDue, seamCueStep, seamCueHolds, seamCueLearn,' +
@@ -637,13 +637,26 @@ test('beatmix geometry: bar-aligned start, overlap fits, eight beats by default'
   assert.equal(shortRegion.beats, 8, 'regions clamp the blend');
 });
 
-test('the master tempo curve glides and lands', () => {
-  const g0 = S.glideRates(126, 120, 0), g1 = S.glideRates(126, 120, 1);
-  assert.ok(Math.abs(g0.rateA - 1) < 1e-9, 'A starts untouched');
-  assert.ok(Math.abs(g1.rateB - 1) < 1e-9, 'B lands untouched');
-  assert.ok(g1.rateA < 1 && g0.rateB > 1, 'both stretch toward each other');
+test('the record on air never moves: A holds, B is matched to it throughout, and comes home afterwards at a walking pace', () => {
+  const g0 = S.glideRates(126, 120, 0), g1 = S.glideRates(126, 120, 1), gh = S.glideRates(126, 120, 0.5);
+  assert.ok(g0.rateA === 1 && g1.rateA === 1 && gh.rateA === 1, 'A is untouched at every f (it used to slide to B\'s tempo as it faded)');
+  assert.ok(Math.abs(g0.rateB - 126 / 120) < 1e-9 && Math.abs(g1.rateB - 126 / 120) < 1e-9, 'B is pitched to A for the whole blend');
   const half = S.glideRates(140, 70, 1);
-  assert.ok(Math.abs(half.rateB - 1) < 1e-9, 'half-time glide respects the fold');
+  assert.ok(Math.abs(half.rateB - 1) < 1e-9, 'half-time: the fold makes 70 and 140 one tempo');
+  assert.ok(Math.abs(S.glideRates(124, 126, 0).rateB / S.glideRates(124, 126, 0).rateA - 124 / 126) < 1e-12, 'the ratio the phase lock reads is what it was');
+  // the way home: ten cents a second, geometric, never under a second, nothing for nothing
+  assert.equal(S.SEAM_HOME_CENTS_PER_S, 10);
+  const from = 126 / 120, cents = 1200 * Math.log2(1 / from);
+  assert.ok(Math.abs(S.seamHomeSecs(from, 1) - Math.abs(cents) / 10) < 1e-9, '84 cents: 8.4 s');
+  assert.equal(S.seamHomeSecs(1.0002, 1), 0, 'a third of a cent is nothing'); assert.equal(S.seamHomeSecs(1.003, 1), 1, '…and five cents is still a second');
+  assert.equal(S.seamHomeRate(from, 1, 0), from); assert.equal(S.seamHomeRate(from, 1, 1), 1); assert.equal(S.seamHomeRate(from, 1, 2), 1, 'clamped');
+  assert.ok(Math.abs(1200 * Math.log2(S.seamHomeRate(from, 1, 0.5) / from) - cents / 2) < 1e-9, 'half way in cents at half time');
+  // wired: finish starts it, update ticks it, a hand, a seam and the cancel's retune drop it; the on-air record holds its own pitch through the seam
+  assert.match(html, /this\._homeStart\(nd, deckRate\(SPEED\.rate \* DECKS\.pitch\(AE\.decks\.indexOf\(nd\)\)\)\);\s*setPitchLock\(nd\.a, SPEED\.keyLock\);/, 'finish');
+  assert.match(html, /this\._homeTick\(\);\s*\/\/ the incoming record of the last seam, on its way home/, 'update');
+  assert.equal((html.match(/this\._homeDrop\(\);/g) || []).length, 2, 'fire and the retune');
+  assert.match(html, /hand\(\)\{ this\._handAt = performance\.now\(\); if \(typeof MIXER !== 'undefined' && MIXER\._home\) MIXER\._homeDrop\(\); \}/, 'a hand');
+  assert.match(html, /k = seamPitchCarry\(this\._pA, 0\);\s*\/\/ the on-air record holds its own pitch too/, '_applyRates');
 });
 
 test('drift trim is proportional, clamped, and signed right', () => {
@@ -12293,7 +12306,7 @@ test('the decks in the player: slots by identity, the restore onto the idle deck
   const mixer = html.slice(html.indexOf('const MIXER = {'), html.indexOf('/* hidden tabs get no rAF'));
   assert.ok(mixer.includes("this._pA = (typeof DECKS !== 'undefined') ? DECKS.pitch(AE.active) : 1;"), 'R13: the on-air pitch is read at fire');
   assert.ok(mixer.includes('od.a.playbackRate = this._lastRateA = deckRate(g.rateA * k * SPEED.rate);') && mixer.includes('nd.a.playbackRate = this._lastRateB = deckRate(g.rateB * k * SPEED.rate);'), 'R13: fire carries it');
-  assert.ok(mixer.includes('k = seamPitchCarry(this._pA, f);') && mixer.includes('const rA = deckRate(g.rateA * k * SPEED.rate), rB = deckRate(g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate);'), 'R13: the glide carries it home');
+  assert.ok(mixer.includes('k = seamPitchCarry(this._pA, 0);') && mixer.includes('const rA = deckRate(g.rateA * k * SPEED.rate), rB = deckRate(g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate);'), 'R13: the blend holds the on-air pitch (the incoming comes home in finish, through _homeStart)');
   assert.equal((mixer.match(/this\._lastRateA = this\._lastRateB = 1; this\._pA = 1;/g) || []).length, 2, 'R13: finish and cancel let it go');
   assert.ok(mixer.includes('const fresh = ws.rec !== had;') && mixer.includes('if (fresh){ const mB = mixOf(B); ws.cue = (mB && mB.in && mB.in.start) || 0; }'), 'R29: the auto-DJ\'s record gets its own cue');
   assert.ok(mixer.includes('if (fresh && nd.a.paused){\n      { const r = deckRate(SPEED.rate); try { if (nd.a.playbackRate !== r) nd.a.playbackRate = r; } catch (e){} }\n      setPitchLock(nd.a, SPEED.keyLock);'),
