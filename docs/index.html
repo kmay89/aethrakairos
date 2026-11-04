@@ -19780,6 +19780,11 @@ const AIRPLAY = {
       // a seam in flight has nowhere to land once the graph goes
       if (typeof MIXER !== 'undefined' && MIXER.phase !== 'idle') MIXER.cancel('route');
       if (typeof DECKS !== 'undefined') DECKS.collapse();   // one deck from here: the idle one stops, the handle comes home
+      /* …and no gesture outlives the graph it was written on: a gate or an
+         echo left up across a hop to AirPlay came back onto the master with
+         the graph, wherever the room's hands had last been (the iPhone's
+         hand-back releases the rack the same way, DECKROUTE._resolveOne) */
+      if (direct && typeof FX !== 'undefined') try { FX.release(); } catch (e){}
       AE.xfading = false;
       AE.decks.forEach((dk, k) => {
         try { dk.a.pause(); } catch (e){}
@@ -24100,8 +24105,13 @@ function driveMakeup(k){
    probe: 1.0 carried off the score, where the analyser itself never read
    above 0.83). So the bar is not spent: the decision is taken once the ear
    has settled (half a second, six of the slowest follower's constants),
-   still inside the bar's first quarter or at the next. The seam's echo
-   reads the mixer's arithmetic, not the ear, and is never held.
+   still inside the bar's first quarter or at the next. Only a BEGINNING is
+   held: a unit winding down (the hidden tab's ceiling of zero, the gate's
+   four bars, a change of mind that ends what is up) goes through unheld —
+   an ending is always safe, and a hidden tab's coarse tick settles no ear,
+   so holding it there left a gate chopping a pocket's music for as long as
+   the screen stayed off. The seam's echo reads the mixer's arithmetic, not
+   the ear, and is never held.
    Returns { st, change, unit }. */
 const FX_AUTO = { hyst: 0.06, holdBars: 2, restBars: 8, gateBars: 4, gateEvery: 32, barTop: 0.25, earSec: 0.5 };
 function makeFxAuto(){ return { unit: 'none', since: -1e9, endedAt: -1e9, gateAt: -1e9, bar: -1 }; }
@@ -24109,8 +24119,7 @@ function fxAutoStep(st, o, barPhase, nowBars){
   const s = st || makeFxAuto();
   const bar = Math.floor(nowBars > 0 ? nowBars : 0);
   if (!(barPhase < FX_AUTO.barTop) || bar === s.bar) return { st: s, change: false, unit: s.unit };
-  if (o && o.earFor != null && !(o.earFor >= FX_AUTO.earSec) && !(o.toSeam != null && o.toSeam <= o.bar))
-    return { st: s, change: false, unit: s.unit };
+  const unsettled = !!(o && o.earFor != null && !(o.earFor >= FX_AUTO.earSec));
   const on = s.unit !== 'none';
   const inp = Object.assign({}, o || {});
   inp.energy = (inp.energy || 0) + (on ? FX_AUTO.hyst : -FX_AUTO.hyst);
@@ -24121,6 +24130,8 @@ function fxAutoStep(st, o, barPhase, nowBars){
     if (s.unit === 'gate' && bar - s.since >= FX_AUTO.gateBars && want === 'gate') want = 'none';
     else if (want !== s.unit && !seamEcho && bar - s.since < FX_AUTO.holdBars) want = s.unit;
   }
+  // an unsettled ear: only an ending (anything that takes down what is up) or the seam's echo is decided; the rest waits, the bar unspent
+  if (unsettled && !seamEcho && !(on && want !== s.unit)) return { st: s, change: false, unit: s.unit };
   const next = { unit: s.unit, since: s.since, endedAt: s.endedAt, gateAt: s.gateAt, bar };
   if (want === s.unit) return { st: next, change: false, unit: s.unit };
   if (want !== 'none' && !seamEcho){

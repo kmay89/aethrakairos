@@ -11734,12 +11734,34 @@ test('fxAutoStep: an ear that has not settled decides nothing — the bar is not
   assert.ok(seam.change && seam.unit === 'echo', 'the seam comes once: its echo is never held');
   // no ear reported (the old callers, the tests above): the step is what it always was
   assert.ok(S.fxAutoStep(st0, { ...base, energy: 1 }, 0.005, 1.005).change);
+  // ONLY A BEGINNING IS HELD: a unit up winds down on an unsettled ear (a hidden tab's ceiling of zero settles no ear)
+  for (const unit of ['gate', 'echo', 'filter', 'reverb']){
+    const up = Object.assign(S.makeFxAuto(), { unit, since: 100, gateAt: 100, bar: 120 });
+    const down = S.fxAutoStep(up, { ...base, ceil: 0, energy: 0.9, earFor: 0 }, 0.05, 121.05);
+    assert.ok(down.change && down.unit === 'none', unit + ' up, ceil 0, ear unsettled: it ends, got ' + JSON.stringify(down));
+    assert.equal(down.st.bar, 121, '…and that bar is spent');
+  }
+  // the gate's four bars are an ending too
+  const gate4 = Object.assign(S.makeFxAuto(), { unit: 'gate', since: 100, gateAt: 100, bar: 103 });
+  const g4 = S.fxAutoStep(gate4, { ...base, energy: 1, earFor: 0.1 }, 0.05, 104.05);
+  assert.ok(g4.change && g4.unit === 'none', 'the gate lets go after its four bars, settled ear or not');
+  // a change of mind that would START another unit only ends the one up (an ending); the new one waits for the ear
+  const filt = Object.assign(S.makeFxAuto(), { unit: 'filter', since: 100, bar: 110 });
+  const swap = S.fxAutoStep(filt, { ...base, energy: 1, earFor: 0.1 }, 0.05, 111.05);
+  assert.ok(swap.change && swap.unit === 'none', 'the filter ends; the gate is not dealt on the carried-over reading');
+  // a unit up that the hot reading would keep: nothing changes, and the bar is not spent
+  const keep = S.fxAutoStep(Object.assign(S.makeFxAuto(), { unit: 'gate', since: 200, gateAt: 200, bar: 200 }), { ...base, energy: 1, earFor: 0.1 }, 0.05, 201.05);
+  assert.ok(!keep.change && keep.unit === 'gate' && keep.st.bar === 200, 'held up, unspent');
   // the ear's clock: reset whenever the rack is not live, and a hidden tab's coarse tick (no analyse()) settles nothing
   const at = html.indexOf('  autoTick(dt){\n    /* how long the analyser');
   assert.ok(at > 0, 'FX.autoTick keeps the ear\'s clock');
   const head = html.slice(at, at + 700);
   assert.match(head, /this\._earFor = this\.live\(\) \? /, 'the clock resets when the rack is not live');
   assert.match(head, /!document\.hidden/, 'a hidden tick runs no analyse(), so it adds no settled time');
+  // a hop to AirPlay releases the rack: no gesture outlives the graph it was written on
+  const sd = html.indexOf('  async setDirect(direct){');
+  assert.ok(sd > 0);
+  assert.match(html.slice(sd, sd + 2400), /if \(direct && typeof FX !== 'undefined'\) try \{ FX\.release\(\); \} catch \(e\)\{\}/, 'setDirect(true) releases FX');
 });
 test('fxAutoSweep: a build earns a highpass up to the vocals, over the bars it has left, let go a beat before the drop', () => {
   const s = S.fxAutoSweep(16, 120, 0.9);
