@@ -421,7 +421,9 @@ const readSettle = () => page.evaluate(() => {
       paused: d.a.paused });
   });
   return { decks: out, phase: MIXER.phase, trim: MIXER.trim, audioT0: MIXER.audioT0,
-    trimI: MIXER.trimI, latched: !!MIXER._latched, aligns: MIXER._aligns };
+    trimI: MIXER.trimI, latched: !!MIXER._latched, aligns: MIXER._aligns,
+    // the loudness trim the record on air is owed — what playIndex() would give it
+    want: normLin(player.tracks[player.cur]) };
 });
 function settleGates(settle, tag){
   const act = settle.decks.find(d => d.active), idle = settle.decks.find(d => !d.active);
@@ -434,9 +436,13 @@ function settleGates(settle, tag){
       && !settle.latched && settle.aligns === 0,
     JSON.stringify({ phase: settle.phase, trim: settle.trim, trimI: settle.trimI,
       latched: settle.latched, aligns: settle.aligns }));
-  R(tag + 'the surviving deck is at unity gain and unity rate',
-    Math.abs(act.gain - 1) < 0.06 && Math.abs(act.rate - 1) < 0.002,
-    'gain ' + act.gain + ' rate ' + act.rate);
+  /* "unity" is the record's OWN loudness trim, not 1.0: an auto-mixed record
+     used to arrive on a deck whose trim nobody set, so it sat at 1.0 (or at
+     the last record's trim) and this check, written against 1.0, held only
+     because of that. The fixture's records are trimmed +6 dB. */
+  R(tag + 'the surviving deck is at its record\'s trim and unity rate',
+    Math.abs(act.gain - settle.want) < 0.06 * settle.want && Math.abs(act.rate - 1) < 0.002,
+    'gain ' + act.gain + ' (owed ' + (+settle.want.toFixed(4)) + ') rate ' + act.rate);
   R(tag + 'the retired deck is silent and paused', idle.gain < 0.02 && idle.paused,
     'gain ' + idle.gain + ' paused ' + idle.paused);
   R(tag + 'both decks leave the bass shelf flat and the filter open',
