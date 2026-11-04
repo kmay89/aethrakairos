@@ -11793,6 +11793,7 @@ test('FX.letGoTail: a held hand-off tail never outlives the graph — setDirect(
       VINYL: { drop(){} }, MIXER: { phase: 'running' }, SPEED: { rate: 1 }, deckRate: r => r, activeDeck: () => AE.decks[0],
       syncFxHud(){}, FXPADS: { paint(){} }, document: { hidden: false },
       ECHO_HOLD_FB: S.ECHO_HOLD_FB != null ? S.ECHO_HOLD_FB : 0.94, DEBUG: false, clamp01: x => Math.max(0, Math.min(1, x)),
+      ramp: (p, v) => { if (p && v != null){ p.writes.push(v); p.value = v; } },
     };
     vm.createContext(ctx);
     vm.runInContext(L.slice(f0 + 1, f1).join('\n').replace(/^const /gm, 'var ').replace(/^let /gm, 'var ')
@@ -11834,7 +11835,11 @@ test('FX.letGoTail: a held hand-off tail never outlives the graph — setDirect(
     AE.graphLive = true;
     FX.set('echo', 0.5, 0.5);
     FX.leaveGraph(); AE.graphLive = false;
-    assert.equal(FX.unit, 'echo', 'a hand\'s echo (not held) is the hand\'s: untouched');
+    assert.equal(FX.unit, '', 'a hand\'s echo parks too: an effect plays in time with the graph the hop takes away');
+    AE.graphLive = true;
+    FX.set('filter', 0.25);
+    FX.leaveGraph(); AE.graphLive = false;
+    assert.ok(FX.unit === 'filter' && FX.amount === 0.25, 'the hand\'s FILTER is its channel filter: it comes home (airplay_probe)');
   }
   // 4. a hand's own HOLD (no hand-off tail): leaving the graph lets it go too — a frozen loop has nowhere to be heard but the device
   {
@@ -11856,18 +11861,21 @@ test('FX.letGoTail: a held hand-off tail never outlives the graph — setDirect(
     assert.ok(!FX.hold && !FX._tailHold, 'release() with the graph down clears the hold (it used to return first)');
     for (const k of ['send', 'fb', 'fbX', 'wet']) assert.equal(P[k].value, 0, k + ' parked');
   }
-  // 6. A HAND'S RACK ACROSS AN AIRPLAY HOP comes home as the hand left it — or, if released while away, parked, never a ghost
+  // 6. ACROSS AN AIRPLAY HOP nothing comes home a ghost: the hand's gate parks open as the graph leaves…
   {
     const { FX, AE, P } = make();
-    FX.letGoTail(); FX.hand && (FX.auto = false);
-    FX.set('gate', 0.6);
-    FX.leaveGraph(); AE.graphLive = false;                       // setDirect(true): the hand's gate is the hand's
-    assert.equal(FX.unit, 'gate', 'the hand\'s gate crosses the hop');
-    P.gate.value = 0.001;                                        // the drained slice queue leaves the master on the gate's floor
-    FX.release();                                                // the receiver's track ends: playIndex releases the rack
-    assert.equal(P.gate.value, 1, 'released with the graph down, the gate is parked open — not left at -60 dB for the trip home');
-    AE.graphLive = true;
-    assert.equal(FX.unit, '', '…and the state agrees');
+    FX.letGoTail(); FX.auto = false;
+    FX.set('gate', 0.6); P.gate.value = 0.001;                   // mid-slice, on the gate's floor
+    FX.leaveGraph(); AE.graphLive = false;
+    assert.ok(FX.unit === '' && P.gate.value === 1, 'the hand\'s gate is parked open before the graph goes (it came home on a stale grid, or on its floor)');
+  }
+  // …and anything still set when a release comes with the graph down is parked by it, not left on the node
+  {
+    const { FX, AE, P } = make();
+    FX.letGoTail();
+    FX.set('filter', 0.25); AE.graphLive = false; P.gate.value = 0.001;
+    FX.release();
+    assert.equal(P.gate.value, 1, 'release() with the graph down parks the rack (it used to return before FX_PARK)');
   }
   {
     const { FX, AE, P } = make();
@@ -11879,6 +11887,24 @@ test('FX.letGoTail: a held hand-off tail never outlives the graph — setDirect(
     assert.equal(P.eqLo.value, 0, 'the EQ kill is parked with the graph down');
     assert.equal(AE.decks[0]._fxHand, null, 'the deck filter\'s hand is let go');
   }
+  // the EQ is written with the graph down: a kill lifted while away is lifted on the node
+  {
+    const { FX, AE, P } = make();
+    FX.letGoTail();
+    FX.eq.lo = -36; FX.applyEq();
+    FX.leaveGraph(); AE.graphLive = false;
+    assert.equal(P.eqLo.value, -36, 'the EQ is a mixer setting: it crosses the hop');
+    FX.eq.lo = 0; FX.applyEq();
+    assert.equal(P.eqLo.value, 0, 'lifted while the decks play direct, it is lifted on the node (it came home stuck at -36 under flat pads)');
+  }
+  // a brake in flight leaves no air on the deck when the graph goes
+  {
+    const { FX, AE } = make();
+    FX.letGoTail();
+    FX.brakeT = 0.3; FX._brakeDeck = AE.decks[0]; AE.decks[0]._fxBrake = 5070;
+    FX.leaveGraph(); AE.graphLive = false;
+    assert.ok(FX.brakeT === -1 && AE.decks[0]._fxBrake === 0, 'the brake ends and its lowpass goes with it (the new deck\'s filter closed to 5070)');
+  }
   // a touch on the rack with the graph down turns the unit off, nodes and all
   {
     const { FX, AE, P } = make();
@@ -11887,6 +11913,9 @@ test('FX.letGoTail: a held hand-off tail never outlives the graph — setDirect(
     FX.set('', 0);
     assert.ok(FX.unit === '' && P.gate.value === 1, 'set() with the graph down parks the unit it turns off');
   }
+  // the room deals nothing into a graph that is leaving (an iPhone's hand-back)
+  assert.match(html, /const leaving = typeof DECKROUTE !== 'undefined' && DECKROUTE\.phase === 'giving';\s*const busy = [^;]*\|\| leaving;/, 'FX.autoTick stands down while DECKROUTE is giving');
+  assert.match(html, /d\._fxBrake = 0;\s*\/\/ graph or no graph/, 'brakeTick clears the brake\'s air whether or not the graph is live');
   // the exits call it, in that order
   const sd = html.indexOf('  async setDirect(direct){');
   assert.match(html.slice(sd, sd + 3000), /if \(direct && typeof FX !== 'undefined'\) try \{ FX\.leaveGraph\(\); \} catch \(e\)\{\}/, 'setDirect(true)');

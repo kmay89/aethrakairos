@@ -20350,7 +20350,7 @@ const DECKROUTE = {
     AE.graphLive = true;
     SPEED.apply();
     VINYL.install();
-    if (typeof FX !== 'undefined') FX._ftStart();
+    if (typeof FX !== 'undefined'){ FX._ftStart(); try { FX.applyEq(); } catch (e){} }   // the EQ the pads show is the EQ the graph plays
     applyVolume();
     DECKS.settle();
     if (DECKS._pendingIdle){ const p = DECKS._pendingIdle; DECKS._pendingIdle = null; DECKS.restore(p); }
@@ -29267,7 +29267,11 @@ const FX = {
   },
   flatEq(){ this.eq.lo = this.eq.mid = this.eq.hi = 0; this.applyEq(); },
   applyEq(){
-    if (!this.live()) return;
+    /* the EQ is a mixer's setting, not an effect: it is written wherever there
+       is a rack, graph live or not, so a kill pressed (or lifted) while the
+       decks play direct is on the node when the graph comes home — the pads
+       and the sound never disagree (nothing but this and release() writes it) */
+    if (!(AE.ctx && AE.fx)) return;
     const f = AE.fx;
     if (!f.eqLo) return;
     ramp(f.eqLo.gain, this.eq.lo, 0.06); ramp(f.eqMid.gain, this.eq.mid, 0.06); ramp(f.eqHi.gain, this.eq.hi, 0.06);
@@ -29721,13 +29725,24 @@ const FX = {
      master's bus to the device's own speakers, where it rang on for forty
      seconds over the direct record (or the receiver's), with HOLD and CLEAR
      unable to reach it. The ROOM's unit ends too — the performer's gate or
-     echo came back onto the master with the graph. The hand's other settings
-     (its channel filter, its rack) are the hand's, and come home with the
-     graph where it does (airplay_probe). */
+     echo came back onto the master with the graph. So does a brake in
+     flight (its air was left on the deck, the new lowpass closed to it) and
+     the hand's own EFFECT: a gate, an echo, a reverb or an insert plays in
+     time with a graph the hop takes away, and one carried across came home
+     on a stale grid, off the beat, or as a ghost under a cleared state. What
+     comes home are the MIXER's settings — the hand's FILTER (its channel
+     filter, on the new filter node: airplay_probe) and the EQ. */
   leaveGraph(){
     this.letGoTail();
     if (this.hold){ if (this.live()) this.echoHold(false); else this._loopDown(); }
     if (this._autoSt.unit !== 'none' || this._autoUnit) this._autoEnd();
+    if (this.brakeT >= 0){
+      const d = this._brakeDeck || activeDeck();
+      this.brakeT = -1; this._brakeDeck = null;
+      if (d) try { d.a.playbackRate = deckRate(SPEED.rate * DECKS.pitch(AE.decks.indexOf(d))); } catch (e){}
+    }
+    for (const d of AE.decks || []) if (d) d._fxBrake = 0;
+    if (this.unit && this.unit !== 'filter') this.set('', 0);
   },
   setPingPong(on){ this.pingpong = !!on; if (this.unit === 'echo'){ this._w(AE.fx.inR.gain, this.pingpong ? 0 : 1, 0.02); this.apply(); } },
   /* THE LFOs, beat-synced and phased to the bar. An oscillator cannot be
@@ -30181,8 +30196,9 @@ const FX = {
     if (r <= 0.07){
       this.brakeT = -1; this._brakeDeck = null;
       try { d.a.playbackRate = deckRate(SPEED.rate * DECKS.pitch(AE.decks.indexOf(d))); } catch (e){}
+      d._fxBrake = 0;                                     // graph or no graph: a brake that has ended leaves no air on the deck
       if (this.live() && d.filter){
-        d._fxBrake = 0; d._fxTau = 0.12;                  // the air comes back slower than it left
+        d._fxTau = 0.12;                                  // the air comes back slower than it left
         clearTimeout(d._fxTauT); d._fxTauT = setTimeout(() => { d._fxTau = 0; }, 700);
         this._ftStart();
       }
@@ -30214,7 +30230,11 @@ const FX = {
     const b = d ? this.barLineAt(d) : null;
     if (!b) return;                                   // no grid, no gestures: a beat the room cannot find is not one it may play on
     const running = typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual');
-    const busy = !!this.loop || (typeof VINYL !== 'undefined' && VINYL.engaged) || running;
+    /* an iPhone's hand-back keeps the graph live for a second or more while
+       the direct twin lines up: the room deals nothing into a graph that is
+       leaving (it chopped the captured deck, then was cut dead at the swap) */
+    const leaving = typeof DECKROUTE !== 'undefined' && DECKROUTE.phase === 'giving';
+    const busy = !!this.loop || (typeof VINYL !== 'undefined' && VINYL.engaged) || running || leaving;
     if (busy){
       if (this._autoSt.unit !== 'none' && this._autoSt.unit !== 'echo') this._autoEnd();
       else if (this._autoSt.unit === 'echo' && running && !this._tailHold) this._autoEnd();   // the cut: hold the tail
