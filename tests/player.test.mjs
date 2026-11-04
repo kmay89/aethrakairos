@@ -13225,8 +13225,14 @@ test('the iPhone hand-back keeps its raise: no seam finish or take trim writes t
   // the EQ the pads show is on the rack the moment ensureCtx builds it
   assert.match(html, /AE\.graphLive = !IS_IOS;\s*\/\/[^\n]*\n\s*try \{ if \(typeof FX !== 'undefined'\) FX\.applyEq\(\); \} catch \(e\)\{\}/, 'ensureCtx applies the remembered EQ');
   // where the graph can never carry the music the EQ bank says so, as the FX bank does
-  assert.match(html, /if \(IS_IOS && !IOS_GRAPH\)\{ toast\(T\('The EQ needs the engine — on this device the music plays direct'\)\); return; \}/, 'the EQ pad refuses with a word');
-  assert.match(html, /const e = this\.EQS\[key\], dead = IS_IOS && !IOS_GRAPH;[\s\S]{0,300}lit = !dead &&/, 'and is painted dead, never lit');
+  // (on an iPhone that is the live route: no booth graph, a refused take, or no take yet — the FX bank's own rule)
+  assert.match(html, /if \(IS_IOS && !AE\.graphLive\)\{ toast\(T\('The EQ needs the engine — on this device the music plays direct'\)\); return; \}/, 'the EQ pad refuses with a word');
+  assert.match(html, /const e = this\.EQS\[key\], dead = IS_IOS && !AE\.graphLive;[\s\S]{0,300}lit = !dead &&/, 'and is painted dead, never lit');
+  // the mixer arms nothing while the take's trim glide is still landing (a seam fired then stepped the deck to its trim)
+  assert.match(html, /TAKE_SETTLE_MS: 2000, _tookAt: 0,/, 'DECKROUTE carries the settle window');
+  const fT = html.indexOf('  _finishTake(){');
+  assert.match(html.slice(fT, fT + 200), /this\._tookAt = performance\.now\(\);/, '_finishTake stamps the take');
+  assert.match(html, /if \(this\.phase === 'idle' && typeof DECKROUTE !== 'undefined' && DECKROUTE\._tookAt > 0\s*&& performance\.now\(\) - DECKROUTE\._tookAt < DECKROUTE\.TAKE_SETTLE_MS\) return;/, 'MIXER.update waits it out before arming');
 });
 test('the route in the player: gated, opt-in, and today\'s code wherever it is not on', () => {
   assert.ok(html.includes('const IOS_GRAPH_DEFAULT = false;'), 'A4: the route ships off');

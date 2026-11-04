@@ -19942,6 +19942,7 @@ const AIRPLAY = {
    I6 an un-gestured start of another element happens only while a captured
       element is still sounding (an overlap), or once the context is lost. */
 const DECKROUTE = {
+  TAKE_SETTLE_MS: 2000, _tookAt: 0,
   phase: 'direct',              // direct | taking | graph | giving
   twins: [],                    // [{ a, primed, priming }] — pre-blessed direct elements, empty until used
   wantTake: false,              // the booth wants the decks: the next touch in it wakes them
@@ -20348,6 +20349,7 @@ const DECKROUTE = {
   // the decks are live: everything the graph carries is switched on
   _finishTake(){
     this._xo = null;
+    this._tookAt = performance.now();                  // the mixer arms nothing until the trim glide has landed (MIXER.update)
     this.phase = 'graph'; this.giveRetry = 0;
     AE.graphLive = true;
     SPEED.apply();
@@ -25255,6 +25257,13 @@ const MIXER = {
       if (this.phase === 'armed') this.cancel('route');
       return;
     }
+    /* …nor in the first two seconds after a take: the record on air is still
+       gliding from the take's unity to its trim (from 300 ms, tau 0.5 s), and
+       a seam fired now — a take that lands past the record's planned exit
+       fires on the next frame — stepped it straight to the trim at the start
+       of the blend, up to 5 dB. Nothing new is armed until it has landed. */
+    if (this.phase === 'idle' && typeof DECKROUTE !== 'undefined' && DECKROUTE._tookAt > 0
+        && performance.now() - DECKROUTE._tookAt < DECKROUTE.TAKE_SETTLE_MS) return;
     /* …and on an iPhone with the decks in the graph, never from behind a lock.
        A seam already RUNNING lands on its own audio-clock curves (the hidden
        tick keeps it going); nothing new is armed or fired there, because its
@@ -31390,8 +31399,8 @@ const FXPADS = {
       b.addEventListener('click', () => { FX.beatJump(key); this.paint(); });
     } else if (this.bank === 'eq'){
       b.addEventListener('click', () => {
-        // where the graph can never carry the music (an iPhone without the booth's graph) the EQ says so, as the FX bank does
-        if (IS_IOS && !IOS_GRAPH){ toast(T('The EQ needs the engine — on this device the music plays direct')); return; }
+        // where the graph is not carrying the music on an iPhone the EQ says so, as the FX bank does
+        if (IS_IOS && !AE.graphLive){ toast(T('The EQ needs the engine — on this device the music plays direct')); return; }
         const e = this.EQS[key];
         if (e[0] === 'flat'){ FX.hand(); FX.flatEq(); } else FX.setEq(e[0], e[1]);
         this.paint();
@@ -31567,7 +31576,11 @@ const FXPADS = {
         if (k._dead !== dead){ k._dead = dead; k.classList.toggle('dead', dead); k.title = dead ? T('Vinyl needs the engine — on this device the music plays direct, so the platter stands down') : ''; }
       }
       else if (this.bank === 'eq'){
-        const e = this.EQS[key], dead = IS_IOS && !IOS_GRAPH;
+        /* an iPhone hears the EQ only while its decks are in the graph — never
+           without the booth's graph, nor while a take is refused or not yet
+           made (the kill would be released at the next track, unheard). A
+           desktop keeps it live: a kill set while away comes home with it */
+        const e = this.EQS[key], dead = IS_IOS && !AE.graphLive;
         if (k._dead !== dead){ k._dead = dead; k.classList.toggle('dead', dead); k.title = dead ? T('The EQ needs the engine — on this device the music plays direct') : ''; }
         lit = !dead && (e[0] === 'flat' ? false : Math.abs((FX.eq[e[0]] || 0) - e[1]) < 1e-6);
       }
