@@ -656,7 +656,8 @@ test('the record on air never moves: A holds, B is matched to it throughout, and
   // the landing writes the one key-lock rule's pitch mode (at 1× inaudible; switched on at a rate still 3 % off it was a half-semitone step)
   assert.match(html, /if \(u >= 1\)\{ this\._home = null; this\._homeLock\(h\.d\); \}/, '_homeTick lands');
   // the way home ends WHERE IT IS: the rate as it stands becomes a carried ratio (synced by it), never a step of the gap left
-  assert.match(html, /_homeDrop\(d\)\{[\s\S]{0,400}DECKS\.carry\(i, \(h\.d\.a\.playbackRate \|\| h\.to\) \/ \(SPEED\.rate \|\| 1\)\);\s*this\._homeLock\(h\.d\);/, '_homeDrop carries');
+  assert.match(html, /_homeDrop\(d\)\{[\s\S]{0,400}DECKS\.carry\(i, \(h\.d\.a\.playbackRate \|\| h\.to\) \/ \(h\.speed \|\| 1\)\);[^\n]*\n\s*this\._homeLock\(h\.d\);/, '_homeDrop carries the ratio to the speed the walk was composed with');
+  assert.match(html, /this\._home = \{ d, from, to, t0: performance\.now\(\), secs, speed: SPEED\.rate \|\| 1 \};/, 'the walk remembers its speed (a tap has moved SPEED.rate by the time the drop runs: dividing by the new speed swallowed the tap)');
   assert.ok(!/_homeDrop\(d\)\{[\s\S]{0,600}playbackRate = /.test(html), '_homeDrop writes no rate');
   assert.match(html, /carry\(i, ratio\)\{[\s\S]{0,300}s\.pitch = r; s\.synced = Math\.abs\(r - 1\) > 1e-6;/, 'DECKS.carry: the ratio is a sync');
   assert.match(html, /DECKS\.carry\(i, r \/ \(SPEED\.rate \|\| 1\)\);/, 'the hand-mode cancel carries the same way');
@@ -5403,7 +5404,8 @@ test('the platter follows where the finger IS: timestamped samples carry its spe
     const pos0 = V.pos; let next = 0, errs = [];
     for (let b = 0; b < 400; b++){
       // a sample made at `next` is received (and applied) at the next block boundary t ≥ next: a message cannot arrive before it was sent
-      while (next <= t){ const x = (next - 0) * 1.0; const m = { op: 'handAt', x }; if (withTimes){ m.ts = next * 1000; m.now = next * 1000 + 0.2; } S_.vinylCommand(V, m, t); next += 0.008; }
+      // (the main thread's clock has an origin of its own — 7.3e6 ms here — so the offset has to be LEARNED; stamped on this clock the test passed a worklet that ignored it)
+      while (next <= t){ const x = (next - 0) * 1.0; const m = { op: 'handAt', x }; if (withTimes){ m.ts = next * 1000 + 7.3e6; m.now = m.ts + 0.2; } S_.vinylCommand(V, m, t); next += 0.008; }
       S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB;
       if (b > 150){ const fingerNow = t * 1.0; errs.push(fingerNow - (V.pos - pos0) / sr); }
     }
@@ -5412,13 +5414,46 @@ test('the platter follows where the finger IS: timestamped samples carry its spe
   const plain = lagOf(false), timed = lagOf(true);
   assert.ok(plain > 0.008, 'reported places alone: the record runs a lead behind the finger: ' + plain.toFixed(4) + ' s');
   assert.ok(timed < plain - 0.006 && Math.abs(timed) < 0.004, 'with its times the record is carried to where the finger is: ' + timed.toFixed(4) + ' s behind (was ' + plain.toFixed(4) + ')');
-  // a finger that stopped sends nothing: nothing is carried for it past PLATTER.handStill
+  // A PLANTED FINGER: the carry runs for one period, then the finger's frame moves to the record and the spring stops it where it is —
+  // never a spring-back (the old carry held 20 ms for 50 ms and then played 22 ms of music backwards at every stop)
   { const V = mk(); let t = 0; for (let b = 0; b < 60; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
-    S_.vinylCommand(V, { op: 'handAt', x: 0.00, ts: t * 1000, now: t * 1000 }, t); S_.vinylCommand(V, { op: 'handAt', x: 0.02, ts: t * 1000 + 8, now: t * 1000 + 8 }, t + 0.008);
-    assert.ok(V.handV > 0, 'a speed was read');
-    for (let b = 0; b < 60; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
-    const place = V.handFrom + 0.02 * sr;
-    assert.ok(Math.abs(V.pos - place) < 2, 'held still after the move, the record is at the place, not carried past it: ' + (V.pos - place).toFixed(1) + ' frames'); }
+    const from0 = V.handFrom; let x = 0, next = t; const samples = [];
+    for (let b = 0; b < 60; b++){                                           // a drag at 1× for 160 ms, sampled every 16.7 ms…
+      while (next <= t && samples.length < 9){ x = (next - samples[0] || 0); samples.push(next); S_.vinylCommand(V, { op: 'handAt', x: samples.length === 1 ? 0 : next - samples[0], ts: next * 1000 + 7.3e6, now: next * 1000 + 7.3e6 }, t); next += 0.0167; }
+      S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    assert.ok(Math.abs(V.handV / sr - 1) < 0.05, 'the finger\'s speed is read: ' + (V.handV / sr).toFixed(2) + '×');
+    assert.ok(Math.abs(V.handDt - 0.0167) < 0.002, 'and its period: ' + (V.handDt * 1000).toFixed(1) + ' ms');
+    const atPlant = V.pos; let minStep = Infinity, prev = V.pos;             // …then it plants (no more samples)
+    for (let b = 0; b < 60; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; minStep = Math.min(minStep, V.pos - prev); prev = V.pos; }
+    assert.ok(minStep >= 0, 'the record never plays backwards after the plant: the smallest block step was ' + minStep.toFixed(1) + ' frames');
+    assert.ok(V.pos - atPlant < 0.035 * sr && V.pos - atPlant > 0, 'it eases to a stop within a period and a lead of music: ' + ((V.pos - atPlant) / sr * 1000).toFixed(1) + ' ms');
+    assert.ok(V.handFrom > from0 && Math.abs(V.handTo - V.pos) < 1, 'the finger\'s frame moved to the record: its next deltas go on from where the record is');
+    assert.ok(Math.abs(V.hand) < 0.02, 'and the spring is at rest: ' + V.hand.toFixed(3)); }
+  // A STEADY DRAG rides the finger, not a staircase: the rate ripple across sixty blocks stays small (the carry saturating at a fixed 20 ms swung it 0.7–1.2× sixty times a second)
+  { const V = mk(); let t = 0; for (let b = 0; b < 60; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    let next = t; const t00 = t, rates = [];
+    for (let b = 0; b < 150; b++){
+      while (next <= t){ S_.vinylCommand(V, { op: 'handAt', x: next - t00, ts: next * 1000 + 7.3e6, now: next * 1000 + 7.3e6 + 2 }, t); next += 0.0167; }
+      S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; if (b > 60) rates.push(V.hand); }
+    const mean = rates.reduce((a, r) => a + r, 0) / rates.length, sd = Math.sqrt(rates.reduce((a, r) => a + (r - mean) ** 2, 0) / rates.length);
+    assert.ok(Math.abs(mean - 1) < 0.05 && sd < 0.15, 'a 1× drag at 60 Hz: mean ' + mean.toFixed(3) + '× · ripple ' + sd.toFixed(3)); }
+  // ONE TIME BASE: when the learned offset drops (an underrun: this clock loses ground), the last sample's time moves with it — a 30 ms drop made a 1× drag an 8× lunge for a sample
+  { const V = mk(); let t = 0; for (let b = 0; b < 60; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    let next = t; const t00 = t; let peak = 0, clk = 0;
+    for (let b = 0; b < 120; b++){
+      if (b === 60) clk = -0.030;
+      while (next <= t){ S_.vinylCommand(V, { op: 'handAt', x: next - t00, ts: next * 1000 + 7.3e6, now: next * 1000 + 7.3e6 + 2 }, t + clk); next += 0.0167; }
+      S_.vinylProcess(V, inL, inL, out, out, N, t + clk); t += dtB; if (b > 60) peak = Math.max(peak, Math.abs(V.handV / sr)); }
+    assert.ok(peak < 1.3, 'after a 30 ms clock drop the finger\'s speed still reads about 1×: peak ' + peak.toFixed(2) + '×'); }
+  // the learned offset creeps up a millisecond a second (a min that never rose aged every sample for good once this clock gained on the main one), and a grab forgets it
+  { const V = mk(); S_.vinylCommand(V, { op: 'handAt', x: 0, ts: 7.3e6, now: 7.3e6 }, 1.0); const off0 = V.clkOff;
+    for (let b = 0; b < Math.round(1 / dtB); b++) S_.vinylProcess(V, inL, inL, out, out, N, 1.0 + b * dtB);
+    assert.ok(Math.abs(V.clkOff - off0 - 0.001) < 1e-4, 'one second on: ' + ((V.clkOff - off0) * 1000).toFixed(2) + ' ms up');
+    S_.vinylCommand(V, { op: 'grab' }); assert.equal(V.clkOff, Infinity); assert.equal(V.handDt, 0); assert.equal(V.handAtT, -1); }
+  // THE HALF-BLOCK RAMP: a rate that moved is reached by the block's middle, not stepped at its edge (a block from rate 0 to 1 covers 96.5 frames, not 128)
+  { const V = mk(); S_.vinylCommand(V, { op: 'lift' }); V.platter.mode = 'motor'; V.platter.rate = 1; V.rateLast = 0; V.hand = null; V.snapFrom = -1; const p0 = V.pos;
+    S_.vinylProcess(V, inL, inL, out, out, N, 5.0);
+    const h = N >> 1; assert.ok(Math.abs((V.pos - p0) - ((h + 1) / 2 + (N - h))) < 1e-6, 'a block from 0 to 1×: ' + (V.pos - p0).toFixed(2) + ' frames (a step would be 128)'); assert.equal(V.rateLast, 1); }
   // at 1× with nothing on it the head eases onto a frame: the read is the sample itself
   { const V = mk(); S_.vinylCommand(V, { op: 'handAt', x: 0.0137 }); let t = 0;
     for (let b = 0; b < 40; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
@@ -5430,7 +5465,8 @@ test('the platter follows where the finger IS: timestamped samples carry its spe
   { const V = mk(); S_.vinylCommand(V, { op: 'handAt', x: -0.3 }); let t = 0;
     for (let b = 0; b < 30; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
     S_.vinylSnap(V); assert.equal(V.rateLast, V.platter.rate); }
-  assert.equal(S.PLATTER.handAhead, 0.020); assert.equal(S.PLATTER.handStill, 0.05);
+  assert.equal(S.PLATTER.handPeriod, 0.0167); assert.equal(S.PLATTER.handDtMin, 0.004); assert.equal(S.PLATTER.handDtMax, 0.025); assert.equal(S.PLATTER.handSlack, 0.006);
+  assert.ok(!/handAhead|handStill/.test(html), 'the fixed look-ahead and the 50 ms hold are gone');
 });
 test('xfadeCurve: monotonic, norm-scaled, correct endpoints per side', () => {
   const out = S.xfadeCurve(0.8, 'out', 32), inc = S.xfadeCurve(0.5, 'in', 32);

@@ -24377,8 +24377,10 @@ const PLATTER = {
   brakeTau:    0.18,   // s — the crawl's own time constant
   handTau:     0.007,  // s — the record under a finger following the finger (the slipmat's give)
   handLead:    0.014,  // s — how far behind the finger's PLACE the record may run (with handTau: ζ ≈ 0.7, ~16 Hz — the mouse's feel; a finger is tighter, see VINYL.feel)
-  handAhead:   0.020,  // s — how far ahead of its last sample a moving finger is believed to be (its speed carried for the sample's age plus the spring's lead and tau, at most this)
-  handStill:   0.050,  // s — a sample older than this is a finger that stopped: nothing is carried
+  handPeriod:  0.0167, // s — a finger's sample period until two of its samples have said (platterHandFollow carries its speed for one, lets go over the next)
+  handDtMin:   0.004,  // s — the shortest period believed (a 240 Hz pen)
+  handDtMax:   0.025,  // s — …and the longest: past it a stream is a finger at rest, not a slow feed
+  handSlack:   0.006,  // s — a sample's lateness past its period before the finger is read as stopped (a block, the message's way, a frame's jitter)
   releaseTau:  0.09,   // s — the finger lifted: the motor takes the record back through the mat
   backspin:   -3.5,    // × — the flick a backspin gives the platter
   backspinTau: 0.35,   // s — and how it dies away (a thrown record is mostly air drag)
@@ -24456,14 +24458,34 @@ function platterHandFollow(S, unit, now){
      a whole `lead` behind a finger that keeps moving (it needs that distance
      to make the speed): both are the finger's own speed times a time, so the
      place is carried on by that — age plus lead plus the spring's own time
-     constant, up to PLATTER.handAhead — and the record is on the finger at a
-     steady drag. Not at all once the sample
-     is a few frames old: a finger that stopped sends nothing, and the spring
-     brings the record back to where it stopped. */
+     constant, for one period of the finger's own (below) — and the record is
+     on the finger at a steady drag. */
   let to = S.handTo;
   if (S.handV !== 0 && typeof now === 'number' && S.handAtT >= 0){
-    const age = now - S.handAtT;
-    if (age > 0 && age < PLATTER.handStill){ const ahead = age + lead + (S.handTau > 0 ? S.handTau : PLATTER.handTau); to += S.handV * (ahead < PLATTER.handAhead ? ahead : PLATTER.handAhead); }
+    const age = now - S.handAtT, dt = S.handDt > 0 ? S.handDt : PLATTER.handPeriod;
+    /* FOR ONE PERIOD, THEN LET GO. The finger's next sample is due within its
+       own period (handDt, read from its last two): until then its place is
+       carried on at its speed, continuously — a carry that saturated at a
+       fixed 20 ms made a STAIRCASE of a steady drag (the target held still
+       between samples and jumped at each: the rate swung 0.7–1.2× sixty times
+       a second). Past one period with no sample the finger has stopped, and
+       the carry is let go over the next period, so the spring eases the
+       record onto the place instead of running 20 ms past it and springing
+       back. The overshoot a hard plant can leave is bounded by one period of
+       the finger's speed, and a hand that stops slows across several samples. */
+    const late = dt + PLATTER.handSlack;   // a sample is LATE past one period plus a block and the message's own way — not at a period's end, which the delivery alone crosses
+    if (age > 0 && age < late) to += S.handV * ((age < dt ? age : dt) + lead);
+    else if (age >= late){
+      /* THE FINGER'S FRAME MOVES TO THE RECORD. Past one period the finger has
+         stopped, and the record, carried a lead ahead, is past its place by up
+         to one period of its speed. Springing it BACK was 20 ms of music played
+         backwards at every stop; a record a few milliseconds of music past a
+         planted finger is nothing anyone hears. So the finger's place is moved
+         to the record (the deltas of its next samples go on from there) and
+         the spring stops the record where it is. */
+      const over = S.pos - S.handTo;
+      if (over * S.handV > 0){ S.handFrom += over; S.handTo += over; S.handToLast += over; to = S.handTo; }
+    }
   }
   const r = (to - S.pos) / (unit * lead);
   S.hand = r > PLATTER.maxRate ? PLATTER.maxRate : r < -PLATTER.maxRate ? -PLATTER.maxRate : r;
@@ -24530,6 +24552,7 @@ function makeVinyl(sr, seconds){
     handFrom: 0, handTo: null,            // the hand by place: where it took the record, where it has it now
     handLead: 0, handTau: 0,              // this hand's feel (0: the table's)
     handV: 0, handAtT: -1, handToLast: 0, // the finger's speed (tape frames/s) and when it was last seen, on this clock
+    handDt: 0,                            // the finger's own sample period (s), from its last two samples; 0 until it has said
     clkOff: Infinity,                     // the main thread's clock to this one, learned from the fastest message (a min)
     rateLast: 1,                          // the rate the last block ended on: the next ramps from it, sample by sample
     snapFrom: -1, snapU: 0, snapStep: 1 / (VINYL_RAMP_SEC * rate),   // a head being crossed out of
@@ -24664,6 +24687,8 @@ function vinylSnap(S){
    scheduled against it (a script, a slip on the beat); the tape's own clock
    stands in when none is given. */
 function vinylProcess(S, inL, inR, outL, outR, n, now){
+  // the learned clock offset creeps up a millisecond a second: a min that never rose aged every sample for good once this clock gained on the main one (a fast Bluetooth clock, a catch-up burst caught mid-stall), and the carry flickered, then died
+  if (S.clkOff < Infinity) S.clkOff += 0.001 * n / S.sr;
   const cap = S.cap, L = S.ring[0], R = S.ring[1], sr = S.sr;
   let w = S.written;
   for (let i = 0; i < n; i++){
@@ -24761,7 +24786,7 @@ function vinylCommand(S, m, now){
     }
   } else if (m.op === 'release'){ S.engaged = false; S.hand = null; S.script = null; S.snapAt = -1; S.snapRelease = false; }
   else if (m.op === 'hand'){ S.hand = (typeof m.v === 'number' && isFinite(m.v)) ? m.v : null; S.script = null; }
-  else if (m.op === 'grab'){ S.handFrom = S.pos; S.handTo = S.pos; S.handToLast = S.pos; S.hand = 0; S.script = null; S.snapAt = -1; }
+  else if (m.op === 'grab'){ S.handFrom = S.pos; S.handTo = S.pos; S.handToLast = S.pos; S.hand = 0; S.script = null; S.snapAt = -1; S.handV = 0; S.handAtT = -1; S.handDt = 0; S.clkOff = Infinity; }   // (the clock offset is re-learned per grab)
   else if (m.op === 'handAt'){
     // x: seconds of music the finger has turned the record since the grab
     if (typeof m.x === 'number' && isFinite(m.x) && S.hand != null && !S.script){
@@ -24774,12 +24799,20 @@ function vinylCommand(S, m, now){
          finger IS by the time the block renders, not where it was reported
          (platterHandFollow) — the one lag a slipmat does not have. */
       if (typeof m.ts === 'number' && isFinite(m.ts) && typeof now === 'number' && isFinite(now)){
-        if (typeof m.now === 'number' && isFinite(m.now)){ const off = now - m.now / 1000; if (off < S.clkOff) S.clkOff = off; }
+        if (typeof m.now === 'number' && isFinite(m.now)){
+          const off = now - m.now / 1000;
+          /* ONE TIME BASE. When the offset drops (a faster delivery, or this clock
+             losing ground to the main one: an underrun), the last sample's time
+             moves with it — else the speed below is read across two bases, and a
+             30 ms drop made a 1× drag an 8× lunge for a sample. */
+          if (off < S.clkOff){ if (S.handAtT >= 0 && S.clkOff < Infinity) S.handAtT += off - S.clkOff; S.clkOff = off; }
+        }
         const at = S.clkOff < Infinity ? m.ts / 1000 + S.clkOff : now;
         const dt = at - S.handAtT;
         if (S.handAtT >= 0 && dt > 0.002){
           const v = (S.handTo - S.handToLast) / dt, cap = PLATTER.maxRate * (S.tsr || S.sr);
           S.handV = v > cap ? cap : v < -cap ? -cap : v;
+          S.handDt = dt < PLATTER.handDtMin ? PLATTER.handDtMin : dt > PLATTER.handDtMax ? PLATTER.handDtMax : dt;   // the finger's own period (platterHandFollow)
         } else if (!(S.handAtT >= 0)) S.handV = 0;
         if (!(S.handAtT >= 0) || dt > 0.002){ S.handAtT = at; S.handToLast = S.handTo; }
       } else { S.handV = 0; S.handAtT = -1; }
@@ -26708,7 +26741,7 @@ const MIXER = {
     if (!d || !d.a) return;
     const from = d.a.playbackRate || 1, secs = seamHomeSecs(from, to);
     if (!(secs > 0)){ const r = deckRate(to); try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){} this._homeLock(d); return; }
-    this._home = { d, from, to, t0: performance.now(), secs };
+    this._home = { d, from, to, t0: performance.now(), secs, speed: SPEED.rate || 1 };   // (speed: what the rates were composed with — _homeDrop reads it, since a speed tap has already moved SPEED.rate by the time it runs)
   },
   _homeTick(){
     const h = this._home;
@@ -26731,7 +26764,7 @@ const MIXER = {
     if (!h || (d && h.d !== d)) return;
     this._home = null;
     const i = AE.decks ? AE.decks.indexOf(h.d) : -1;
-    if (i >= 0 && typeof DECKS !== 'undefined') DECKS.carry(i, (h.d.a.playbackRate || h.to) / (SPEED.rate || 1));
+    if (i >= 0 && typeof DECKS !== 'undefined') DECKS.carry(i, (h.d.a.playbackRate || h.to) / (h.speed || 1));   // the ratio to the speed the walk was composed with, not to one a tap just set (that swallowed the tap: 1.25 × 0.794 = the old rate)
     this._homeLock(h.d);
   },
   // the landing: the record is at its own tempo, and gets the one key-lock rule's pitch mode (inaudible at 1×)

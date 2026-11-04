@@ -94,15 +94,19 @@ const ear = await page.evaluate(async src => {
 R('an ear listens at AE.out on the audio thread', ear.ok, ear.ok ? `${ear.sr} Hz · baseLatency ${(ear.base * 1000).toFixed(1)} ms · outputLatency ${(ear.out * 1000).toFixed(1)} ms` : ear.why);
 if (!ear.ok){ await browser.close(); server.close(); process.exit(1); }
 
-/* one trial: take the record, hold it still, move it by `music` seconds in one event, listen.
+/* one trial: take the record, hold it still, move it by `music` seconds — in one event, or in
+   two 8 ms apart (`split`: the least any real pointer stream delivers, so the hand's speed is
+   read and the feed-forward carry is exercised, not only the bare spring) — and listen.
    Two numbers come out: the FIRST CHANGE (the move posted → the first block at AE.out that
    differs: the port, the quantum, the limiter's lookahead) and the ARRIVAL (the record has
    got to where the finger put it and stopped again: the slipmat spring's whole answer). A
    small step measures the spring; a big flick measures the rate cap, which is not the spring. */
-const trial = (kind, music) => page.evaluate(async ({ kind, music }) => {
+const trial = (kind, music, split) => page.evaluate(async ({ kind, music, split }) => {
   const h = VINYL.for(AE.active), g = { cx: 50, cy: 50, r: 40 };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   VINYL.slip = true; VINYL.arm(true);
+  // a record that stopped turning between trials (an element paused by a lift that never resumed it) is started again, or the grab is refused for 'Press play first'
+  if (!h.rolling()){ try { const d = AE.decks[AE.active]; d.a.loop = true; await d.a.play(); } catch (e){} await sleep(400); }
   const a0 = 0;                                                     // the finger lands at the rim's right
   if (!h.grab(g.cx + g.r * Math.cos(a0), g.cy + g.r * Math.sin(a0), g, performance.now(), kind, false)) return { err: 'grab refused: ' + h.why() };
   await sleep(450);                                                 // the record stops under the finger; the ear settles on its still level
@@ -112,7 +116,12 @@ const trial = (kind, music) => page.evaluate(async ({ kind, music }) => {
   // `music` seconds of music in one event: the angle that is `music` at VINYL_REV_SEC per turn (the hand's own gain is 1)
   const dA = music / VINYL_REV_SEC * 2 * Math.PI, a1 = a0 + dA;
   const tIssue = AE.ctx.currentTime, wIssue = performance.now();
-  h.move(g.cx + g.r * Math.cos(a1), g.cy + g.r * Math.sin(a1), g, wIssue);
+  if (split){
+    const aH = a0 + dA / 2;
+    h.move(g.cx + g.r * Math.cos(aH), g.cy + g.r * Math.sin(aH), g, wIssue);
+    await sleep(8);
+    h.move(g.cx + g.r * Math.cos(a1), g.cy + g.r * Math.sin(a1), g, wIssue + 8);
+  } else h.move(g.cx + g.r * Math.cos(a1), g.cy + g.r * Math.sin(a1), g, wIssue);
   await sleep(300);
   const b = window.__blocks.slice();
   const thr = still * 4 + 1e-4;
@@ -129,14 +138,14 @@ const trial = (kind, music) => page.evaluate(async ({ kind, music }) => {
   h.lift();
   await sleep(450);
   return { still, first: first >= 0 ? (b[first].t - tIssue) * 1000 : null, arrive: arrive >= 0 ? (b[arrive].t - tIssue) * 1000 : null, peak, n: b.length };
-}, { kind, music });
+}, { kind, music, split: !!split });
 
 const stats = xs => { const a = xs.slice().sort((p, q) => p - q); const q = p => a.length ? a[Math.min(a.length - 1, Math.floor(p * a.length))] : NaN; return { n: a.length, median: q(0.5), p95: q(0.95), min: a[0], max: a[a.length - 1] }; };
 const fmt = s => `median ${s.median.toFixed(1)} ms · p95 ${s.p95.toFixed(1)} · min ${s.min.toFixed(1)} · max ${s.max.toFixed(1)} (${s.n})`;
-const runs = async (kind, music, n) => {
+const runs = async (kind, music, n, split) => {
   const firsts = [], arrives = [], errs2 = [];
   for (let i = 0; i < n; i++){
-    const t = await trial(kind, music);
+    const t = await trial(kind, music, split);
     if (t.err){ errs2.push(t.err); continue; }
     if (t.first == null) errs2.push('no rise heard (still ' + t.still.toExponential(2) + ', ' + t.n + ' blocks)'); else firsts.push(t.first);
     if (t.arrive != null) arrives.push(t.arrive);
@@ -154,8 +163,17 @@ R('a 25 ms step, mouse feel: the record arrives', stepMouse.arrive.n >= 14, `${s
 R('…settled within 60 ms of the move', stepMouse.arrive.median < 60, 'arrival ' + fmt(stepMouse.arrive));
 R('a 25 ms step, touch feel: the record arrives', stepTouch.arrive.n >= 14, `${stepTouch.arrive.n}/16 arrived · ${stepTouch.errs.slice(0, 2).join(' | ')}`);
 R('…settled within 45 ms of the move', stepTouch.arrive.median < 45, 'arrival ' + fmt(stepTouch.arrive));
+// the carry: the same step in two moves 8 ms apart (the least a real pointer stream delivers), so the hand's speed is read and the
+// record is carried on past the second move for one period, then stopped where it is — never sprung back (the old carry held 20 ms
+// for 50 ms and then played 22 ms of music backwards: it arrived at 170 ms, and this probe's single move never saw it)
+const carryMouse = await runs('mouse', 0.025, 12, true), carryTouch = await runs('touch', 0.025, 12, true);
+R('a 25 ms step in two moves, mouse feel: the record arrives', carryMouse.arrive.n >= 10, `${carryMouse.arrive.n}/12 arrived · ${carryMouse.errs.slice(0, 2).join(' | ')}`);
+R('…and is still within 90 ms of the first move (the carry let go, no spring-back)', carryMouse.arrive.median < 90, 'arrival ' + fmt(carryMouse.arrive));
+R('a 25 ms step in two moves, touch feel: the record arrives', carryTouch.arrive.n >= 10, `${carryTouch.arrive.n}/12 arrived · ${carryTouch.errs.slice(0, 2).join(' | ')}`);
+R('…and is still within 75 ms of the first move', carryTouch.arrive.median < 75, 'arrival ' + fmt(carryTouch.arrive));
 console.log(`\nengine share of touch-to-sound (the port, the quantum, the limiter): first change after a flick ${fmt(flick.first)} · one quantum is ${blockMs.toFixed(1)} ms`);
 console.log(`the slipmat spring (a 25 ms step, moved then still): mouse arrival ${fmt(stepMouse.arrive)} · touch arrival ${fmt(stepTouch.arrive)}`);
+console.log(`the carry (the step in two moves 8 ms apart, then still): mouse arrival ${fmt(carryMouse.arrive)} · touch arrival ${fmt(carryTouch.arrive)}`);
 console.log(`the browser's own: baseLatency ${(ear.base * 1000).toFixed(1)} ms · outputLatency ${(ear.out * 1000).toFixed(1)} ms (not ours; a phone adds its touch delivery on top)`);
 R('no page errors throughout', errs.length === 0, errs.join(' | '));
 console.log(`\n${pass} passed, ${fail} failed`);
