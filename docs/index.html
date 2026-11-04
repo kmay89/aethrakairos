@@ -15269,6 +15269,10 @@ const SPEED = {
     // SPEED.rate in on its next retune, and restores the lock when it ends) —
     // writing them here mid-blend would snap the glide and re-engage the stretcher
     const seam = typeof MIXER !== 'undefined' && (MIXER.phase === 'running' || MIXER.phase === 'manual');
+    // a record on its way home from a seam (MIXER._home) would be written back over
+    // the speed set here on the next frame, and land on the old one: its way home
+    // ends now, at its own tempo, and the new speed is written below like any other
+    if (typeof MIXER !== 'undefined' && MIXER._home && !seam) MIXER._homeDrop();
     if (AE.decks && !seam) AE.decks.forEach((d, i) => {
       if (typeof MIXER !== 'undefined' && MIXER.cueing(d)) return;   // a rolling cue takes its rate from the seam (below)
       try {
@@ -15281,7 +15285,7 @@ const SPEED = {
         /* a synced deck rides vinyl only at the listener's 1× and within a
            small ratio: at 1.25× the 'resampled' deck sat a major third above
            the music, under a KEY LOCK pad that said otherwise */
-        setPitchLock(d.a, this.keyLock && !(s && s.synced && this.rate === 1 && Math.abs((s.pitch || 1) - 1) <= SYNC_VINYL_MAX));
+        setPitchLock(d.a, keyLockFor(this.keyLock, this.rate, s && s.synced, s && s.pitch));
       } catch (e){}
     });
     // …and a rolling cue is re-rated from the same speed and the on-air pitch,
@@ -15800,6 +15804,19 @@ function camelotCompat(a, b){
    ±15 ms); beyond it the listener's KEY LOCK pad is honoured. */
 const SYNC_MAX_TEMPO = 0.08;
 const SYNC_VINYL_MAX = 0.03;
+/* THE ONE KEY-LOCK RULE, for every writer of a deck's pitch mode (SPEED.apply,
+   the seam's fire and the way home after it, the pre-rolled cue, _seat,
+   _uncue, the cancel's retune). A deck keeps the listener's KEY LOCK at any
+   listener speed; the one exception is a synced record riding within
+   SYNC_VINYL_MAX at the listener's 1×, where vinyl pitch is the honest sound
+   and the stretcher's smear is what SYNC cannot afford (see DECKS.sync).
+   `pitch` is the deck's own ratio to the listener's speed: a slot's SYNC
+   pitch, or the ratio a seam writes its incoming record at. Two writers that
+   disagreed here flipped a record from stretched to resampled on air — a
+   semitone step at full level at the seam's first sample. */
+function keyLockFor(keyLock, rate, synced, pitch){
+  return !!keyLock && !(synced && rate === 1 && Math.abs((+pitch || 1) - 1) <= SYNC_VINYL_MAX);
+}
 function tempoFoldRatio(a, b){
   let r = a / b;
   while (r < 0.7071) r *= 2;
@@ -25422,7 +25439,7 @@ const MIXER = {
       // that is already where it should be
       const s = DECKS.slots[i], r = deckRate(SPEED.rate * DECKS.pitch(i));
       try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){}
-      setPitchLock(d.a, SPEED.keyLock && !(s.synced && SPEED.rate === 1 && Math.abs((s.pitch || 1) - 1) <= SYNC_VINYL_MAX));   // (already equality-guarded; the vinyl ride is SPEED.apply's rule)
+      setPitchLock(d.a, keyLockFor(SPEED.keyLock, SPEED.rate, s.synced, s.pitch));   // (already equality-guarded; the one rule, SPEED.apply's)
       if (d.shelf && d.shelf.gain.value !== 0) DECKS.gainWrite(d.shelf.gain, 0, 0.006);
       /* kill any scheduled crossfade ramp and settle each deck: the surviving
          (active) deck back to full, a hand's deck too (its level is the
@@ -25768,7 +25785,7 @@ const MIXER = {
     // the slot's own pitch (a hand's SYNC on the armed deck) rides on the listener's rate, as SPEED.apply composes it
     const si = AE.decks.indexOf(nd), sl = DECKS.slots[si], r = deckRate(SPEED.rate * DECKS.pitch(si));
     try { if (nd.a.playbackRate !== r) nd.a.playbackRate = r; } catch (e){}
-    setPitchLock(nd.a, SPEED.keyLock && !(sl && sl.synced));
+    setPitchLock(nd.a, keyLockFor(SPEED.keyLock, SPEED.rate, sl && sl.synced, sl && sl.pitch));
     return true;
   },
 
@@ -25922,8 +25939,7 @@ const MIXER = {
     DECKS.gainWrite(nd.gain.gain, 0, 0.002);
     DECKS.gainWrite(nd.fader.gain, 0, 0.002);
     nd._faderRampTo = 0;
-    // the blend rides vinyl at 1× (see fire()); the cue rides it from its first sample, so fire() changes nothing
-    if (SPEED.rate === 1) setPitchLock(nd.a, false);
+    // the cue rides the blend's own rate from its first sample (_cueRate), and the one key-lock rule for that ratio, so fire() changes nothing
     const c = this._cue = { d: nd, playAt: performance.now(), moved: false, movedAt: 0, lastB: nd.a.currentTime,
       seeks: 0, pull: 0, err: null, fireErr: null, rate: 0 };
     if (to != null && isFinite(to)){ try { nd.a.currentTime = Math.max(0, to); } catch (e){} c.lastB = nd.a.currentTime; }
@@ -25939,8 +25955,13 @@ const MIXER = {
   _cueRate(){
     const c = this._cue, p = this.plan;
     if (!c || !p || p.type !== 'beatmix') return;
-    const r = deckRate(glideRates(p.bpmA, p.bpmB, 0).rateB * seamPitchCarry(DECKS.pitch(AE.active), 0) * SPEED.rate * (1 + (c.pull || 0)));
-    if (Math.abs(r - c.rate) > 0.0002){ try { c.d.a.playbackRate = r; } catch (e){} c.rate = r; }
+    const ratio = glideRates(p.bpmA, p.bpmB, 0).rateB * seamPitchCarry(DECKS.pitch(AE.active), 0);
+    const r = deckRate(ratio * SPEED.rate * (1 + (c.pull || 0)));
+    if (Math.abs(r - c.rate) > 0.0002){
+      try { c.d.a.playbackRate = r; } catch (e){}
+      if (!c.rate) setPitchLock(c.d.a, keyLockFor(SPEED.keyLock, SPEED.rate, true, ratio));   // once, as it starts to roll: the blend's pitch mode for the ratio it is written at
+      c.rate = r;
+    }
   },
   // fire()'s question: is the cue rolling, and on the grid? (seamCueHolds)
   _cueHolds(p, od, nd){
@@ -25967,7 +25988,7 @@ const MIXER = {
     if (i >= 0){
       const r = deckRate(SPEED.rate * DECKS.pitch(i));
       try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){}
-      setPitchLock(d.a, SPEED.keyLock && !DECKS.slots[i].synced);
+      setPitchLock(d.a, keyLockFor(SPEED.keyLock, SPEED.rate, DECKS.slots[i].synced, DECKS.slots[i].pitch));
     }
     if (o && o.veto) this._cueVetoRec = this._nextRec;
     DECKS.applyFaderGains();
@@ -26165,15 +26186,20 @@ const MIXER = {
          every beat within 1-2 ms of its reported time. So for the length of a
          beatmix both decks resample — a +2 % blend is a third of a semitone,
          which is what every turntable blend has ever sounded like — and the
-         listener's key lock comes back the instant the seam lets go (finish /
-         cancel), when both decks are at their own tempo again.
-         AT THE LISTENER'S 1× ONLY. The rate written below carries SPEED.rate,
-         so at 1.25× 'resampled' meant the whole mix jumping a major third at
-         every seam and back at its end, under a KEY LOCK pad and a toast that
-         had promised 'pitch preserved'. There the stretcher stays on and the
-         lock steers a little less precisely — the lesser evil by a mile. */
-      if (SPEED.rate === 1){ setPitchLock(od.a, false); setPitchLock(nd.a, false); }
+         listener's key lock comes back when the seam lets go (finish /
+         cancel) and the record is at its own tempo again.
+         AT THE LISTENER'S 1× ONLY, AND WITHIN SYNC_VINYL_MAX (keyLockFor). The
+         rate written below carries SPEED.rate, so at 1.25× 'resampled' meant
+         the whole mix jumping a major third at every seam and back at its end,
+         under a KEY LOCK pad and a toast that had promised 'pitch preserved';
+         past 3 % the step is a semitone. There the stretcher stays on and the
+         lock steers a little less precisely — the lesser evil by a mile.
+         THE RECORD ON AIR IS NOT TOUCHED: its rate is unchanged through the
+         blend (glideRates: rateA is 1 at every f), so its pitch mode stays what
+         SPEED.apply gave it — dropping its lock here flipped a synced record
+         from stretched to resampled at the seam's first sample, at full level. */
       const g = glideRates(p.bpmA, p.bpmB, 0), k = seamPitchCarry(this._pA, 0);
+      setPitchLock(nd.a, keyLockFor(SPEED.keyLock, SPEED.rate, true, g.rateB * k));
       od.a.playbackRate = this._lastRateA = deckRate(g.rateA * k * SPEED.rate);
       nd.a.playbackRate = this._lastRateB = deckRate(g.rateB * k * SPEED.rate);
       if (nd.shelf) nd.shelf.gain.value = BEATMIX_BASS_DUCK;   // one-bass rule: B ducked in
@@ -26655,7 +26681,7 @@ const MIXER = {
     this._home = null;
     if (!d || !d.a) return;
     const from = d.a.playbackRate || 1, secs = seamHomeSecs(from, to);
-    if (!(secs > 0)){ const r = deckRate(to); try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){} return; }
+    if (!(secs > 0)){ const r = deckRate(to); try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){} this._homeLock(d); return; }
     this._home = { d, from, to, t0: performance.now(), secs };
   },
   _homeTick(){
@@ -26663,13 +26689,19 @@ const MIXER = {
     if (!h) return;
     const u = (performance.now() - h.t0) / (h.secs * 1000);
     try { h.d.a.playbackRate = deckRate(seamHomeRate(h.from, h.to, u)); } catch (e){}   // (through the one door: an iPhone's graph holds 1×, and the glide is a step to it)
-    if (u >= 1) this._home = null;
+    if (u >= 1){ this._home = null; this._homeLock(h.d); }
   },
   _homeDrop(d){
     const h = this._home;
     if (!h || (d && h.d !== d)) return;
     this._home = null;
     try { h.d.a.playbackRate = deckRate(h.to); } catch (e){}
+    this._homeLock(h.d);
+  },
+  // the landing: the record is at its own tempo, and gets the one key-lock rule's pitch mode (inaudible at 1×)
+  _homeLock(d){
+    const i = AE.decks ? AE.decks.indexOf(d) : -1, s = i >= 0 && typeof DECKS !== 'undefined' ? DECKS.slots[i] : null;
+    try { setPitchLock(d.a, keyLockFor(SPEED.keyLock, SPEED.rate, s && s.synced, s && s.pitch)); } catch (e){}
   },
   _applyRates(f){
     const p = this.plan, od = this.outDeck, nd = AE.decks && AE.decks[AE.active];
@@ -26709,8 +26741,8 @@ const MIXER = {
     }
     if (nd){
       // the blend held the outgoing record's tempo and matched the incoming to it: alone on air now, it comes home at a walking pace (seamHomeRate)
+      // its pitch mode stays the blend's until it lands (a lock switched on at a rate still 3 % off is a half-semitone step); _homeLock writes the rule's at the landing
       this._homeStart(nd, deckRate(SPEED.rate * DECKS.pitch(AE.decks.indexOf(nd))));
-      setPitchLock(nd.a, SPEED.keyLock);                // the blend rode vinyl; the listener's lock returns
       if (nd.shelf) DECKS.gainWrite(nd.shelf.gain, 0, 0.006);
       /* …except during an iPhone's hand-back, where the captured deck is being
          raised to the hardware level its direct twin plays at (DECKROUTE
@@ -27189,6 +27221,7 @@ const UPDATE = {
   _bootAt: Date.now(),
   _lastTouchAt: Date.now(),   // when a person last touched the app (see appInUse); the launch counts
   _lastPlayingAt: Date.now(), // when playback (or a hand's record) was last OBSERVED rolling — what "the quiet" is measured from
+  _checkedAt: Date.now(),     // the launch's own registration revalidated the shell: a return seconds later is not a second check (checkOnReturn)
   ready(){ return !!(swReg && swReg.waiting) || this.source === 'shell' || this.source === 'native'; },
   /* how many times THIS session has already swapped. Session-scoped on purpose:
      a genuine sequence of deploys across a long day should each land, but a
@@ -30183,7 +30216,7 @@ const FX = {
       // fast enough that a cancelled fade is never left muffled, slow enough to be a ramp;
       // the tick's own cache is told, so it does not write the same thing again slower
       this._w(d.filter.frequency, d._fxHand ? null : FILTER_OPEN, 0.012);
-      d._fxLast = d._fxHand ? null : { lp: FILTER_OPEN, hp: d._fxLast ? d._fxLast.hp : 0, q: d._fxLast ? d._fxLast.q : 0 };
+      { const L = d._fxLast; d._fxLast = d._fxHand ? null : { lp: FILTER_OPEN, hp: L ? L.hp : 0, qlp: L ? L.qlp : 0, qhp: L ? L.qhp : 0 }; }   // (the tick's own shape: a {q} here left both Q compares NaN and the hand's Q never written again)
     }
     this._ftStart();
   },

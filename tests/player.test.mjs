@@ -28,7 +28,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' XFORM_KINDS, XFORM_MIN_DUR, segueFx, segueFxDur,' +
   ' smoothEnv, analyzeStructure, moodOf, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB, STEM_PAL, STEM_OKLCH,' +
   ' SEGUE_BARS, SECTION_CHANGE, sectionChangeClass, LENS_HYST,' +
-  ' camelotParse, camelotCompat, tempoFoldRatio, SYNC_MAX_TEMPO, SYNC_VINYL_MAX, planTransition, glideRates, SEAM_HOME_CENTS_PER_S, seamHomeSecs, seamHomeRate, driftTrim,' +
+  ' camelotParse, camelotCompat, tempoFoldRatio, SYNC_MAX_TEMPO, SYNC_VINYL_MAX, keyLockFor, planTransition, glideRates, SEAM_HOME_CENTS_PER_S, seamHomeSecs, seamHomeRate, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
   ' equalPowerXfade, xfadeCurve, seamOutHold, seamLeadAvail, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
   ' SEAM_CUE_S, SEAM_CUE_MIN, SEAM_CUE_TOL, SEAM_CUE_LAT, seamCueTarget, seamCuePoint, seamCueDue, seamCueStep, seamCueHolds, seamCueLearn,' +
@@ -652,7 +652,14 @@ test('the record on air never moves: A holds, B is matched to it throughout, and
   assert.equal(S.seamHomeRate(from, 1, 0), from); assert.equal(S.seamHomeRate(from, 1, 1), 1); assert.equal(S.seamHomeRate(from, 1, 2), 1, 'clamped');
   assert.ok(Math.abs(1200 * Math.log2(S.seamHomeRate(from, 1, 0.5) / from) - cents / 2) < 1e-9, 'half way in cents at half time');
   // wired: finish starts it, update ticks it, a hand, a seam and the cancel's retune drop it; the on-air record holds its own pitch through the seam
-  assert.match(html, /this\._homeStart\(nd, deckRate\(SPEED\.rate \* DECKS\.pitch\(AE\.decks\.indexOf\(nd\)\)\)\);\s*setPitchLock\(nd\.a, SPEED\.keyLock\);/, 'finish');
+  assert.match(html, /this\._homeStart\(nd, deckRate\(SPEED\.rate \* DECKS\.pitch\(AE\.decks\.indexOf\(nd\)\)\)\);\s*if \(nd\.shelf\)/, 'finish: the way home, and no lock write before it lands');
+  // the landing writes the one key-lock rule's pitch mode (at 1× inaudible; switched on at a rate still 3 % off it was a half-semitone step)
+  assert.match(html, /if \(u >= 1\)\{ this\._home = null; this\._homeLock\(h\.d\); \}/, '_homeTick lands');
+  assert.match(html, /try \{ h\.d\.a\.playbackRate = deckRate\(h\.to\); \} catch \(e\)\{\}\s*this\._homeLock\(h\.d\);/, '_homeDrop');
+  assert.match(html, /this\._homeLock\(d\); return; \}/, 'a way home of no length');
+  assert.match(html, /_homeLock\(d\)\{[^}]*keyLockFor\(SPEED\.keyLock, SPEED\.rate, s && s\.synced, s && s\.pitch\)/, '_homeLock is the rule');
+  // a speed or key-lock tap during the way home ends it (the tick would write the old speed back next frame and land on it)
+  assert.match(html, /if \(typeof MIXER !== 'undefined' && MIXER\._home && !seam\) MIXER\._homeDrop\(\);\s*if \(AE\.decks && !seam\) AE\.decks\.forEach/, 'SPEED.apply drops it');
   assert.match(html, /this\._homeTick\(\);\s*\/\/ the incoming record of the last seam, on its way home/, 'update');
   assert.equal((html.match(/this\._homeDrop\(\);/g) || []).length, 2, 'fire and the retune');
   assert.match(html, /hand\(\)\{ this\._handAt = performance\.now\(\); if \(typeof MIXER !== 'undefined' && MIXER\._home\) MIXER\._homeDrop\(\); \}/, 'a hand');
@@ -3613,6 +3620,7 @@ test('the update flow in the player: the quiet is counted from boot, coming back
   // a return to the page re-checks the origin at most once a quarter hour (the worker revalidates the 4 MB shell each time)
   assert.match(html, /const UP_CHECK_GAP_MS = 15 \* 60 \* 1000;/);
   assert.match(html, /const checkOnReturn = \(\) => \{ if \(Date\.now\(\) - \(UPDATE\._checkedAt \|\| 0\) >= UP_CHECK_GAP_MS\) checkForUpdate\(\); \};/);
+  assert.match(html, /_lastPlayingAt: Date\.now\(\),[^\n]*\n\s*_checkedAt: Date\.now\(\),/, 'the launch counts as the last check: a return seconds after boot does not fetch the shell again');
   assert.match(html, /function checkForUpdate\(\)\{\s*UPDATE\._checkedAt = Date\.now\(\);/);
   // the pressing's gate: two gigabytes or less presses nothing; under four, or an iPhone that says nothing, presses at the low rate (no longer dead code)
   assert.match(html, /if \(mem != null && isFinite\(mem\) && mem <= 2\)\{ this\._song = \{ key, state: 'failed', sr: 0 \}; return; \}\s*const low = \(IS_IOS && mem == null\) \|\| \(mem != null && isFinite\(mem\) && mem < 4\);/);
@@ -5259,13 +5267,24 @@ test('the tempo gates are one number: SYNC refuses beyond it, the vinyl ride is 
   assert.match(sy, /const ratio = syncRateFor\(mixM\.bpm, mixS\.bpm\);\s*if \(Math\.abs\(ratio - 1\) > SYNC_MAX_TEMPO\)\{ this\.syncWhy = 'range'; this\.syncBpm = \{ m: Math\.round\(mixM\.bpm\), s: Math\.round\(mixS\.bpm\) \}; return false; \}\s*s\.pitch = ratio; s\.synced = true;/);
   assert.ok(Math.abs(S.syncRateFor(100, 128) - 1) > S.SYNC_MAX_TEMPO && Math.abs(S.syncRateFor(128, 124) - 1) <= S.SYNC_MAX_TEMPO, 'the fold decides');
   assert.match(html, /DECKS\.syncWhy === 'range' \? T\('SYNC · \{m\} vs \{s\} BPM is outside ±8 % — nudge instead', DECKS\.syncBpm/, 'the booth says why');
-  // the vinyl ride (preservesPitch off) only at the listener's 1×, and for a synced deck only within 3 %
-  assert.match(html, /if \(SPEED\.rate === 1\)\{ setPitchLock\(od\.a, false\); setPitchLock\(nd\.a, false\); \}/, 'fire()');
-  assert.match(html, /if \(SPEED\.rate === 1\) setPitchLock\(nd\.a, false\);/, 'the pre-rolled cue');
-  assert.match(html, /setPitchLock\(d\.a, this\.keyLock && !\(s && s\.synced && this\.rate === 1 && Math\.abs\(\(s\.pitch \|\| 1\) - 1\) <= SYNC_VINYL_MAX\)\);/, 'SPEED.apply');
-  assert.match(html, /setPitchLock\(d\.a, SPEED\.keyLock && !\(s\.synced && SPEED\.rate === 1 && Math\.abs\(\(s\.pitch \|\| 1\) - 1\) <= SYNC_VINYL_MAX\)\);/, 'the cancel\'s retune');
-  assert.ok(!/setPitchLock\(od\.a, false\); setPitchLock\(nd\.a, false\);\s*const g = glideRates/.test(html), 'no unconditional drop is left');
+  // THE ONE KEY-LOCK RULE: the vinyl ride (preservesPitch off) only at the listener's 1×, and for a synced record only within 3 %
+  assert.equal(S.keyLockFor(true, 1, true, 1.02), false, 'synced, 1×, 2 %: vinyl');
+  assert.equal(S.keyLockFor(true, 1, true, 1.05), true, 'synced, 1×, 5 %: the lock stays (a semitone of vinyl is not a sound)');
+  assert.equal(S.keyLockFor(true, 1.25, true, 1.02), true, 'at 1.25× the lock stays whatever the ratio');
+  assert.equal(S.keyLockFor(true, 1, false, 1.02), true, 'not synced: the listener\'s lock');
+  assert.equal(S.keyLockFor(false, 1, true, 1.05), false, 'the listener has it off: off');
+  assert.equal(S.keyLockFor(true, 1, true, undefined), false, 'no pitch reads as 1: within the window');
+  assert.equal(S.keyLockFor(true, 1, true, 0.975), false); assert.equal(S.keyLockFor(true, 1, true, 0.96), true);
+  // …and every writer of a deck's pitch mode goes through it (two that disagreed flipped the record on air at a seam's first sample)
+  assert.match(html, /setPitchLock\(d\.a, keyLockFor\(this\.keyLock, this\.rate, s && s\.synced, s && s\.pitch\)\);/, 'SPEED.apply');
+  assert.match(html, /setPitchLock\(d\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, s\.synced, s\.pitch\)\);/, 'the cancel\'s retune');
+  assert.match(html, /setPitchLock\(nd\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, sl && sl\.synced, sl && sl\.pitch\)\);\s*return true;/, '_seat');
+  assert.match(html, /const g = glideRates\(p\.bpmA, p\.bpmB, 0\), k = seamPitchCarry\(this\._pA, 0\);\s*setPitchLock\(nd\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, true, g\.rateB \* k\)\);\s*od\.a\.playbackRate = this\._lastRateA/, 'fire(): the incoming for its ratio, the record on air untouched');
+  assert.match(html, /if \(!c\.rate\) setPitchLock\(c\.d\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, true, ratio\)\);/, 'the pre-rolled cue, for the ratio it rolls at');
+  assert.ok(!/setPitchLock\([a-z]+\.a, false\)/.test(html), 'no writer drops a lock unconditionally');
+  assert.ok(!/setPitchLock\([a-z]+\.a, SPEED\.keyLock && !/.test(html), 'no writer keeps the old synced-only rule');
   // the hand's Q goes to the side it sweeps; the parked side stays Butterworth (a +9.5 dB sub resonator otherwise)
+  assert.match(html, /d\._fxLast = d\._fxHand \? null : \{ lp: FILTER_OPEN, hp: L \? L\.hp : 0, qlp: L \? L\.qlp : 0, qhp: L \? L\.qhp : 0 \};/, 'seamOpen hands the tick its own shape (a {q} left both Q compares NaN: the hand\'s Q never written again after a filtered fade)');
   assert.match(html, /const qLp = hand && hand\.x < 0 \? hand\.q : Math\.SQRT1_2, qHp = hand && hand\.x > 0 \? hand\.q : Math\.SQRT1_2;/);
   assert.ok(!/d\.filter\.Q\.setTargetAtTime\(qd, now, tau\); d\.hp\.Q\.setTargetAtTime\(qd, now, tau\);/.test(html), 'one Q no longer lands on both');
   // the CUT law's edge
@@ -13125,7 +13144,7 @@ test('the cued deck in the player: parked by the warm, rolled silent, skipped by
   assert.ok(cancel.indexOf("this._uncue('cancel:'") < cancel.indexOf("if (this.phase === 'idle'){ syncMixHud(); return; }"), 'cancel parks the cue before anything else meets the deck');
   const uncue = mixer.slice(mixer.indexOf('  _uncue(why, o){'), mixer.indexOf('  _cueStop(){'));
   assert.ok(uncue.includes('d.a.pause();') && uncue.includes('d.a.currentTime = d._seekTo;'), 'paused and put back where the warm parked it');
-  assert.ok(uncue.includes('setPitchLock(d.a, SPEED.keyLock && !DECKS.slots[i].synced);'), 'its own rate and key lock back');
+  assert.ok(uncue.includes('setPitchLock(d.a, keyLockFor(SPEED.keyLock, SPEED.rate, DECKS.slots[i].synced, DECKS.slots[i].pitch));'), 'its own rate, and the one key-lock rule');
   const roll = mixer.slice(mixer.indexOf('  _cueRoll(nd, to){'), mixer.indexOf('  _cueRate(){'));
   assert.ok(roll.includes('DECKS.gainWrite(nd.gain.gain, 0, 0.002);') && roll.includes('DECKS.gainWrite(nd.fader.gain, 0, 0.002);'),
     'silent on both nodes, through the arbiter');

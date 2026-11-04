@@ -228,6 +228,9 @@ if (want('finger')){
     await page.waitForFunction('UPDATE.ready()', null, { timeout: 30000 }).catch(() => {});
     // the page reloading out from under the panel IS the failure — report it,
     // don't crash on the destroyed context
+    // the page is aged past its boot grace first: a young page holds the swap on its own,
+    // and this scenario is about the open panel and the tap — only they may hold it now
+    await page.evaluate(() => { const t = Date.now() - 3 * 60 * 1000; UPDATE._bootAt = t; UPDATE._lastTouchAt = t; UPDATE._lastPlayingAt = t; });
     const x = await page.evaluate(() => { const r = document.getElementById('plClose').getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }).catch(() => null);
     if (x) await page.mouse.click(x.x, x.y);                 // a real pointer, as a finger would
