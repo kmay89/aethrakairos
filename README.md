@@ -135,7 +135,18 @@ pasted into `MB8_SIGNING_PUBKEY` in the player and Ed25519 WebCrypto support.)
 ./publish.sh                      # masters/ → catalog → doctor → commit → push
 ./publish.sh masters album40.zip  # wizard ZIPs unpack first
 python3 make_catalog.py doctor    # the monthly once-over
+python3 make_catalog.py loudness  # re-meter the published records (after a meter change)
 ```
+
+Every record carries a `gain` (dB): toward a **-14 LUFS** street level, boost
+capped at +6, cut at -12, and a boost stops where the record's true peaks would
+pass **-1 dBTP** (a cut is the loudness's alone — codec overshoot on a
+brickwalled master never pulls it under the level everything else plays at; the
+player's limiter is there for those). Metered over the record's channels per
+BS.1770-4 with a 4× true peak (`features.py`, `LOUDNESS_VERSION`). The player
+applies it per deck. When the meter moves, a cached record is re-metered in
+place at the next build; `loudness` does the same from the published audio tree
+(sha256-checked) without the masters.
 
 **Drop songs as they are** — MP3, WAV, or M4A (AIFF and FLAC too). Anything
 that isn't MP3 becomes a 320k web MP3 on the way in (`ffmpeg`, tags and the

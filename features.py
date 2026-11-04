@@ -39,7 +39,7 @@ try:
 except ImportError:  # pragma: no cover
     sys.exit("features.py needs numpy:  pip install numpy")
 
-from fingerprint import decode_mono, resample_poly
+from fingerprint import decode_audio, decode_mono, resample_poly
 
 try:  # optional ~100× speedup for the sample-loop IIR; numpy-only path remains
     from scipy.signal import lfilter as _lfilter
@@ -71,6 +71,15 @@ ONSET_ENV_HZ = 100.0
 BPM_LO, BPM_HI = 70.0, 180.0
 
 FEATURES_VERSION = 4      # v4: adds instrumentation/texture (bass/perc/tonal/air via median-filter HPSS)
+# THE METER. v2: BS.1770-4 over the record's channels (it metered a mono
+# downmix, which under-reads a stereo record by 3–6 dB — correlated channels
+# sum to +3, uncorrelated to +6 — so the gain law boosted most of the catalog
+# 3–6 dB past its target, into the limiter) and a 4× true peak (dBTP), which
+# the gain law reads as a ceiling. A cached record metered before this is
+# re-metered in place (refresh_loudness), nothing else recomputed.
+LOUDNESS_VERSION = 2
+LOUDNESS_TARGET = -14.0   # LUFS: the street level the per-record gain aims at
+TRUE_PEAK_CEILING = -1.0  # dBTP: no BOOST pushes a record's true peaks past this
 
 
 # ------------------------------------------------------- BS.1770-4 loudness
@@ -94,16 +103,27 @@ def _k_weight_48k(x):
     return _biquad(s1, 1.0, -2.0, 1.0, -1.99004745483398, 0.99007225036621)
 
 
-def loudness_blocks(mono, sr):
-    """Gated 400 ms block loudnesses (LUFS) at 48 kHz, per BS.1770-4."""
+_CH_WEIGHTS = (1.0, 1.0)  # L, R per BS.1770-4 (decode_audio hands over two channels at most)
+
+
+def loudness_blocks(x, sr):
+    """Gated 400 ms block loudnesses (LUFS) at 48 kHz, per BS.1770-4. x is
+    mono (n,) or channels (n, ch): every channel is K-weighted on its own and
+    the weighted mean-squares are SUMMED — a stereo record is not its mono
+    downmix."""
+    x = np.asarray(x, dtype=np.float64)
+    if x.ndim == 1:
+        x = x[:, None]
     if sr != 48000:
-        mono = resample_poly(mono, sr, 48000)
+        x = np.stack([resample_poly(x[:, c], sr, 48000) for c in range(x.shape[1])], axis=1)
         sr = 48000
-    f = _k_weight_48k(mono)
     bl, hop = int(sr * 0.4), int(sr * 0.1)
-    if len(f) < bl:
+    if len(x) < bl:
         return np.array([])
-    sq = f * f
+    sq = np.zeros(len(x))
+    for ch in range(x.shape[1]):
+        f = _k_weight_48k(np.ascontiguousarray(x[:, ch]))
+        sq += (_CH_WEIGHTS[ch] if ch < len(_CH_WEIGHTS) else 1.0) * f * f
     c = np.concatenate(([0.0], np.cumsum(sq)))
     starts = np.arange(0, len(f) - bl + 1, hop)
     z = (c[starts + bl] - c[starts]) / bl
@@ -111,8 +131,8 @@ def loudness_blocks(mono, sr):
     return lb[lb > -70.0]
 
 
-def integrated_lufs(mono, sr):
-    lb = loudness_blocks(mono, sr)
+def integrated_lufs(x, sr):
+    lb = loudness_blocks(x, sr)
     if len(lb) == 0:
         return float("-inf"), 0.0
     z = 10 ** ((lb + 0.691) / 10)
@@ -124,6 +144,73 @@ def integrated_lufs(mono, sr):
     lufs = -0.691 + 10 * np.log10(zk.mean())
     dyn = float(np.percentile(lb, 95) - np.percentile(lb, 10))
     return float(lufs), dyn
+
+
+def _tp_phases(over=4, taps=48):
+    """The 4× interpolator of BS.1770-4 Annex 2 as polyphase branches (12 taps
+    each): a Kaiser-windowed sinc, each branch DC-exact. Branch 0 is the
+    samples themselves and is left out — the caller reads them directly."""
+    k = np.arange(taps) - (taps - 1) / 2
+    h = np.sinc(k / over) * np.kaiser(taps, 7.0)
+    return [h[p::over] / h[p::over].sum() for p in range(1, over)]
+
+
+_TP_PHASES = _tp_phases()
+
+
+def true_peak_dbtp(x, sr=48000):
+    """The record's true peak in dBTP: the largest absolute value of the 4×
+    oversampled signal over every channel — what a converter's reconstruction
+    filter reaches BETWEEN samples, which on a brickwalled master sits above
+    the sample peak. (Annex 2 allows the 4× filter down to 44.1 kHz; sr is
+    only documentary here.)"""
+    x = np.asarray(x, dtype=np.float64)
+    if x.ndim == 1:
+        x = x[:, None]
+    if len(x) == 0:
+        return -70.0
+    peak = 0.0
+    for ch in range(x.shape[1]):
+        c = np.ascontiguousarray(x[:, ch])
+        peak = max(peak, float(np.abs(c).max()))
+        for hp in _TP_PHASES:
+            peak = max(peak, float(np.abs(np.convolve(c, hp, mode="full")).max()))
+    return round(float(20 * np.log10(peak)), 2) if peak > 1e-7 else -70.0
+
+
+def loudness_stats(x, sr):
+    """The meter's block of a raw: integrated LUFS, dynamics (95th–10th
+    percentile of the block loudnesses), the true peak, and the meter's version."""
+    lufs, dyn = integrated_lufs(x, sr)
+    return {"lufs": round(lufs, 2) if lufs != float("-inf") else -70.0,
+            "dynamics": round(dyn, 2),
+            "peak": true_peak_dbtp(x, sr),
+            "lv": LOUDNESS_VERSION}
+
+
+def refresh_loudness(path):
+    """The cache-upgrade path for a record metered before LOUDNESS_VERSION:
+    one decode with the channels kept, the meter, nothing else recomputed."""
+    x, sr = decode_audio(path)
+    return loudness_stats(x, sr)
+
+
+def track_gain(lufs, peak=None):
+    """THE GAIN LAW: the catalog's per-record gain in dB, toward the -14 LUFS
+    street level — boost capped at +6 (headroom), cut at -12 (sanity). A
+    BOOST stops where the record's true peaks would pass -1 dBTP: a quiet
+    record with tall peaks is lifted only as far as its peaks allow, not into
+    the limiter. A cut is the loudness's alone — peaks never deepen it, so a
+    brickwalled master that decodes with codec overshoot (+3 dBFS samples
+    are common) is not pulled under the level everything else plays at; the
+    player's limiter is there for those. None when the record was not
+    metered (a hand-edited catalog without it plays at unity)."""
+    if not isinstance(lufs, (int, float)) or isinstance(lufs, bool) or lufs <= -70:
+        return None
+    g = LOUDNESS_TARGET - float(lufs)
+    if g > 0 and isinstance(peak, (int, float)) and not isinstance(peak, bool) and peak > -70:
+        g = min(g, max(0.0, TRUE_PEAK_CEILING - float(peak)))
+    return round(max(-12.0, min(6.0, g)), 2)
 
 
 # ------------------------------------------------------- spectral features
@@ -686,7 +773,7 @@ def extract(path):
     """Raw feature dict for one audio file (includes the mix block)."""
     mono, sr = decode_mono(path, sr=44100)
     dur = len(mono) / sr
-    lufs, dyn = integrated_lufs(mono, sr)
+    loud = loudness_stats(*decode_audio(path))   # the channels, for the meter: a downmix under-reads
     spec, freqs = stft_power(mono, sr)
     centroid, entropy = spectral_stats(spec, freqs)
     flux, onsets = onset_curve(spec, sr)
@@ -695,8 +782,7 @@ def extract(path):
     return {
         "v": FEATURES_VERSION,
         "duration": round(dur, 1),
-        "lufs": round(lufs, 2) if lufs != float("-inf") else -70.0,
-        "dynamics": round(dyn, 2),
+        **loud,
         "centroid": round(centroid, 1),
         "entropy": round(entropy, 3),
         "onset_rate": round(onset_rate, 3),

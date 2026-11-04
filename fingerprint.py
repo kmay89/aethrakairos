@@ -55,7 +55,9 @@ AUDIO_EXTS = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".opus"}
 
 # ---------------------------------------------------------------- decode
 
-def _decode_wav(path):
+def _decode_wav(path, mono=True):
+    """(samples float64, sr) — a mono mean by default; mono=False keeps the
+    channels, two at most, as (n, ch)."""
     with wave.open(str(path), "rb") as w:
         sr = w.getframerate()
         n = w.getnframes()
@@ -79,13 +81,14 @@ def _decode_wav(path):
     else:
         raise ValueError(f"unsupported WAV sample width {sw}")
     if ch > 1:
-        x = x.reshape(-1, ch).mean(axis=1)
+        x = x.reshape(-1, ch)
+        x = x.mean(axis=1) if mono else np.ascontiguousarray(x[:, :2])
     return x, sr
 
 
-def _decode_ffmpeg(path, sr):
+def _ffmpeg_pcm(path, sr, channels):
     cmd = ["ffmpeg", "-v", "error", "-i", str(path),
-           "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"]
+           "-ac", str(channels), "-ar", str(sr), "-f", "f32le", "-"]
     try:
         out = subprocess.run(cmd, capture_output=True, check=True).stdout
     except FileNotFoundError:
@@ -94,7 +97,32 @@ def _decode_ffmpeg(path, sr):
             "MP3/FLAC/AAC need ffmpeg on PATH)")
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"ffmpeg failed on {path.name}: {e.stderr.decode(errors='replace').strip()}")
-    return np.frombuffer(out, dtype="<f4").astype(np.float64), sr
+    return np.frombuffer(out, dtype="<f4").astype(np.float64)
+
+
+def _decode_ffmpeg(path, sr):
+    return _ffmpeg_pcm(path, sr, 1), sr
+
+
+def decode_audio(path, sr=48000):
+    """(samples float64 (n, ch) at sr, sr) with the channels KEPT — two at
+    most — for the loudness meter, which sums channels rather than hearing a
+    downmix. A mono source is one channel even when the decoder hands it back
+    doubled (ffmpeg's -ac 2 does), so it is never counted twice."""
+    path = Path(path)
+    with open(path, "rb") as f:
+        magic = f.read(4)
+    if magic == b"RIFF":
+        x, native_sr = _decode_wav(path, mono=False)
+        if x.ndim == 1:
+            x = x[:, None]
+        if native_sr != sr:
+            x = np.stack([resample_poly(x[:, c], native_sr, sr) for c in range(x.shape[1])], axis=1)
+    else:
+        x = _ffmpeg_pcm(path, sr, 2).reshape(-1, 2)
+    if x.shape[1] == 2 and np.array_equal(x[:, 0], x[:, 1]):
+        x = x[:, :1]
+    return np.ascontiguousarray(x), sr
 
 
 def decode_mono(path, sr=FP_SR):

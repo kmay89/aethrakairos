@@ -241,6 +241,9 @@ def raw_features_for(sha, path, cache, wizard_features=None):
         elif mix.get("kv") != ftmod.KEY_VERSION:
             # the grid is current and the key detector is not: refresh the key alone
             hit["mix"] = ftmod.refresh_key(path, mix)
+        if hit.get("lv") != ftmod.LOUDNESS_VERSION:
+            # metered as a mono downmix, or without a true peak: re-metered in place
+            hit.update(ftmod.refresh_loudness(path))
         return hit, True
     if wizard_features and all(k in wizard_features for k in
                                ("lufs", "centroid", "entropy", "onset_rate", "bpm")):
@@ -248,6 +251,8 @@ def raw_features_for(sha, path, cache, wizard_features=None):
         raw["v"] = ftmod.FEATURES_VERSION
         if not isinstance(raw.get("mix"), dict):
             raw["mix"] = ftmod.extract_mix_file(path)
+        if raw.get("lv") != ftmod.LOUDNESS_VERSION:
+            raw.update(ftmod.refresh_loudness(path))   # the wizard's meter is not this one
     else:
         raw = ftmod.extract(path)
     cache["by_sha"][sha] = raw
@@ -712,12 +717,12 @@ def build(args):
     normd = ftmod.normalize_catalog([t["_raw"] for t in flat])
     for t, feats in zip(flat, normd):
         t["features"] = feats
-        # loudness normalization: gain in dB toward a -14 LUFS street level,
-        # boost capped at +6 (headroom), cut at -12 (sanity). The player
-        # applies it per deck; a hand-edited catalog without it plays at unity.
-        lufs = t["_raw"].get("lufs")
-        if isinstance(lufs, (int, float)) and lufs > -70:
-            t["gain"] = round(max(-12.0, min(6.0, -14.0 - lufs)), 2)
+        # loudness normalization: gain in dB toward the -14 LUFS street level
+        # under a -1 dBTP ceiling (ftmod.track_gain). The player applies it
+        # per deck; a hand-edited catalog without it plays at unity.
+        gain = ftmod.track_gain(t["_raw"].get("lufs"), t["_raw"].get("peak"))
+        if gain is not None:
+            t["gain"] = gain
         # the score: band envelopes for platforms that cannot analyse live
         if isinstance(t["_raw"].get("env"), dict):
             t["env"] = t["_raw"]["env"]
@@ -958,8 +963,71 @@ def doctor(args):
 
 # ---------------------------------------------------------------- main
 
+def loudness(args):
+    """RE-METER THE PUBLISHED RECORDS. The meter moved (LOUDNESS_VERSION) and
+    the masters are not needed to apply it: the published MP3s are the very
+    bytes the catalog names (sha256-checked), so every record is metered from
+    the audio tree and its gain rewritten. Cache entries are brought up to
+    the meter's version in place when the cache is current; a cache from an
+    older FEATURES_VERSION is left for the next build to rebuild. The
+    catalog-wide feature normalisation (energy) re-emits on the next build."""
+    if not CATALOG_PATH.exists():
+        fail(f"{CATALOG_PATH} is missing — build first")
+    catalog = json.loads(CATALOG_PATH.read_text())
+    cache = load_cache()
+    cache_live = CACHE_PATH.exists() and json.loads(CACHE_PATH.read_text()).get("v") == ftmod.FEATURES_VERSION
+    audio_root = Path(args.audio) if args.audio else AUDIO_ROOT
+    n = metered = changed = skipped = 0
+    for al in catalog.get("albums", []):
+        for t in al.get("tracks", []):
+            n += 1
+            p = audio_root / al["tag"] / t["file"]
+            if not p.exists():
+                print(f"  ! {al['tag']}/{t['file']}: not in {audio_root} — skipped")
+                skipped += 1
+                continue
+            if sha256_file(p) != t.get("sha256"):
+                print(f"  ! {al['tag']}/{t['file']}: not the bytes the catalog names (sha256) — skipped")
+                skipped += 1
+                continue
+            hit = cache["by_sha"].get(t["sha256"]) if cache_live else None
+            if hit and hit.get("lv") == ftmod.LOUDNESS_VERSION:
+                loud = {k: hit.get(k) for k in ("lufs", "dynamics", "peak", "lv")}
+            else:
+                loud = ftmod.refresh_loudness(p)
+                metered += 1
+                if hit is not None:
+                    hit.update(loud)
+            gain = ftmod.track_gain(loud.get("lufs"), loud.get("peak"))
+            if gain != t.get("gain"):
+                changed += 1
+                if not args.quiet:
+                    print(f"  · {al['tag']}/{t['file']}: {t.get('gain')} → {gain} dB"
+                          f"  ({loud['lufs']} LUFS · {loud['peak']} dBTP)")
+                if gain is None:
+                    t.pop("gain", None)
+                else:
+                    t["gain"] = gain
+    if args.dry_run:
+        print(f"{n} records · {metered} metered · {changed} gains would change · {skipped} skipped (dry run)")
+        return 0
+    CATALOG_PATH.write_text(json.dumps(catalog, indent=1, ensure_ascii=False) + "\n")
+    if cache_live:
+        CACHE_PATH.write_text(json.dumps(cache, indent=0) + "\n")
+    print(f"{n} records · {metered} metered · {changed} gains changed · {skipped} skipped"
+          + ("" if cache_live else " · cache not current: left for the next build"))
+    return 0
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "loudness":
+        ap = argparse.ArgumentParser(prog="make_catalog.py loudness",
+                                     description="re-meter the published records and rewrite their gains")
+        ap.add_argument("--audio", help=f"the audio tree (default {AUDIO_ROOT})")
+        ap.add_argument("--dry-run", action="store_true", help="report, write nothing")
+        ap.add_argument("--quiet", action="store_true", help="totals only")
+        return loudness(ap.parse_args(argv[1:]))
     if argv and argv[0] == "doctor":
         ap = argparse.ArgumentParser(prog="make_catalog.py doctor")
         ap.add_argument("--samples", type=int, default=5)

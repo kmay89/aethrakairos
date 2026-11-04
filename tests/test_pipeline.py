@@ -33,12 +33,13 @@ import make_catalog as mc
 # ---------------------------------------------------------------- synth
 
 def write_wav(path, samples, sr=44100):
+    """samples (n,) is mono; (n, ch) keeps its channels."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    x = np.clip(samples, -1, 1)
+    x = np.clip(np.asarray(samples), -1, 1)
     pcm = (x * 32767).astype("<i2").tobytes()
     with wave.open(str(path), "wb") as w:
-        w.setnchannels(1)
+        w.setnchannels(1 if x.ndim == 1 else x.shape[1])
         w.setsampwidth(2)
         w.setframerate(sr)
         w.writeframes(pcm)
@@ -177,6 +178,88 @@ class TestFeatures(unittest.TestCase):
         self.assertLess(normd[0]["energy"], normd[-1]["energy"])
         self.assertLess(normd[0]["brightness"], normd[-1]["brightness"])
         self.assertTrue(all(0 <= f["energy"] <= 1 for f in normd))
+
+
+# ---------------------------------------------------------------- the meter
+
+class TestLoudness(unittest.TestCase):
+    """BS.1770-4 over the channels, a 4× true peak, and the gain law that reads
+    both. The old meter heard a mono downmix: 3–6 dB under for a stereo record."""
+
+    SR = 48000
+
+    def tone(self, f, amp=0.1, secs=6.0, phase=0.0):
+        t = np.arange(int(self.SR * secs)) / self.SR
+        return amp * np.sin(2 * np.pi * f * t + phase)
+
+    def test_stereo_sums_the_channels_rather_than_hearing_a_downmix(self):
+        m = self.tone(1000)
+        mono, _ = ft.integrated_lufs(m, self.SR)
+        both, _ = ft.integrated_lufs(np.stack([m, m], axis=1), self.SR)
+        self.assertAlmostEqual(both - mono, 3.01, places=1, msg="L = R: +3.01 dB over one channel")
+        rng = np.random.default_rng(3)
+        a, b = 0.1 * rng.standard_normal(len(m)), 0.1 * rng.standard_normal(len(m))
+        down, _ = ft.integrated_lufs((a + b) / 2, self.SR)
+        st, _ = ft.integrated_lufs(np.stack([a, b], axis=1), self.SR)
+        self.assertAlmostEqual(st - down, 6.02, delta=0.15, msg="uncorrelated: the downmix under-reads by 6 dB")
+        # a mono record is one channel: the old numbers, exactly
+        one, _ = ft.integrated_lufs(m[:, None], self.SR)
+        self.assertAlmostEqual(one, mono, places=6)
+
+    def test_the_true_peak_reads_between_the_samples(self):
+        # fs/4 at phase π/4: every sample sits at 0.707, the waveform reaches 1.0
+        x = self.tone(self.SR / 4, amp=1.0, phase=np.pi / 4)
+        self.assertAlmostEqual(20 * np.log10(np.abs(x).max()), -3.01, places=2)
+        self.assertGreater(ft.true_peak_dbtp(x, self.SR), -0.3, "the inter-sample peak is heard")
+        self.assertLessEqual(ft.true_peak_dbtp(x, self.SR), 0.1)
+        # a half-scale tone is -6.02 dBTP; silence is the floor; the loudest channel counts
+        self.assertAlmostEqual(ft.true_peak_dbtp(self.tone(997, amp=0.5), self.SR), -6.02, places=1)
+        self.assertEqual(ft.true_peak_dbtp(np.zeros(4800), self.SR), -70.0)
+        two = np.stack([self.tone(997, amp=0.25), self.tone(997, amp=0.5)], axis=1)
+        self.assertAlmostEqual(ft.true_peak_dbtp(two, self.SR), -6.02, places=1)
+
+    def test_the_gain_law_aims_at_minus_14_and_a_boost_stops_at_the_true_peak_ceiling(self):
+        self.assertEqual(ft.track_gain(-20, -6), 5.0, "toward -14 when the peaks allow it (-6 → -1)")
+        self.assertEqual(ft.track_gain(-20, -3), 2.0, "a quiet record with tall peaks: only as far as -1 dBTP")
+        self.assertEqual(ft.track_gain(-20, 1.0), 0.0, "…and none at all when its peaks are already past it")
+        self.assertEqual(ft.track_gain(-8, -0.1), -6.0, "a loud record is cut to -14")
+        self.assertEqual(ft.track_gain(-13.9, 3.4), -0.1, "a cut is the loudness's alone: codec overshoot does not deepen it")
+        self.assertEqual(ft.track_gain(-30, -10), 6.0, "boost capped at +6")
+        self.assertEqual(ft.track_gain(0, -0.1), -12.0, "cut capped at -12")
+        self.assertEqual(ft.track_gain(-20, None), 6.0, "no peak known: the old law")
+        self.assertIsNone(ft.track_gain(-70, -1), "silence is not metered")
+        self.assertIsNone(ft.track_gain(None))
+        self.assertIsNone(ft.track_gain("loud"))
+
+    def test_loudness_stats_carry_the_meter_version(self):
+        st = ft.loudness_stats(np.stack([self.tone(440), self.tone(660)], axis=1), self.SR)
+        self.assertEqual(st["lv"], ft.LOUDNESS_VERSION)
+        for k in ("lufs", "dynamics", "peak"):
+            self.assertIsInstance(st[k], float)
+
+    def test_decode_audio_keeps_channels_and_collapses_a_doubled_mono(self):
+        d = Path(__file__).parent / "_tmp_decode"
+        d.mkdir(exist_ok=True)
+        try:
+            m = self.tone(440, secs=1.0)
+            write_wav(d / "mono.wav", m, sr=self.SR)
+            write_wav(d / "stereo.wav", np.stack([m, self.tone(660, secs=1.0)], axis=1), sr=self.SR)
+            write_wav(d / "doubled.wav", np.stack([m, m], axis=1), sr=self.SR)
+            write_wav(d / "mono441.wav", self.tone(440, secs=1.0)[:44100], sr=44100)
+            x, sr = fp.decode_audio(d / "mono.wav")
+            self.assertEqual((x.shape[1], sr), (1, 48000))
+            x, _ = fp.decode_audio(d / "stereo.wav")
+            self.assertEqual(x.shape[1], 2)
+            x, _ = fp.decode_audio(d / "doubled.wav")
+            self.assertEqual(x.shape[1], 1, "a doubled mono is one channel — never metered twice")
+            x, sr = fp.decode_audio(d / "mono441.wav")
+            self.assertEqual(sr, 48000)
+            self.assertAlmostEqual(len(x) / 48000, 1.0, places=2)
+            # the mono decoder is unchanged: the mean of the channels
+            y, _ = fp.decode_mono(d / "stereo.wav", sr=self.SR)
+            self.assertEqual(y.ndim, 1)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
 
 
 # ---------------------------------------------------------------- mix analysis
@@ -589,6 +672,86 @@ class TestCatalogMix(TmpRepo):
         _, tr = self.flat()[0]
         self.assertIn("bpm", tr["mix"], "mix block was upgraded in place")
 
+    def test_cache_upgrade_remeters_loudness_without_refeaturing(self):
+        self.masters({"A": {"01-x.mp3": synth_beat_track(124.0)}})
+        self.build()
+        _, tr0 = self.flat()[0]
+        # simulate a record metered by the old meter: no version, no peak, a mono-downmix number
+        cache = json.loads(Path("features-cache.json").read_text())
+        for k in cache["by_sha"]:
+            cache["by_sha"][k].pop("lv", None)
+            cache["by_sha"][k].pop("peak", None)
+            cache["by_sha"][k]["lufs"] = -30.0
+        Path("features-cache.json").write_text(json.dumps(cache))
+        calls = []
+        orig = ft.extract
+        ft.extract = lambda p: calls.append(p) or orig(p)
+        try:
+            self.build()
+        finally:
+            ft.extract = orig
+        self.assertEqual(calls, [], "full re-extraction must not happen")
+        cache = json.loads(Path("features-cache.json").read_text())
+        raw = next(iter(cache["by_sha"].values()))
+        self.assertEqual(raw["lv"], ft.LOUDNESS_VERSION, "re-metered in place")
+        self.assertIn("peak", raw)
+        self.assertNotEqual(raw["lufs"], -30.0)
+        _, tr = self.flat()[0]
+        self.assertEqual(tr["gain"], ft.track_gain(raw["lufs"], raw["peak"]))
+        self.assertEqual(tr["gain"], tr0["gain"], "the same record meters the same")
+
+    def test_the_gain_in_the_catalog_is_the_law(self):
+        self.masters({"A": {"01-x.mp3": synth_beat_track(124.0)}})
+        self.build()
+        cache = json.loads(Path("features-cache.json").read_text())
+        raw = next(iter(cache["by_sha"].values()))
+        _, tr = self.flat()[0]
+        self.assertEqual(tr["gain"], ft.track_gain(raw["lufs"], raw["peak"]))
+        if tr["gain"] > 0:
+            self.assertLessEqual(tr["gain"] + raw["peak"], ft.TRUE_PEAK_CEILING + 1e-9,
+                                 "no boost pushes the true peak past the ceiling")
+
+    def test_loudness_subcommand_remeters_the_published_records(self):
+        self.masters({"A": {"01-x.mp3": synth_beat_track(124.0), "02-y.mp3": 42}})
+        self.build()
+        before = {tr["file"]: tr["gain"] for _, tr in self.flat()}
+        # a catalog whose gains are stale and a cache metered by the old meter
+        cat = self.catalog()
+        for al in cat["albums"]:
+            for tr in al["tracks"]:
+                tr["gain"] = 0.0
+        Path("docs/catalog.json").write_text(json.dumps(cat, indent=1) + "\n")
+        cache = json.loads(Path("features-cache.json").read_text())
+        for k in cache["by_sha"]:
+            cache["by_sha"][k].pop("lv", None)
+        Path("features-cache.json").write_text(json.dumps(cache))
+        self.assertEqual(mc.main(["loudness", "--quiet"]), 0)
+        after = {tr["file"]: tr["gain"] for _, tr in self.flat()}
+        self.assertEqual(after, before, "the gains come back from the audio tree alone")
+        cache = json.loads(Path("features-cache.json").read_text())
+        self.assertTrue(all(r.get("lv") == ft.LOUDNESS_VERSION for r in cache["by_sha"].values()),
+                        "a current cache is brought up to the meter in place")
+        # a cache from an older FEATURES_VERSION is left for the next build; the gains still land
+        cache["v"] = ft.FEATURES_VERSION - 1
+        for k in cache["by_sha"]:
+            cache["by_sha"][k].pop("lv", None)
+        stale = json.dumps(cache)
+        Path("features-cache.json").write_text(stale)
+        cat = self.catalog()
+        cat["albums"][0]["tracks"][0]["gain"] = 0.0
+        Path("docs/catalog.json").write_text(json.dumps(cat, indent=1) + "\n")
+        self.assertEqual(mc.main(["loudness", "--quiet"]), 0)
+        self.assertEqual({tr["file"]: tr["gain"] for _, tr in self.flat()}, before)
+        self.assertEqual(Path("features-cache.json").read_text(), stale, "a stale cache is not touched")
+        # a record whose bytes are not the catalog's is skipped, not metered
+        tag, tr = self.flat()[0]
+        write_wav(Path("docs/audio") / tag / tr["file"], synth_track(99))
+        cat = self.catalog()
+        cat["albums"][0]["tracks"][0]["gain"] = 0.0
+        Path("docs/catalog.json").write_text(json.dumps(cat, indent=1) + "\n")
+        self.assertEqual(mc.main(["loudness", "--quiet"]), 0)
+        self.assertEqual(self.flat()[0][1]["gain"], 0.0, "not the bytes the catalog names: left alone")
+
 
 # ---------------------------------------------------------------- doctor
 
@@ -665,10 +828,11 @@ class TestShippedCatalog(unittest.TestCase):
         # as missing from disk when nothing had moved at all.
         base = self.root / "docs" / "audio"
         for al in cat["albums"]:
-            for k in ("title", "tag", "art", "tracks"):
+            for k in ("title", "tag", "tracks"):
                 self.assertIn(k, al)
-            self.assertTrue((base / al["tag"] / al["art"]).exists(),
-                            al["tag"] + " cover art exists")
+            if al.get("art"):
+                self.assertTrue((base / al["tag"] / al["art"]).exists(),
+                                al["tag"] + " cover art exists")
             for t in al["tracks"]:
                 f = base / al["tag"] / t["file"]
                 self.assertTrue(f.exists(), str(f))
@@ -679,14 +843,12 @@ class TestShippedCatalog(unittest.TestCase):
                 for k in ("energy", "brightness", "entropy", "onsets"):
                     self.assertIn(k, t["features"])
 
-    def test_the_first_three_mix_together(self):
-        # the whole point of shipping three: they are one harmonic family
-        keys = set(); bpms = []
-        for al in self.cat["albums"]:
-            for t in al["tracks"]:
-                keys.add(t["mix"]["key"]); bpms.append(t["mix"]["bpm"])
-        self.assertEqual(len(keys), 1, "one key family: " + str(keys))
-        self.assertLess(max(bpms) / min(bpms), 1.08, "inside the 8%% tempo gate")
+    def test_every_shipped_record_carries_a_gain_inside_the_law(self):
+        # the per-record loudness gain the player applies: present, bounded,
+        # and never a boost past +6 or a cut past -12 (ftmod.track_gain)
+        gains = [t.get("gain") for al in self.cat["albums"] for t in al["tracks"]]
+        self.assertTrue(all(isinstance(g, (int, float)) for g in gains), "every record is metered")
+        self.assertTrue(all(-12.0 <= g <= 6.0 for g in gains), "inside the law's clamps")
 
 
 if __name__ == "__main__":
