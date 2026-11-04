@@ -977,6 +977,16 @@ def loudness(args):
     cache = load_cache()
     cache_live = CACHE_PATH.exists() and json.loads(CACHE_PATH.read_text()).get("v") == ftmod.FEATURES_VERSION
     audio_root = Path(args.audio) if args.audio else AUDIO_ROOT
+    # a journal of what was metered, by sha: a run that dies (267 records is twenty minutes) picks up where it was
+    journal, jpath = {}, (Path(args.journal) if args.journal else None)
+    if jpath and jpath.exists():
+        for line in jpath.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+                if row.get("lv") == ftmod.LOUDNESS_VERSION:
+                    journal[row["sha256"]] = row
+            except (json.JSONDecodeError, KeyError, TypeError):
+                pass
     n = metered = changed = skipped = 0
     for al in catalog.get("albums", []):
         for t in al.get("tracks", []):
@@ -993,11 +1003,18 @@ def loudness(args):
             hit = cache["by_sha"].get(t["sha256"]) if cache_live else None
             if hit and hit.get("lv") == ftmod.LOUDNESS_VERSION:
                 loud = {k: hit.get(k) for k in ("lufs", "dynamics", "peak", "lv")}
+            elif t["sha256"] in journal:
+                loud = {k: journal[t["sha256"]].get(k) for k in ("lufs", "dynamics", "peak", "lv")}
+                if hit is not None:
+                    hit.update(loud)
             else:
                 loud = ftmod.refresh_loudness(p)
                 metered += 1
                 if hit is not None:
                     hit.update(loud)
+                if jpath:
+                    with open(jpath, "a", encoding="utf-8") as jf:
+                        jf.write(json.dumps(dict(loud, sha256=t["sha256"])) + "\n")
             gain = ftmod.track_gain(loud.get("lufs"), loud.get("peak"))
             if gain != t.get("gain"):
                 changed += 1
@@ -1027,6 +1044,7 @@ def main(argv=None):
         ap.add_argument("--audio", help=f"the audio tree (default {AUDIO_ROOT})")
         ap.add_argument("--dry-run", action="store_true", help="report, write nothing")
         ap.add_argument("--quiet", action="store_true", help="totals only")
+        ap.add_argument("--journal", help="append each record's measurement here (JSON lines) and reuse it on a re-run")
         return loudness(ap.parse_args(argv[1:]))
     if argv and argv[0] == "doctor":
         ap = argparse.ArgumentParser(prog="make_catalog.py doctor")

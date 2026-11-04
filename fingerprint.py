@@ -104,11 +104,28 @@ def _decode_ffmpeg(path, sr):
     return _ffmpeg_pcm(path, sr, 1), sr
 
 
+def _channels(path):
+    """The stream's channel count by ffprobe, or None when it cannot say."""
+    try:
+        out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0",
+                              "-show_entries", "stream=channels", "-of", "csv=p=0", str(path)],
+                             capture_output=True, check=True).stdout
+        n = int(out.decode().strip().splitlines()[0])
+        return n if n > 0 else None
+    except (OSError, subprocess.CalledProcessError, ValueError, IndexError):
+        return None
+
+
 def decode_audio(path, sr=48000):
-    """(samples float64 (n, ch) at sr, sr) with the channels KEPT — two at
-    most — for the loudness meter, which sums channels rather than hearing a
-    downmix. A mono source is one channel even when the decoder hands it back
-    doubled (ffmpeg's -ac 2 does), so it is never counted twice."""
+    """(samples float64 (n, 2) at sr, sr): THE TWO CHANNELS THE PLAYER PLAYS,
+    for the loudness meter, which sums channels rather than hearing a downmix.
+    A stereo source keeps its channels (two at most). A mono source is heard on
+    both speakers at unity (Web Audio's up-mix), so it is metered as two
+    identical channels — decoded as ONE first: asking ffmpeg for two pans a
+    mono stream down to 0.707 on each (swresample's centre mix), which read
+    3 dB under and boosted the record past everything else. A genuine two-
+    channel file whose channels coincide is still two channels, as BS.1770
+    and the player both have it."""
     path = Path(path)
     with open(path, "rb") as f:
         magic = f.read(4)
@@ -119,9 +136,16 @@ def decode_audio(path, sr=48000):
         if native_sr != sr:
             x = np.stack([resample_poly(x[:, c], native_sr, sr) for c in range(x.shape[1])], axis=1)
     else:
-        x = _ffmpeg_pcm(path, sr, 2).reshape(-1, 2)
-    if x.shape[1] == 2 and np.array_equal(x[:, 0], x[:, 1]):
-        x = x[:, :1]
+        ch = _channels(path)
+        if ch == 1:
+            x = _ffmpeg_pcm(path, sr, 1)[:, None]
+        else:
+            x = _ffmpeg_pcm(path, sr, 2).reshape(-1, 2)
+            # ffprobe could not say and the two channels coincide: a mono stream panned down — decoded as one
+            if ch is None and np.array_equal(x[:, 0], x[:, 1]):
+                x = _ffmpeg_pcm(path, sr, 1)[:, None]
+    if x.shape[1] == 1:
+        x = np.repeat(x, 2, axis=1)
     return np.ascontiguousarray(x), sr
 
 

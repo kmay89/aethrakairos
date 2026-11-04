@@ -237,7 +237,7 @@ class TestLoudness(unittest.TestCase):
         for k in ("lufs", "dynamics", "peak"):
             self.assertIsInstance(st[k], float)
 
-    def test_decode_audio_keeps_channels_and_collapses_a_doubled_mono(self):
+    def test_decode_audio_hands_the_meter_the_two_channels_the_player_plays(self):
         d = Path(__file__).parent / "_tmp_decode"
         d.mkdir(exist_ok=True)
         try:
@@ -247,11 +247,16 @@ class TestLoudness(unittest.TestCase):
             write_wav(d / "doubled.wav", np.stack([m, m], axis=1), sr=self.SR)
             write_wav(d / "mono441.wav", self.tone(440, secs=1.0)[:44100], sr=44100)
             x, sr = fp.decode_audio(d / "mono.wav")
-            self.assertEqual((x.shape[1], sr), (1, 48000))
+            self.assertEqual((x.shape[1], sr), (2, 48000), "a mono source is heard on both speakers: two identical channels")
+            self.assertTrue(np.array_equal(x[:, 0], x[:, 1]))
+            self.assertAlmostEqual(float(np.abs(x).max()), float(np.abs(m).max()), places=3, msg="at unity, not panned down")
             x, _ = fp.decode_audio(d / "stereo.wav")
             self.assertEqual(x.shape[1], 2)
             x, _ = fp.decode_audio(d / "doubled.wav")
-            self.assertEqual(x.shape[1], 1, "a doubled mono is one channel — never metered twice")
+            self.assertEqual(x.shape[1], 2, "a two-channel file whose channels coincide is still two channels")
+            mono_st, dbl_st = ft.loudness_stats(*fp.decode_audio(d / "mono.wav")), ft.loudness_stats(*fp.decode_audio(d / "doubled.wav"))
+            self.assertAlmostEqual(mono_st["lufs"], dbl_st["lufs"], places=1, msg="…and a mono record meters the same as its dual-mono bounce")
+            self.assertAlmostEqual(mono_st["lufs"] - ft.integrated_lufs(m, self.SR)[0], 3.01, places=1, msg="3 dB over one channel alone: what two speakers make of it")
             x, sr = fp.decode_audio(d / "mono441.wav")
             self.assertEqual(sr, 48000)
             self.assertAlmostEqual(len(x) / 48000, 1.0, places=2)
@@ -573,6 +578,57 @@ class TestNamesAndDates(TmpRepo):
 
 
 @unittest.skipUnless(FFMPEG, "ffmpeg not available")
+@unittest.skipUnless(FFMPEG, "ffmpeg not available")
+class TestLoudnessDecode(TmpRepo):
+    """ffmpeg's -ac 2 pans a mono stream down to 0.707 a side (swresample's
+    centre mix): a mono MP3 metered through it read 3 dB under and was boosted
+    past every stereo neighbour. The meter decodes a mono source as one."""
+
+    def test_a_mono_mp3_is_not_panned_down(self):
+        sr = 48000
+        t = np.arange(sr * 3) / sr
+        m = 0.5 * np.sin(2 * np.pi * 440 * t)
+        write_wav("mono.wav", m, sr=sr)
+        write_wav("stereo.wav", np.stack([m, 0.5 * np.sin(2 * np.pi * 660 * t)], axis=1), sr=sr)
+        for src in ("mono", "stereo"):
+            subprocess.run([FFMPEG, "-v", "error", "-y", "-i", f"{src}.wav", "-b:a", "192k", f"{src}.mp3"], check=True)
+        x, _ = fp.decode_audio("mono.mp3")
+        self.assertEqual(x.shape[1], 2)
+        self.assertAlmostEqual(float(np.abs(x).max()), 0.5, delta=0.03, msg="decoded at unity (a 0.707 here is the pan)")
+        wav, mp3 = ft.loudness_stats(*fp.decode_audio("mono.wav")), ft.loudness_stats(*fp.decode_audio("mono.mp3"))
+        self.assertAlmostEqual(wav["lufs"], mp3["lufs"], delta=0.3, msg="the MP3 meters as its master")
+        self.assertAlmostEqual(wav["peak"], mp3["peak"], delta=0.5)
+        x, _ = fp.decode_audio("stereo.mp3")
+        self.assertEqual(x.shape[1], 2)
+        self.assertFalse(np.array_equal(x[:, 0], x[:, 1]))
+
+    def test_the_loudness_journal_resumes_a_run(self):
+        self.masters({"A": {"01-x.mp3": synth_beat_track(124.0), "02-y.mp3": 42}})
+        self.build()
+        before = {tr["file"]: tr["gain"] for _, tr in self.flat()}
+        cache = json.loads(Path("features-cache.json").read_text())
+        for k in cache["by_sha"]:
+            cache["by_sha"][k].pop("lv", None)
+        Path("features-cache.json").write_text(json.dumps(cache))
+        self.assertEqual(mc.main(["loudness", "--quiet", "--journal", "loud.jsonl"]), 0)
+        rows = [json.loads(l) for l in Path("loud.jsonl").read_text().splitlines()]
+        self.assertEqual(len(rows), 2, "each record metered once, journaled")
+        # a second run with the journal meters nothing and lands the same gains
+        cache = json.loads(Path("features-cache.json").read_text())
+        for k in cache["by_sha"]:
+            cache["by_sha"][k].pop("lv", None)
+        Path("features-cache.json").write_text(json.dumps(cache))
+        calls = []
+        orig = ft.refresh_loudness
+        ft.refresh_loudness = lambda p: calls.append(p) or orig(p)
+        try:
+            self.assertEqual(mc.main(["loudness", "--quiet", "--journal", "loud.jsonl"]), 0)
+        finally:
+            ft.refresh_loudness = orig
+        self.assertEqual(calls, [], "the journal stands in for the meter")
+        self.assertEqual({tr["file"]: tr["gain"] for _, tr in self.flat()}, before)
+
+
 class TestIngestConversion(TmpRepo):
     def setUp(self):
         super().setUp()

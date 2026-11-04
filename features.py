@@ -71,11 +71,12 @@ ONSET_ENV_HZ = 100.0
 BPM_LO, BPM_HI = 70.0, 180.0
 
 FEATURES_VERSION = 4      # v4: adds instrumentation/texture (bass/perc/tonal/air via median-filter HPSS)
-# THE METER. v2: BS.1770-4 over the record's channels (it metered a mono
-# downmix, which under-reads a stereo record by 3–6 dB — correlated channels
-# sum to +3, uncorrelated to +6 — so the gain law boosted most of the catalog
-# 3–6 dB past its target, into the limiter) and a 4× true peak (dBTP), which
-# the gain law reads as a ceiling. A cached record metered before this is
+# THE METER. v2: BS.1770-4 over the two channels the player plays (it metered
+# a mono downmix, which under-reads a stereo record by 3–6 dB — correlated
+# channels sum to +3, uncorrelated to +6 — so the gain law boosted most of the
+# catalog 3–6 dB past its target, into the limiter; a mono source is heard on
+# both speakers and is metered as two) and a 4× true peak (dBTP), which the
+# gain law reads as a ceiling. A cached record metered before this is
 # re-metered in place (refresh_loudness), nothing else recomputed.
 LOUDNESS_VERSION = 2
 LOUDNESS_TARGET = -14.0   # LUFS: the street level the per-record gain aims at
@@ -190,7 +191,8 @@ def loudness_stats(x, sr):
 
 def refresh_loudness(path):
     """The cache-upgrade path for a record metered before LOUDNESS_VERSION:
-    one decode with the channels kept, the meter, nothing else recomputed."""
+    one decode of the channels the player plays, the meter, nothing else
+    recomputed."""
     x, sr = decode_audio(path)
     return loudness_stats(x, sr)
 
