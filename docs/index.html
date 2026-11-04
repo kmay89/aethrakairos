@@ -11177,6 +11177,8 @@ function ensureCtx(){
     return AE._deckGraph({ a }, 0);
   });
   AE.graphLive = !IS_IOS;
+  // a kill pressed before there was a context is on the rack the moment it is built (the pads and the sound never disagree)
+  try { if (typeof FX !== 'undefined') FX.applyEq(); } catch (e){}
   SPEED.apply();                 // decks are born at the listener's chosen speed
   VINYL.install();               // the platters take their seats on the decks, one insert each (not on iOS: no graph)
   /* DECK EVENTS — filtered to the active deck. Held as a function rather than
@@ -20218,7 +20220,7 @@ const DECKROUTE = {
     catch (e){ this.phase = 'direct'; this.wantTake = BOOTH.open; BOOTH.draw(); return; }
     if (rolling){   // as _xoFail's clean capture: heard at once, trimmed to the record's level under the music
       A.norm = normLin(t);
-      setTimeout(() => { if (A.gain && AE.decks && AE.decks[AE.active] === A) DECKS.gainWrite(A.gain.gain, A.norm || 1, 0.5); }, 300);
+      setTimeout(() => { if (this.phase === 'graph' && A.gain && AE.decks && AE.decks[AE.active] === A) DECKS.gainWrite(A.gain.gain, A.norm || 1, 0.5); }, 300);
     }
     this._finishTake();
   },
@@ -20276,7 +20278,7 @@ const DECKROUTE = {
     B._joining = false;
     mediaSessionPosition(); syncLoopFlag();
     // the graph's own loudness trim comes in under the music, too slowly to hear (hardware level → the record's trim)
-    setTimeout(() => { if (B.gain && AE.decks && AE.decks[AE.active] === B) DECKS.gainWrite(B.gain.gain, B.norm || 1, 0.5); }, 300);
+    setTimeout(() => { if (this.phase === 'graph' && B.gain && AE.decks && AE.decks[AE.active] === B) DECKS.gainWrite(B.gain.gain, B.norm || 1, 0.5); }, 300);   // never over a hand-back's raise (phase 'giving')
     xo.tail = () => {
       xo.tail = null; clearTimeout(xo.tailT);
       try { A.a.pause(); } catch (e){}
@@ -20308,7 +20310,7 @@ const DECKROUTE = {
       A.a.crossOrigin = 'anonymous';
       try { this._capture(A, 1); } catch (e){ return this.abortTake('tainted'); }
       const t = player.tracks[player.cur]; A.norm = normLin(t);
-      setTimeout(() => { if (A.gain) DECKS.gainWrite(A.gain.gain, A.norm || 1, 0.5); }, 300);
+      setTimeout(() => { if (this.phase === 'graph' && A.gain && AE.decks && AE.decks[AE.active] === A) DECKS.gainWrite(A.gain.gain, A.norm || 1, 0.5); }, 300);
       this._xo = null;
       this._finishTake();
       return;
@@ -26419,7 +26421,12 @@ const MIXER = {
       try { nd.a.playbackRate = deckRate(SPEED.rate); } catch (e){}
       setPitchLock(nd.a, SPEED.keyLock);                // the blend rode vinyl; the listener's lock returns
       if (nd.shelf) DECKS.gainWrite(nd.shelf.gain, 0, 0.006);
-      if (AE.graphLive && nd.gain) DECKS.gainWrite(nd.gain.gain, nd.norm || 1, 0.006);
+      /* …except during an iPhone's hand-back, where the captured deck is being
+         raised to the hardware level its direct twin plays at (DECKROUTE
+         _giveAsync): a seam finishing inside that second wrote the trim back
+         over the raise, and the swap then stepped by 1/norm — up to 5 dB */
+      const handingBack = typeof DECKROUTE !== 'undefined' && DECKROUTE.phase === 'giving';
+      if (AE.graphLive && nd.gain && !handingBack) DECKS.gainWrite(nd.gain.gain, nd.norm || 1, 0.006);
     }
     this._resetFilters();                              // both decks back to wide-open
     this._lastRateA = this._lastRateB = 1; this._pA = 1;
@@ -31383,6 +31390,8 @@ const FXPADS = {
       b.addEventListener('click', () => { FX.beatJump(key); this.paint(); });
     } else if (this.bank === 'eq'){
       b.addEventListener('click', () => {
+        // where the graph can never carry the music (an iPhone without the booth's graph) the EQ says so, as the FX bank does
+        if (IS_IOS && !IOS_GRAPH){ toast(T('The EQ needs the engine — on this device the music plays direct')); return; }
         const e = this.EQS[key];
         if (e[0] === 'flat'){ FX.hand(); FX.flatEq(); } else FX.setEq(e[0], e[1]);
         this.paint();
@@ -31558,8 +31567,9 @@ const FXPADS = {
         if (k._dead !== dead){ k._dead = dead; k.classList.toggle('dead', dead); k.title = dead ? T('Vinyl needs the engine — on this device the music plays direct, so the platter stands down') : ''; }
       }
       else if (this.bank === 'eq'){
-        const e = this.EQS[key];
-        lit = e[0] === 'flat' ? false : Math.abs((FX.eq[e[0]] || 0) - e[1]) < 1e-6;
+        const e = this.EQS[key], dead = IS_IOS && !IOS_GRAPH;
+        if (k._dead !== dead){ k._dead = dead; k.classList.toggle('dead', dead); k.title = dead ? T('The EQ needs the engine — on this device the music plays direct') : ''; }
+        lit = !dead && (e[0] === 'flat' ? false : Math.abs((FX.eq[e[0]] || 0) - e[1]) < 1e-6);
       }
       else lit = !!(FX.loop && FX.loop.beats === key && (this.bank === 'roll') === !!FX.loop.roll);
       k.classList.toggle('lit', !!lit);

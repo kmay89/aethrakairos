@@ -13213,6 +13213,21 @@ test('the loop tape stands down on iOS, booth graph included; the route rebuild 
   assert.match(body, /a\.addEventListener\(ev, \(\) => \{ if \(d\.a === a\) d\._tapeT0/, 'a rebuilt element\'s leftovers stamp nothing');
   assert.match(body, /if \(d\.a === a && typeof LOOPER !== 'undefined'\) LOOPER\.broke/, '…and break no loop');
 });
+test('the iPhone hand-back keeps its raise: no seam finish or take trim writes the captured deck back to its trim mid-give; the EQ never lies', () => {
+  // MIXER.finish leaves the incoming deck's gain to the hand-back while DECKROUTE is giving (it stepped the swap by 1/norm)
+  const fi = html.indexOf("const handingBack = typeof DECKROUTE !== 'undefined' && DECKROUTE.phase === 'giving';");
+  assert.ok(fi > 0, 'MIXER.finish knows a hand-back is raising the deck');
+  assert.match(html.slice(fi, fi + 300), /if \(AE\.graphLive && nd\.gain && !handingBack\) DECKS\.gainWrite\(nd\.gain\.gain, nd\.norm \|\| 1, 0\.006\);/);
+  // the take's three 300 ms trim glides stand down once the phase has left 'graph'
+  const trims = html.match(/setTimeout\(\(\) => \{ if \(this\.phase === 'graph' && [AB]\.gain && AE\.decks && AE\.decks\[AE\.active\] === [AB]\) DECKS\.gainWrite\([AB]\.gain\.gain, [AB]\.norm \|\| 1, 0\.5\); \}, 300\);/g) || [];
+  assert.equal(trims.length, 3, 'the in-place, swap-in and crossover-fail trims are all guarded');
+  assert.ok(!/setTimeout\(\(\) => \{ if \([AB]\.gain[^}]*norm \|\| 1, 0\.5\); \}, 300\);/.test(html.replace(/this\.phase === 'graph' && /g, 'GUARDED ')), 'no unguarded trim glide is left');
+  // the EQ the pads show is on the rack the moment ensureCtx builds it
+  assert.match(html, /AE\.graphLive = !IS_IOS;\s*\/\/[^\n]*\n\s*try \{ if \(typeof FX !== 'undefined'\) FX\.applyEq\(\); \} catch \(e\)\{\}/, 'ensureCtx applies the remembered EQ');
+  // where the graph can never carry the music the EQ bank says so, as the FX bank does
+  assert.match(html, /if \(IS_IOS && !IOS_GRAPH\)\{ toast\(T\('The EQ needs the engine — on this device the music plays direct'\)\); return; \}/, 'the EQ pad refuses with a word');
+  assert.match(html, /const e = this\.EQS\[key\], dead = IS_IOS && !IOS_GRAPH;[\s\S]{0,300}lit = !dead &&/, 'and is painted dead, never lit');
+});
 test('the route in the player: gated, opt-in, and today\'s code wherever it is not on', () => {
   assert.ok(html.includes('const IOS_GRAPH_DEFAULT = false;'), 'A4: the route ships off');
   const boothToggle = html.slice(html.indexOf('const BOOTH = {'), html.indexOf('const BOOTH = {') + 2500);
