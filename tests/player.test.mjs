@@ -11856,6 +11856,37 @@ test('FX.letGoTail: a held hand-off tail never outlives the graph — setDirect(
     assert.ok(!FX.hold && !FX._tailHold, 'release() with the graph down clears the hold (it used to return first)');
     for (const k of ['send', 'fb', 'fbX', 'wet']) assert.equal(P[k].value, 0, k + ' parked');
   }
+  // 6. A HAND'S RACK ACROSS AN AIRPLAY HOP comes home as the hand left it — or, if released while away, parked, never a ghost
+  {
+    const { FX, AE, P } = make();
+    FX.letGoTail(); FX.hand && (FX.auto = false);
+    FX.set('gate', 0.6);
+    FX.leaveGraph(); AE.graphLive = false;                       // setDirect(true): the hand's gate is the hand's
+    assert.equal(FX.unit, 'gate', 'the hand\'s gate crosses the hop');
+    P.gate.value = 0.001;                                        // the drained slice queue leaves the master on the gate's floor
+    FX.release();                                                // the receiver's track ends: playIndex releases the rack
+    assert.equal(P.gate.value, 1, 'released with the graph down, the gate is parked open — not left at -60 dB for the trip home');
+    AE.graphLive = true;
+    assert.equal(FX.unit, '', '…and the state agrees');
+  }
+  {
+    const { FX, AE, P } = make();
+    FX.letGoTail();
+    FX.set('echo', 0.6, 0.6); P.eqLo.value = -40; FX.eq.lo = -40; AE.decks[0]._fxHand = { lp: 400 };
+    FX.leaveGraph(); AE.graphLive = false;
+    FX.release();
+    for (const k of ['send', 'wet']) assert.equal(P[k].value, 0, 'echo ' + k + ' parked');
+    assert.equal(P.eqLo.value, 0, 'the EQ kill is parked with the graph down');
+    assert.equal(AE.decks[0]._fxHand, null, 'the deck filter\'s hand is let go');
+  }
+  // a touch on the rack with the graph down turns the unit off, nodes and all
+  {
+    const { FX, AE, P } = make();
+    FX.letGoTail();
+    FX.set('gate', 0.6); AE.graphLive = false; P.gate.value = 0.001;
+    FX.set('', 0);
+    assert.ok(FX.unit === '' && P.gate.value === 1, 'set() with the graph down parks the unit it turns off');
+  }
   // the exits call it, in that order
   const sd = html.indexOf('  async setDirect(direct){');
   assert.match(html.slice(sd, sd + 3000), /if \(direct && typeof FX !== 'undefined'\) try \{ FX\.leaveGraph\(\); \} catch \(e\)\{\}/, 'setDirect(true)');

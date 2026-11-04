@@ -29412,7 +29412,14 @@ const FX = {
      pads mid-phrase is a hand-over, never a collision of two ramps on one
      node. A knob move on the same unit is a plain apply(). */
   set(unit, amount, mix){
-    if (!this.live()){ this.unit = ''; return; }
+    /* with the graph down a touch on the rack turns the unit off — and the
+       unit's nodes go with it (a rack left engaged under a cleared state came
+       home with the graph as a ghost: a hand's gate parked on its floor) */
+    if (!this.live()){
+      const was = this.unit; this.unit = ''; this.amount = 0; this.wet = 0;
+      if (AE.ctx && AE.fx) try { if (this.hold || this._tailHold) this._loopDown(); if (was) this._park(was); } catch (e){}
+      return;
+    }
     const u = this.ACTIVE.indexOf(unit) >= 0 ? unit : '';
     const was = this.unit;
     if (u){
@@ -29700,7 +29707,11 @@ const FX = {
   _loopDown(){
     this._tailHold = false; this.hold = false;
     const f = AE.fx;
-    if (f && AE.ctx) try { for (const n of [f.send, f.fb, f.fbX, f.wet]) if (n) this._w(n.gain, 0, 0.1); } catch (e){}
+    if (f && AE.ctx) try {
+      for (const n of [f.send, f.fb, f.fbX, f.wet]) if (n) this._w(n.gain, 0, 0.1);
+      if (f.hpLoop) this._w(f.hpLoop.frequency, 180, 0.1);           // …and the loop's own filters off their HOLD settings
+      if (f.lpLoop) this._w(f.lpLoop.frequency, 4500, 0.1);
+    } catch (e){}
     if (typeof syncFxHud === 'function') try { syncFxHud(); } catch (e){}
   },
   /* LEAVING THE GRAPH (a hop to AirPlay, an iPhone's hand-back, its
@@ -30360,8 +30371,17 @@ const FX = {
       if (d){ try { d.a.playbackRate = deckRate(SPEED.rate * DECKS.pitch(AE.decks.indexOf(d))); } catch (e){} }
     }
     this._brakeDeck = null;
-    // with the graph down, a held loop still lets go (a route to direct that ran no FX.leaveGraph)
-    if (!this.live()){ if (this.hold || this._tailHold) this._loopDown(); return; }
+    /* A RELEASE PARKS WHEREVER THERE IS A RACK TO WRITE, not only on a live
+       graph. A hop to AirPlay keeps AE.fx and keeps the hand's settings, so a
+       release there (the receiver's track ending, CLEAR, AUTO off) used to
+       clear the state above and return, leaving the nodes as they were: a
+       hand's GATE came home parked on its floor, the whole master at −60 dB
+       with every control reading off, and an echo's send, an EQ kill and the
+       deck filter's hand came home the same way — ghosts. Only no rack at all
+       (an iPhone playing direct, no context yet) returns; a held loop with
+       the graph down lets go through _loopDown, since echoHold cannot write. */
+    if (!(AE.ctx && AE.fx)) return;
+    if (!this.live() && (this.hold || this._tailHold)) this._loopDown();
     // the deck filters: every hand off, every brake gone; the tick ramps them open
     // (the seam's side is the MIXER's — _resetFilters clears it)
     for (const d of AE.decks){ if (!d) continue; d._fxHand = null; d._fxBrake = 0; }
