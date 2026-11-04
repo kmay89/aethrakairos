@@ -22314,6 +22314,21 @@ function equalPowerXfade(f){
 // loudness-normalization gain. 'out' rides the cosine, 'in' the sine. This is
 // the ACTUAL curve handed to setValueCurveAtTime, so the equal-power law that
 // ships is the one the tests check.
+/* THE OUTGOING DECK'S HOLD before its fade (MIXER.fire). A is normally at
+   its trim already, and then the hold is a set at tNow. But a deck can be
+   mid-glide onto its trim (an iPhone's take: unity to trim, from 300 ms, tau
+   0.5 s; a refused hand-back's return; a play()'s fade-in), and a set to the
+   trim stepped it there at tNow — up to 5 dB, just before the blend. So it is
+   held at its own level and ramped onto the trim across the lead-in, the
+   ramp ending before the curve (a curve may overlap no other event); with no
+   lead to ramp in, the out-curve starts from where A is. Returns the events
+   (['set'|'ramp', value, time]) and the level the out-curve is scaled by. */
+function seamOutHold(vA, nA, tNow, t0){
+  const v = isFinite(vA) ? vA : nA;
+  if (!(Math.abs(v - nA) > 1e-3)) return { ev: [['set', nA, tNow]], from: nA };
+  if (t0 - tNow > 0.03) return { ev: [['set', v, tNow], ['ramp', nA, t0 - 0.005]], from: nA };
+  return { ev: [['set', v, tNow]], from: v };
+}
 function xfadeCurve(norm, side, n){
   const N = Math.max(2, n | 0), out = new Float32Array(N), g = (norm > 0 ? norm : 1);
   for (let i = 0; i < N; i++){
@@ -26012,11 +26027,20 @@ const MIXER = {
       const N = Math.max(24, Math.min(256, Math.round(dur * 24)));   // ~24 pts/sec
       const tNow = AE.ctx.currentTime;
       try {
-        od.gain.gain.cancelScheduledValues(tNow);
         // hold both decks where they stand through the lead-in: A full, B silent,
-        // so the curves inherit a known state instead of whatever was left over
-        od.gain.gain.setValueAtTime(od.norm || 1, tNow);
-        od.gain.gain.setValueCurveAtTime(xfadeCurve(od.norm || 1, 'out', N), t0, dur);
+        // so the curves inherit a known state instead of whatever was left over.
+        /* A FULL MEANS WHERE A IS, not a step to it. A's level is normally its
+           trim already, and then this is exactly the old hold. But a deck can
+           be mid-glide onto its trim — an iPhone's take (unity to trim, from
+           300 ms, tau 0.5 s), a refused hand-back's return, a play()'s fade-in —
+           and a seam fired then (an auto-arm past the exit, NEXT, a crate pick)
+           stepped it to the trim at tNow: up to 5 dB, just before the blend. So
+           A is held at its own value and glided onto the trim across the
+           lead-in; with no lead to glide in, the out-curve starts from it. */
+        const gA = od.gain.gain, hA = seamOutHold(gA.value, od.norm || 1, tNow, t0);
+        gA.cancelScheduledValues(tNow);
+        for (const [op, v, at] of hA.ev){ if (op === 'set') gA.setValueAtTime(v, at); else gA.linearRampToValueAtTime(v, at); }
+        gA.setValueCurveAtTime(xfadeCurve(hA.from, 'out', N), t0, dur);
         nd.gain.gain.cancelScheduledValues(tNow);
         nd.gain.gain.setValueAtTime(0, tNow);
         nd.gain.gain.setValueCurveAtTime(xfadeCurve(nd.norm || 1, 'in', N), t0, dur);
@@ -31295,6 +31319,18 @@ for (const p of ['engaged', 'armed', 'slip', 'held', 'rate', 'mode', 'lag', '_mo
 // (and on an iPhone with the decks in the graph too: a held platter never survives a pocket)
 document.addEventListener('visibilitychange', () => { if (document.hidden && (VINYL.songMode() || IS_IOS)) VINYL.drop(); });
 
+/* THE EQ ON AN iPHONE is heard only while its decks are in the graph — never
+   without the booth's graph, nor while a take is refused or not yet made (a
+   kill set then is released at the next track, unheard). One exception: a
+   take already joining the decks (the very tap on the pad can start it, by
+   the capture-phase gesture) plays the kill the moment they join
+   (_finishTake applies the EQ), so the press is kept, not refused with words
+   that contradict the booth's own 'Deck B is joining'. A desktop is never
+   dead: a kill set while away on AirPlay comes home with the graph. */
+function eqDeadNow(){
+  if (!IS_IOS || AE.graphLive) return false;
+  return !(IOS_GRAPH && typeof DECKROUTE !== 'undefined' && DECKROUTE.phase === 'taking');
+}
 const FXPADS = {
   bank: 'loop',
   LOOPS: [0.125, 0.25, 0.5, 1, 2, 4, 8, 16],
@@ -31399,8 +31435,8 @@ const FXPADS = {
       b.addEventListener('click', () => { FX.beatJump(key); this.paint(); });
     } else if (this.bank === 'eq'){
       b.addEventListener('click', () => {
-        // where the graph is not carrying the music on an iPhone the EQ says so, as the FX bank does
-        if (IS_IOS && !AE.graphLive){ toast(T('The EQ needs the engine — on this device the music plays direct')); return; }
+        // where the graph is not carrying the music on an iPhone the EQ says so, as the FX bank does (eqDeadNow)
+        if (eqDeadNow()){ toast(T('The EQ needs the engine — on this device the music plays direct')); return; }
         const e = this.EQS[key];
         if (e[0] === 'flat'){ FX.hand(); FX.flatEq(); } else FX.setEq(e[0], e[1]);
         this.paint();
@@ -31580,7 +31616,7 @@ const FXPADS = {
            without the booth's graph, nor while a take is refused or not yet
            made (the kill would be released at the next track, unheard). A
            desktop keeps it live: a kill set while away comes home with it */
-        const e = this.EQS[key], dead = IS_IOS && !AE.graphLive;
+        const e = this.EQS[key], dead = eqDeadNow();
         if (k._dead !== dead){ k._dead = dead; k.classList.toggle('dead', dead); k.title = dead ? T('The EQ needs the engine — on this device the music plays direct') : ''; }
         lit = !dead && (e[0] === 'flat' ? false : Math.abs((FX.eq[e[0]] || 0) - e[1]) < 1e-6);
       }

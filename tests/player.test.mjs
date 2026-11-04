@@ -30,7 +30,7 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' SEGUE_BARS, SECTION_CHANGE, sectionChangeClass, LENS_HYST,' +
   ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
-  ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
+  ' equalPowerXfade, xfadeCurve, seamOutHold, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
   ' SEAM_CUE_S, SEAM_CUE_MIN, SEAM_CUE_TOL, SEAM_CUE_LAT, seamCueTarget, seamCuePoint, seamCueDue, seamCueStep, seamCueHolds, seamCueLearn,' +
   ' SEAM_SCENE, seamSceneCue, pinchDolly, ndcOf,' +
   ' XFADER_CUT_EDGE, XFADER_PARK, FADER_IDLE_S, xfaderGains, xfaderPosFromSeam, xfaderPosFromGains, xfaderArbiter, syncRateFor, faderIdleStop, XFADER_HOME, xfaderHeld, xfaderAutoTo, XFADER_STEP_ASIDE, xfaderCancelMode, deckSlot, seamPitchCarry, XF_DBL_MS, XF_DBL_REACH, xfaderDoubleTap, boothFaderKey,' +
@@ -5151,6 +5151,22 @@ test('equalPowerXfade: constant acoustic power across the whole blend', () => {
   assert.deepEqual(S.equalPowerXfade(2), S.equalPowerXfade(1), 'clamps above 1');
 });
 
+test('seamOutHold: A at its trim is held as before; A mid-glide is ramped onto the trim across the lead-in, never stepped', () => {
+  // at the trim: exactly the old hold
+  assert.deepEqual(S.seamOutHold(0.8, 0.8, 10, 10.45), { ev: [['set', 0.8, 10]], from: 0.8 });
+  assert.deepEqual(S.seamOutHold(0.8004, 0.8, 10, 10.45).ev, [['set', 0.8, 10]], 'inside a thousandth: the old hold');
+  // mid-glide from a take's unity: held where it is, ramped to the trim, ending before the curve at t0
+  const g = S.seamOutHold(1, 0.56, 10, 10.45);
+  assert.deepEqual(g.ev[0], ['set', 1, 10], 'held at its own level, not stepped to 0.56');
+  assert.equal(g.ev[1][0], 'ramp'); assert.equal(g.ev[1][1], 0.56);
+  assert.ok(g.ev[1][2] < 10.45 && g.ev[1][2] > 10, 'the ramp ends inside the lead-in, before the curve');
+  assert.equal(g.from, 0.56, 'the out-curve is the trim\'s, as before');
+  // no lead to ramp in (a gapless seam): the out-curve starts from where A is
+  const z = S.seamOutHold(1, 0.56, 10, 10.01);
+  assert.deepEqual(z, { ev: [['set', 1, 10]], from: 1 });
+  // an unreadable value falls back to the trim
+  assert.deepEqual(S.seamOutHold(NaN, 0.7, 5, 5.5), { ev: [['set', 0.7, 5]], from: 0.7 });
+});
 test('xfadeCurve: monotonic, norm-scaled, correct endpoints per side', () => {
   const out = S.xfadeCurve(0.8, 'out', 32), inc = S.xfadeCurve(0.5, 'in', 32);
   assert.equal(out.length, 32); assert.equal(inc.length, 32);
@@ -13226,8 +13242,12 @@ test('the iPhone hand-back keeps its raise: no seam finish or take trim writes t
   assert.match(html, /AE\.graphLive = !IS_IOS;\s*\/\/[^\n]*\n\s*try \{ if \(typeof FX !== 'undefined'\) FX\.applyEq\(\); \} catch \(e\)\{\}/, 'ensureCtx applies the remembered EQ');
   // where the graph can never carry the music the EQ bank says so, as the FX bank does
   // (on an iPhone that is the live route: no booth graph, a refused take, or no take yet — the FX bank's own rule)
-  assert.match(html, /if \(IS_IOS && !AE\.graphLive\)\{ toast\(T\('The EQ needs the engine — on this device the music plays direct'\)\); return; \}/, 'the EQ pad refuses with a word');
-  assert.match(html, /const e = this\.EQS\[key\], dead = IS_IOS && !AE\.graphLive;[\s\S]{0,300}lit = !dead &&/, 'and is painted dead, never lit');
+  assert.match(html, /if \(eqDeadNow\(\)\)\{ toast\(T\('The EQ needs the engine — on this device the music plays direct'\)\); return; \}/, 'the EQ pad refuses with a word');
+  assert.match(html, /const e = this\.EQS\[key\], dead = eqDeadNow\(\);[\s\S]{0,300}lit = !dead &&/, 'and is painted dead, never lit');
+  const ed = html.indexOf('function eqDeadNow(){');
+  assert.match(html.slice(ed, ed + 200), /if \(!IS_IOS \|\| AE\.graphLive\) return false;\s*return !\(IOS_GRAPH && typeof DECKROUTE !== 'undefined' && DECKROUTE\.phase === 'taking'\);/, 'dead only on an iPhone off the graph, and never while a take is joining (the tap that starts it is kept)');
+  // MIXER.fire holds A where it is (seamOutHold) rather than stepping it to the trim
+  assert.match(html, /const gA = od\.gain\.gain, hA = seamOutHold\(gA\.value, od\.norm \|\| 1, tNow, t0\);/, 'fire() uses the hold');
   // the mixer arms nothing while the take's trim glide is still landing (a seam fired then stepped the deck to its trim)
   assert.match(html, /TAKE_SETTLE_MS: 2000, _tookAt: 0,/, 'DECKROUTE carries the settle window');
   const fT = html.indexOf('  _finishTake(){');
