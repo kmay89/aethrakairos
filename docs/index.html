@@ -20698,8 +20698,14 @@ const DECKROUTE = {
       return;
     }
     if (this.phase !== 'taking' || (this._xo && this._xo.swapped)) return;
+    /* the pause re-takes at once (in place, on the paused decks): an EQ press
+       kept for the take rides it — abortTake lets it go, and it is put back
+       only if the re-take is under way, so a pause with no take after it
+       still leaves nothing waiting under a dead pad */
+    const eq = typeof FX !== 'undefined' ? { lo: FX.eq.lo, mid: FX.eq.mid, hi: FX.eq.hi } : null;
     this.abortTake('pause');
     if (BOOTH.open) this.take('pause');
+    if (eq && this.phase === 'taking' && (eq.lo || eq.mid || eq.hi)){ Object.assign(FX.eq, eq); try { FX.applyEq(); } catch (e){} }
   },
   onHide(){
     if (!IOS_GRAPH) return;
@@ -25467,6 +25473,13 @@ const MIXER = {
     }
     const ws = DECKS.slots[1 - AE.active], had = ws.rec;
     ws.trackIdx = player.tracks.indexOf(B);                            // the lane shows what the deck holds
+    /* …and the deck's loudness trim is the record's from the moment it takes
+       the deck. A hand can start an armed or cued deck itself (PLAY, a held
+       CUE, then the handle) without fire() ever running, and the deck opened
+       at the trim of whatever it last held — up to 13 dB off for the length
+       of the record. The deck is parked at gain 0 while armed: nothing is
+       heard until something opens it, at the right level now. */
+    nd.norm = normLin(B);
     const fresh = ws.rec !== had;                                      // (the slot's setter has cleared cue and sync)
     // a new record on the deck takes its own auto-cue (its mix-in, as load() gives it) — never the last one's
     if (fresh){ const mB = mixOf(B); ws.cue = (mB && mB.in && mB.in.start) || 0; }
@@ -25547,6 +25560,7 @@ const MIXER = {
   _seat(nd, B){
     const url = PREFETCH.holds(B) ? PREFETCH.url : '';
     if (!url || !nd.a.paused) return false;
+    nd.norm = normLin(B);                                // the record's own trim, wherever it takes the deck (see _preload)
     this._clearPreloadListener(nd);
     try { nd.a.preload = 'auto'; } catch (e){}
     nd.a.src = url;

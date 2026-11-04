@@ -5177,6 +5177,15 @@ test('MIXER.fire: the incoming deck takes its own record\'s trim; the hold sits 
   const body = html.slice(f0, f0 + 16000);
   const nAt = body.indexOf('nd.norm = normLin(B);'), curveAt = body.indexOf("xfadeCurve(nd.norm || 1, 'in', N)");
   assert.ok(nAt > 0 && curveAt > nAt, 'nd.norm is the incoming record\'s before the in-curve is scaled by it (auto seams played at unity or a stale trim)');
+  // …and from the moment the record takes the deck, so a hand starting the armed or cued deck itself opens it at the right level
+  const pl = html.indexOf('  _preload(B, plan, seekOnly){');
+  const plBody = html.slice(pl, pl + 6000);
+  assert.ok(plBody.indexOf('nd.norm = normLin(B);') > plBody.indexOf('ws.trackIdx = player.tracks.indexOf(B);'), '_preload trims the deck as it seats the record');
+  const se = html.indexOf('  _seat(nd, B){');
+  assert.match(html.slice(se, se + 300), /nd\.norm = normLin\(B\);/, '_seat trims it too');
+  // a pause during a take re-takes at once: a kept EQ press rides it
+  const op = html.indexOf('  onPause(){');
+  assert.match(html.slice(op, op + 2200), /this\.abortTake\('pause'\);\s*if \(BOOTH\.open\) this\.take\('pause'\);\s*if \(eq && this\.phase === 'taking' && \(eq\.lo \|\| eq\.mid \|\| eq\.hi\)\)\{ Object\.assign\(FX\.eq, eq\);/);
   assert.match(body, /const tNow = Math\.min\(AE\.ctx\.currentTime, t0\);/, 'the hold never lands inside the curve (Chromium threw, freezing both gains)');
   assert.match(html, /if \(AE\.graphLive && this\.audioT0 != null\) this\.lastF = f; else this\.setVolumes\(f\);/, 'run() crossfades by frame when the scheduled curves threw');
   // the take's kept EQ press goes with a take that is called off; the FX bank answers a take in flight with the booth's word
