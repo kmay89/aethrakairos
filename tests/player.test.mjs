@@ -659,10 +659,12 @@ test('the record on air never moves: A holds, B is matched to it throughout, and
   assert.match(html, /this\._homeLock\(d\); return; \}/, 'a way home of no length');
   assert.match(html, /_homeLock\(d\)\{[^}]*keyLockFor\(SPEED\.keyLock, SPEED\.rate, s && s\.synced, s && s\.pitch\)/, '_homeLock is the rule');
   // a speed or key-lock tap during the way home ends it (the tick would write the old speed back next frame and land on it)
-  assert.match(html, /if \(typeof MIXER !== 'undefined' && MIXER\._home && !seam\) MIXER\._homeDrop\(\);\s*if \(AE\.decks && !seam\) AE\.decks\.forEach/, 'SPEED.apply drops it');
+  assert.match(html, /if \(typeof MIXER !== 'undefined' && MIXER\._home && !seam\) MIXER\._homeDrop\(\);\s*\/\/[^\n]*\n\s*if \(seam\) MIXER\._seamLocks\(\);\s*if \(AE\.decks && !seam\) AE\.decks\.forEach/, 'SPEED.apply drops it (and mid-seam writes the blend\'s pitch modes)');
   assert.match(html, /this\._homeTick\(\);\s*\/\/ the incoming record of the last seam, on its way home/, 'update');
   assert.equal((html.match(/this\._homeDrop\(\);/g) || []).length, 2, 'fire and the retune');
-  assert.match(html, /hand\(\)\{ this\._handAt = performance\.now\(\); if \(typeof MIXER !== 'undefined' && MIXER\._home\) MIXER\._homeDrop\(\); \}/, 'a hand');
+  // the way home ends under a hand on THAT platter (VINYL engage), never under a filter tweak or a pad (DECKS.hand is every booth control: that stepped the record on air, lock off, mid-glide)
+  assert.match(html, /hand\(\)\{ this\._handAt = performance\.now\(\); \},/, 'DECKS.hand is a stamp only');
+  assert.match(html, /engage\(oneShot\)\{\s*\/\/[^\n]*\n\s*if \(typeof MIXER !== 'undefined' && MIXER\._home\) MIXER\._homeDrop\(this\.deck\(\)\);/, 'the platter\'s engage drops its own deck\'s way home');
   assert.match(html, /k = seamPitchCarry\(this\._pA, 0\);\s*\/\/ the on-air record holds its own pitch too/, '_applyRates');
 });
 
@@ -3598,8 +3600,10 @@ test('updateGate: a DJ in the booth is not a quiet room, and a hidden page never
   assert.equal(S.updateGate(Object.assign({}, idle, { booth: true })), 'wait', 'the booth open, records on the decks, a platter in hand: a person');
   assert.equal(S.updateGate(Object.assign({}, idle, { hidden: true })), 'wait', 'a hidden page is not an idle room');
   assert.equal(S.updateGate(Object.assign({}, idle, { booth: false, hidden: false })), 'apply');
-  // the listener's own wish still fires at its boundary
-  assert.equal(S.updateGate({ ready: true, armed: 'afterTrack', playing: false, booth: true, hidden: true, now: 0 }), 'apply');
+  // the listener's own wish fires at its boundary — but never in a pocket or under a DJ's hands: a system pause reads as 'not playing'
+  assert.equal(S.updateGate({ ready: true, armed: 'afterTrack', playing: false, booth: true, hidden: false, now: 0 }), 'wait', 'after this track, in the booth: waits');
+  assert.equal(S.updateGate({ ready: true, armed: 'afterTrack', playing: false, trackChanged: true, booth: false, hidden: true, now: 0 }), 'wait', 'after this track, hidden (a call paused it): waits');
+  assert.equal(S.updateGate({ ready: true, armed: 'afterTrack', playing: false, trackChanged: true, booth: false, hidden: false, now: 0 }), 'apply', '…and lands at the first poll with the page visible and the booth at rest');
   // the inputs are wired, and boothInUse reads every hand the booth can have
   assert.match(html, /booth: boothInUse\(\),\s*hidden: !!document\.hidden,/, 'autoApplyVerdict feeds both');
   const bi = html.indexOf('function boothInUse(){');
@@ -3619,6 +3623,9 @@ test('the update flow in the player: the quiet is counted from boot, coming back
   assert.match(html, /#booth,#plList,#libList,#crateBody,\.pn-panel,\.act-list,#langGate \.lg-card\{overscroll-behavior:contain\}/, 'a panel\'s scroll never chains to the document (iOS pull-to-refresh)');
   // a return to the page re-checks the origin at most once a quarter hour (the worker revalidates the 4 MB shell each time)
   assert.match(html, /const UP_CHECK_GAP_MS = 15 \* 60 \* 1000;/);
+  // every surface a person can be reading or playing in is 'busy' (the console, the piano, the echo, the rig, the crate, a break prompt — a page read idle under an open console and reloaded); MIDI play is a touch
+  assert.match(html, /\|\| open\('console'\) \|\| open\('piano'\) \|\| open\('echoPanel'\) \|\| open\('rig'\) \|\| open\('crate'\) \|\| open\('breakPrompt'\);/, 'appInUse');
+  assert.match(html, /_midiEvent\(e\)\{\s*if \(typeof UPDATE !== 'undefined'\) UPDATE\._lastTouchAt = Date\.now\(\);/, 'a MIDI key is a touch');
   assert.match(html, /const checkOnReturn = \(\) => \{ if \(Date\.now\(\) - \(UPDATE\._checkedAt \|\| 0\) >= UP_CHECK_GAP_MS\) checkForUpdate\(\); \};/);
   assert.match(html, /_lastPlayingAt: Date\.now\(\),[^\n]*\n\s*_checkedAt: Date\.now\(\),/, 'the launch counts as the last check: a return seconds after boot does not fetch the shell again');
   assert.match(html, /function checkForUpdate\(\)\{\s*UPDATE\._checkedAt = Date\.now\(\);/);
@@ -5277,9 +5284,13 @@ test('the tempo gates are one number: SYNC refuses beyond it, the vinyl ride is 
   assert.equal(S.keyLockFor(true, 1, true, 0.975), false); assert.equal(S.keyLockFor(true, 1, true, 0.96), true);
   // …and every writer of a deck's pitch mode goes through it (two that disagreed flipped the record on air at a seam's first sample)
   assert.match(html, /setPitchLock\(d\.a, keyLockFor\(this\.keyLock, this\.rate, s && s\.synced, s && s\.pitch\)\);/, 'SPEED.apply');
-  assert.match(html, /setPitchLock\(d\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, s\.synced, s\.pitch\)\);/, 'the cancel\'s retune');
   assert.match(html, /setPitchLock\(nd\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, sl && sl\.synced, sl && sl\.pitch\)\);\s*return true;/, '_seat');
-  assert.match(html, /const g = glideRates\(p\.bpmA, p\.bpmB, 0\), k = seamPitchCarry\(this\._pA, 0\);\s*setPitchLock\(nd\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, true, g\.rateB \* k\)\);\s*od\.a\.playbackRate = this\._lastRateA/, 'fire(): the incoming for its ratio, the record on air untouched');
+  assert.match(html, /const g = glideRates\(p\.bpmA, p\.bpmB, 0\), k = seamPitchCarry\(this\._pA, 0\);\s*this\._seamLocks\(\);\s*od\.a\.playbackRate = this\._lastRateA/, 'fire(): the blend\'s pitch modes (_seamLocks), no rate of the record on air touched');
+  assert.match(html, /_seamLocks\(\)\{[\s\S]{0,700}setPitchLock\(od\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, s && s\.synced, s && s\.pitch\)\);\s*setPitchLock\(nd\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, true, glideRates\(p\.bpmA, p\.bpmB, 0\)\.rateB \* seamPitchCarry\(this\._pA, 0\)\)\);/, '_seamLocks: the record on air by its slot, the incoming for its ratio');
+  // a speed or key-lock tap while a seam runs: the seam owns the rates, the pitch modes follow the new speed (a lock dropped for the 1× vinyl ride stayed off at 1.25×: a major third sharp)
+  assert.match(html, /if \(seam\) MIXER\._seamLocks\(\);\s*if \(AE\.decks && !seam\) AE\.decks\.forEach/, 'SPEED.apply mid-seam');
+  // a hand-mode cancel hands the blend over as it is heard, pitch mode included (a lock switched on at a vinyl-ride ratio was a half-semitone step)
+  assert.match(html, /if \(!\(mode === 'hand' && Math\.abs\(\(s\.pitch \|\| 1\) - 1\) > 1e-6\)\) setPitchLock\(d\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, s\.synced, s\.pitch\)\);/, 'the cancel\'s retune');
   assert.match(html, /if \(!c\.rate\) setPitchLock\(c\.d\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, true, ratio\)\);/, 'the pre-rolled cue, for the ratio it rolls at');
   assert.ok(!/setPitchLock\([a-z]+\.a, false\)/.test(html), 'no writer drops a lock unconditionally');
   assert.ok(!/setPitchLock\([a-z]+\.a, SPEED\.keyLock && !/.test(html), 'no writer keeps the old synced-only rule');

@@ -7070,6 +7070,13 @@ function updateGate(o){
      on launch without asking anybody, which is the same failure seen from the
      other end: an update policy the update did not go through. */
   if (o.native) return 'wait';
+  /* …AND A PAGE NOBODY CAN SEE NEVER SWAPS ITSELF, NOR ONE WITH A DJ IN THE
+     BOOTH — the listener's own 'after this track' included: a system pause (a
+     call, Siri, a headphone pulled) reads as 'not playing' and landed the wish
+     in a pocket or mid-blend. trackChanged stays true, so the wish lands at the
+     first poll with the page visible and the booth at rest. */
+  if (o.hidden) return 'wait';
+  if (o.booth) return 'wait';
   if (o.armed === 'afterTrack') return (o.trackChanged || !o.playing) ? 'apply' : 'wait';
   /* THE LOOP BRAKE. Applying an update reloads the page, and a reloaded page
      asks again — so if a swap ever fails to change what the shell reports (a
@@ -7097,13 +7104,7 @@ function updateGate(o){
      idle room, and the page reloaded under the hands cueing the next one — on
      an iPhone, with its decks handed back and the booth shut. The Update
      button is there the whole time. */
-  if (o.booth) return 'wait';
-  /* …AND A PAGE NOBODY CAN SEE NEVER SWAPS ITSELF. A hidden page is not an
-     idle room either: behind a lock iOS pauses the audio, 'playing' reads
-     false, the quiet clock runs, and the swap landed while the phone was in a
-     pocket — so the listener came back to a page that had refreshed itself,
-     the set restored paused. Visible, idle and quiet, or not at all. */
-  if (o.hidden) return 'wait';
+  // (the booth and a hidden page were answered above, before the listener's own wish — they hold that too)
   if (Number(o.touchedAgo) < UP_TOUCH_MS) return 'wait';
   /* THE QUIET IS A DURATION, NOT AN INSTANT. "Not playing right now" is true in
      the two-second gap while the next track's element loads, true during a phone
@@ -11739,7 +11740,7 @@ const DECKS = {
      apart from INTERACT's idle clock on purpose: that clock also swells the
      touch's presence at the last place a finger was on the stage. */
   _handAt: 0,
-  hand(){ this._handAt = performance.now(); if (typeof MIXER !== 'undefined' && MIXER._home) MIXER._homeDrop(); },   // a hand ends a record's way home: its own tempo, now
+  hand(){ this._handAt = performance.now(); },   // (a record's way home after a seam ends under a hand on ITS platter — VINYL engage — not under a filter tweak or a pad: that stepped the record on air)
   handBusy(){ return this.fader.hand || performance.now() - this._handAt < 1500; },
   handIdle(){ return this._handAt > 0 ? Math.max(0, (performance.now() - this._handAt) / 1000) : 999; },
   /* LOAD a record onto a slot. Refused where there is no graph (one deck on
@@ -15273,6 +15274,8 @@ const SPEED = {
     // the speed set here on the next frame, and land on the old one: its way home
     // ends now, at its own tempo, and the new speed is written below like any other
     if (typeof MIXER !== 'undefined' && MIXER._home && !seam) MIXER._homeDrop();
+    // …and while a seam runs it owns the rates, but the pitch modes follow the speed set here (MIXER._seamLocks)
+    if (seam) MIXER._seamLocks();
     if (AE.decks && !seam) AE.decks.forEach((d, i) => {
       if (typeof MIXER !== 'undefined' && MIXER.cueing(d)) return;   // a rolling cue takes its rate from the seam (below)
       try {
@@ -25439,7 +25442,10 @@ const MIXER = {
       // that is already where it should be
       const s = DECKS.slots[i], r = deckRate(SPEED.rate * DECKS.pitch(i));
       try { if (d.a.playbackRate !== r) d.a.playbackRate = r; } catch (e){}
-      setPitchLock(d.a, keyLockFor(SPEED.keyLock, SPEED.rate, s.synced, s.pitch));   // (already equality-guarded; the one rule, SPEED.apply's)
+      // (already equality-guarded; the one rule, SPEED.apply's) — except that a hand-mode cancel hands the blend over AS IT IS
+      // HEARD, pitch mode included: a lock switched on at the ratio a record still rides as vinyl is a step of up to half a
+      // semitone at full level; the next deliberate rate writer (SPEED, SYNC, a load, the next track) applies the rule
+      if (!(mode === 'hand' && Math.abs((s.pitch || 1) - 1) > 1e-6)) setPitchLock(d.a, keyLockFor(SPEED.keyLock, SPEED.rate, s.synced, s.pitch));
       if (d.shelf && d.shelf.gain.value !== 0) DECKS.gainWrite(d.shelf.gain, 0, 0.006);
       /* kill any scheduled crossfade ramp and settle each deck: the surviving
          (active) deck back to full, a hand's deck too (its level is the
@@ -26199,7 +26205,7 @@ const MIXER = {
          SPEED.apply gave it — dropping its lock here flipped a synced record
          from stretched to resampled at the seam's first sample, at full level. */
       const g = glideRates(p.bpmA, p.bpmB, 0), k = seamPitchCarry(this._pA, 0);
-      setPitchLock(nd.a, keyLockFor(SPEED.keyLock, SPEED.rate, true, g.rateB * k));
+      this._seamLocks();
       od.a.playbackRate = this._lastRateA = deckRate(g.rateA * k * SPEED.rate);
       nd.a.playbackRate = this._lastRateB = deckRate(g.rateB * k * SPEED.rate);
       if (nd.shelf) nd.shelf.gain.value = BEATMIX_BASS_DUCK;   // one-bass rule: B ducked in
@@ -26702,6 +26708,20 @@ const MIXER = {
   _homeLock(d){
     const i = AE.decks ? AE.decks.indexOf(d) : -1, s = i >= 0 && typeof DECKS !== 'undefined' ? DECKS.slots[i] : null;
     try { setPitchLock(d.a, keyLockFor(SPEED.keyLock, SPEED.rate, s && s.synced, s && s.pitch)); } catch (e){}
+  },
+  /* THE BLEND'S PITCH MODES, for the listener's speed as it stands: the
+     record on air by its slot (its rate is unchanged through the blend), the
+     incoming for the ratio it is written at (glideRates × the carried pitch).
+     fire() writes them; SPEED.apply writes them again while a seam runs,
+     instead of the rates the seam owns — a lock dropped for the 1× vinyl ride
+     would otherwise stay off when the speed left 1×, and the incoming came to
+     full level a major third sharp. setPitchLock is equality-guarded. */
+  _seamLocks(){
+    const p = this.plan, od = this.outDeck, nd = AE.decks && AE.decks[AE.active];
+    if (!p || !od || !nd || p.type !== 'beatmix') return;
+    const i = AE.decks.indexOf(od), s = i >= 0 && typeof DECKS !== 'undefined' ? DECKS.slots[i] : null;
+    setPitchLock(od.a, keyLockFor(SPEED.keyLock, SPEED.rate, s && s.synced, s && s.pitch));
+    setPitchLock(nd.a, keyLockFor(SPEED.keyLock, SPEED.rate, true, glideRates(p.bpmA, p.bpmB, 0).rateB * seamPitchCarry(this._pA, 0)));
   },
   _applyRates(f){
     const p = this.plan, od = this.outDeck, nd = AE.decks && AE.decks[AE.active];
@@ -27583,7 +27603,9 @@ function appInUse(){
   try {
     if (typeof uiTeaching === 'function' && uiTeaching()) return true;
     const open = id => { const n = document.getElementById(id); return !!(n && (n.classList.contains('open') || n.classList.contains('in'))); };
-    return open('library') || open('playlist') || open('updateCard') || open('askCard') || open('skinCard');
+    // every surface a person can be reading or playing in — the console's log and sets, the piano, the echo, the rig, the crate, a break prompt — not only the lists and the cards
+    return open('library') || open('playlist') || open('updateCard') || open('askCard') || open('skinCard')
+      || open('console') || open('piano') || open('echoPanel') || open('rig') || open('crate') || open('breakPrompt');
   } catch (e){ return false; }
 }
 // the last time a person touched the app — what "put the app down" is measured from
@@ -31103,6 +31125,8 @@ function makeVinylHand(i){
       if (n) try { n.port.postMessage(m); } catch (e){}
     },
     engage(oneShot){
+      // a hand taking this platter takes the deck's rate: a record still on its way home from a seam (MIXER._home) is at its own tempo from here
+      if (typeof MIXER !== 'undefined' && MIXER._home) MIXER._homeDrop(this.deck());
       if (this.engaged) return true;
       if (!this.canEngage()) return false;
       this.engaged = true; this._oneShot = !!oneShot; this._engagedAt = performance.now(); this._stoppedAt = 0;
@@ -79473,6 +79497,7 @@ const PIANO = {
     this.renderTop();
   },
   _midiEvent(e){
+    if (typeof UPDATE !== 'undefined') UPDATE._lastTouchAt = Date.now();   // a key pressed on a MIDI keyboard is a touch: the update waits for it too
     switch (e.type){
       case 'noteOn': this.playNote(e.note, pnVelocityToGain(e.vel), true, 'midi'); break;
       case 'noteOff': this.playNote(e.note, 0, false, 'midi'); break;
