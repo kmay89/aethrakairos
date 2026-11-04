@@ -11762,7 +11762,9 @@ test('fxAutoStep: an ear that has not settled decides nothing — the bar is not
   // a hop to AirPlay releases the rack: no gesture outlives the graph it was written on
   const sd = html.indexOf('  async setDirect(direct){');
   assert.ok(sd > 0);
-  assert.match(html.slice(sd, sd + 2400), /if \(direct && typeof FX !== 'undefined'\) try \{ FX\.letGoTail\(\); FX\.release\(\); \} catch \(e\)\{\}/, 'setDirect(true) releases FX');
+  const sdBody = html.slice(sd, sd + 3000);
+  assert.match(sdBody, /if \(direct && typeof FX !== 'undefined'\) try \{ FX\.leaveGraph\(\); \} catch \(e\)\{\}/, 'setDirect(true) lets go what is held and the room\'s gesture');
+  assert.ok(!/FX\.release\(/.test(sdBody.slice(0, sdBody.indexOf('AE.xfading = false;'))), '…and does not release the rack: the hand\'s channel filter and rack come home with the graph (airplay_probe)');
 });
 test('FX.letGoTail: a held hand-off tail never outlives the graph — setDirect(true) and its own timer both let it go', () => {
   /* the real FX object in a sandbox: the @fx block and `const FX = {…};`, with the
@@ -11807,7 +11809,7 @@ test('FX.letGoTail: a held hand-off tail never outlives the graph — setDirect(
   // 1. a hop to AirPlay inside the two bars: setDirect(true) lets the tail go while the graph can still be written
   {
     const { FX, AE, P, timers } = make();
-    FX.letGoTail(); FX.release(); AE.graphLive = false;
+    FX.leaveGraph(); AE.graphLive = false;   // setDirect(true)
     assert.ok(!FX._tailHold && !FX.hold, 'the hold is let go before the graph goes');
     for (const k of ['send', 'fb', 'fbX', 'wet']) assert.equal(P[k].value, 0, k + ' parked, not left ringing at the hold');
     timers.forEach(t => t.fn());                                  // the old timer fires later: nothing to do, nothing thrown
@@ -11822,11 +11824,48 @@ test('FX.letGoTail: a held hand-off tail never outlives the graph — setDirect(
     assert.ok(!FX._tailHold && !FX.hold, 'the timer clears the hold with the graph down (echoHold could not)');
     for (const k of ['send', 'fb', 'fbX', 'wet']) assert.equal(P[k].value, 0, k + ' parked by the timer');
   }
+  // 3. the room's unit goes with the graph; the hand's stays (it comes home with the graph, like its channel filter)
+  {
+    const { FX, AE } = make();
+    FX.letGoTail();
+    FX.set('gate', 0.6); FX._autoSt = Object.assign(FX._autoSt, { unit: 'gate' }); FX._autoUnit = 'gate';
+    FX.leaveGraph(); AE.graphLive = false;
+    assert.equal(FX.unit, '', 'the performer\'s gate is parked before the graph goes');
+    AE.graphLive = true;
+    FX.set('echo', 0.5, 0.5);
+    FX.leaveGraph(); AE.graphLive = false;
+    assert.equal(FX.unit, 'echo', 'a hand\'s echo (not held) is the hand\'s: untouched');
+  }
+  // 4. a hand's own HOLD (no hand-off tail): leaving the graph lets it go too — a frozen loop has nowhere to be heard but the device
+  {
+    const { FX, AE, P } = make();
+    FX.letGoTail();
+    FX.set('echo', 0.65, 0.55); FX.echoHold(true);
+    assert.ok(FX.hold && !FX._tailHold && P.fbX.value + P.fb.value > 0.9, 'a hand\'s HOLD is up');
+    FX.leaveGraph(); AE.graphLive = false;
+    assert.ok(!FX.hold, 'the hand\'s HOLD lets go before the graph goes');
+    assert.ok(P.fb.value < 0.9 && P.fbX.value < 0.9, 'the loop is no longer frozen');
+  }
+  // 5. …and where the graph went with no exit run (a route that skipped leaveGraph), the next FX.release() still lets it go
+  {
+    const { FX, AE, P } = make();
+    FX.letGoTail();
+    FX.set('echo', 0.65, 0.55); FX.echoHold(true);
+    AE.graphLive = false;
+    FX.release();
+    assert.ok(!FX.hold && !FX._tailHold, 'release() with the graph down clears the hold (it used to return first)');
+    for (const k of ['send', 'fb', 'fbX', 'wet']) assert.equal(P[k].value, 0, k + ' parked');
+  }
   // the exits call it, in that order
   const sd = html.indexOf('  async setDirect(direct){');
-  assert.match(html.slice(sd, sd + 2400), /if \(direct && typeof FX !== 'undefined'\) try \{ FX\.letGoTail\(\); FX\.release\(\); \} catch \(e\)\{\}/, 'setDirect(true)');
+  assert.match(html.slice(sd, sd + 3000), /if \(direct && typeof FX !== 'undefined'\) try \{ FX\.leaveGraph\(\); \} catch \(e\)\{\}/, 'setDirect(true)');
   const ro = html.indexOf('  _resolveOne(){');
-  assert.match(html.slice(ro, ro + 600), /FX\.letGoTail\(\); FX\.release\(\);/, 'DECKROUTE._resolveOne (the iPhone hand-back)');
+  assert.match(html.slice(ro, ro + 600), /FX\.leaveGraph\(\); FX\.release\(\);/, 'DECKROUTE._resolveOne (the iPhone hand-back)');
+  const fg = html.indexOf('  _finishGive(){');
+  const fgBody = html.slice(fg, fg + 3200);
+  const fgAt = fgBody.indexOf('FX.leaveGraph(); FX.release();'), offAt = fgBody.indexOf('AE.graphLive = false;');
+  assert.ok(fgAt > 0 && offAt > fgAt, 'DECKROUTE._finishGive (every way to direct, the emergency included) lets the rack go before the graph does');
+  assert.ok(fgBody.indexOf("this.phase = 'graph'; this._gv = null;") < fgAt, '…after the backstop that keeps the graph live has had its say');
 });
 test('fxAutoSweep: a build earns a highpass up to the vocals, over the bars it has left, let go a beat before the drop', () => {
   const s = S.fxAutoSweep(16, 120, 0.9);

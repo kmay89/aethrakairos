@@ -19780,11 +19780,13 @@ const AIRPLAY = {
       // a seam in flight has nowhere to land once the graph goes
       if (typeof MIXER !== 'undefined' && MIXER.phase !== 'idle') MIXER.cancel('route');
       if (typeof DECKS !== 'undefined') DECKS.collapse();   // one deck from here: the idle one stops, the handle comes home
-      /* …and no gesture outlives the graph it was written on: a gate or an
-         echo left up across a hop to AirPlay came back onto the master with
-         the graph, wherever the room's hands had last been (the iPhone's
-         hand-back releases the rack the same way, DECKROUTE._resolveOne) */
-      if (direct && typeof FX !== 'undefined') try { FX.letGoTail(); FX.release(); } catch (e){}
+      /* …and nothing held, and none of the ROOM's gestures, outlives the
+         graph it was written on (FX.leaveGraph): a held loop rang on from the
+         computer while the music played on the receiver, and the performer's
+         gate came back onto the master with the graph. The HAND's own
+         settings are not released here: its channel filter and its rack come
+         home with the graph by design (airplay_probe). */
+      if (direct && typeof FX !== 'undefined') try { FX.leaveGraph(); } catch (e){}
       AE.xfading = false;
       AE.decks.forEach((dk, k) => {
         try { dk.a.pause(); } catch (e){}
@@ -20410,8 +20412,8 @@ const DECKROUTE = {
     try { BOOTH.releaseCues(); } catch (e){}
     VINYL.drop();
     if (typeof LOOPER !== 'undefined') try { LOOPER.cancel(); } catch (e){}
-    // the graph is about to go: a held hand-off tail lets go while it can still be written (FX.letGoTail)
-    if (typeof FX !== 'undefined') try { FX.letGoTail(); FX.release(); } catch (e){}
+    // the graph is about to go: whatever is held lets go while it can still be written (FX.leaveGraph)
+    if (typeof FX !== 'undefined') try { FX.leaveGraph(); FX.release(); } catch (e){}
     const on = AE.active, off = 1 - on, s = DECKS.slots[off], d = AE.decks[off];
     const w = giveWinner({ phase: MIXER.phase, gains: xfaderGains(DECKS.fader.x, DECKS.fader.curve), active: on,
       idleOwner: s.owner, idleRolling: !d.a.paused && !d.a.ended, idleTrack: s.trackIdx, idleCue: s.cue });
@@ -20585,6 +20587,11 @@ const DECKROUTE = {
     }
     const ki = 1 - AE.active, I = AE.decks[ki];
     if (I.src || I.gain) this._seat(ki, this._takeTwin(), 0);
+    /* every way to direct passes here — the emergency too, which never runs
+       _resolveOne: the rack lets go while the graph can still be written (a
+       stopped context takes the writes at its frozen clock, and they land on
+       its first quantum back, as the emergency's own silencing does) */
+    if (typeof FX !== 'undefined') try { FX.leaveGraph(); FX.release(); } catch (e){}
     AE.graphLive = false;
     this.phase = 'direct'; this._gv = null; this.giveRetry = 0; this._lost = null;
     clearTimeout(this._lostT); this._lostT = 0;
@@ -29687,10 +29694,29 @@ const FX = {
     clearTimeout(this._holdT); this._holdT = 0;
     if (!this._tailHold) return;
     if (this.live()){ this.echoHold(false); return; }
+    this._loopDown();
+  },
+  // a held loop let go with the graph already down: echoHold cannot write there, so the flags and the loop's gains go here
+  _loopDown(){
     this._tailHold = false; this.hold = false;
     const f = AE.fx;
     if (f && AE.ctx) try { for (const n of [f.send, f.fb, f.fbX, f.wet]) if (n) this._w(n.gain, 0, 0.1); } catch (e){}
     if (typeof syncFxHud === 'function') try { syncFxHud(); } catch (e){}
+  },
+  /* LEAVING THE GRAPH (a hop to AirPlay, an iPhone's hand-back, its
+     emergency): called while the graph can still be written. Whatever is
+     HELD lets go — the hand-off tail, and a hand's own HOLD too: a frozen loop
+     at 0.94 has no graph to be heard through as part of the music, only the
+     master's bus to the device's own speakers, where it rang on for forty
+     seconds over the direct record (or the receiver's), with HOLD and CLEAR
+     unable to reach it. The ROOM's unit ends too — the performer's gate or
+     echo came back onto the master with the graph. The hand's other settings
+     (its channel filter, its rack) are the hand's, and come home with the
+     graph where it does (airplay_probe). */
+  leaveGraph(){
+    this.letGoTail();
+    if (this.hold){ if (this.live()) this.echoHold(false); else this._loopDown(); }
+    if (this._autoSt.unit !== 'none' || this._autoUnit) this._autoEnd();
   },
   setPingPong(on){ this.pingpong = !!on; if (this.unit === 'echo'){ this._w(AE.fx.inR.gain, this.pingpong ? 0 : 1, 0.02); this.apply(); } },
   /* THE LFOs, beat-synced and phased to the bar. An oscillator cannot be
@@ -30334,7 +30360,8 @@ const FX = {
       if (d){ try { d.a.playbackRate = deckRate(SPEED.rate * DECKS.pitch(AE.decks.indexOf(d))); } catch (e){} }
     }
     this._brakeDeck = null;
-    if (!this.live()) return;
+    // with the graph down, a held loop still lets go (a route to direct that ran no FX.leaveGraph)
+    if (!this.live()){ if (this.hold || this._tailHold) this._loopDown(); return; }
     // the deck filters: every hand off, every brake gone; the tick ramps them open
     // (the seam's side is the MIXER's — _resetFilters clears it)
     for (const d of AE.decks){ if (!d) continue; d._fxHand = null; d._fxBrake = 0; }
