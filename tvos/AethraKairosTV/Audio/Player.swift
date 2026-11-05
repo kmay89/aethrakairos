@@ -260,6 +260,29 @@ enum MixStyle: String, CaseIterable {
     /// once every 30 s, so a device that refuses every engine is not churned.
     private var playRefusals = 0
     private var lastRebuildAt: TimeInterval = -1_000
+    /// The track the last engine rebuild was for. A fresh engine that ALSO
+    /// refuses the same track means the track is the problem (a file the
+    /// decks cannot schedule), and the mix moves on instead of rebuilding
+    /// every 30 s over silence forever.
+    private var rebuiltForTrack: String?
+
+    /// The session is ours until the system says otherwise (an interruption,
+    /// a media-services reset) or an engine start fails. setActive(true) is a
+    /// blocking round trip to the audio server, and it used to run on the
+    /// main thread at every track change — a beat of frozen field on every
+    /// skip, longer while an HDMI route renegotiated. Now it runs only when
+    /// the session may actually have been taken.
+    private var sessionActive = false
+
+    private func activateSession() {
+        guard !sessionActive else { return }
+        do {
+            try AVAudioSession.sharedInstance().setActive(true)
+            sessionActive = true
+        } catch {
+            NSLog("AethraKairos: session activation refused — %@", String(describing: error))
+        }
+    }
 
     /// Polls in a row the transport has believed "playing" while the active
     /// deck was not actually rendering — the liveness guard's evidence.
@@ -467,10 +490,11 @@ enum MixStyle: String, CaseIterable {
         guard !isPlaying else { return }
         var offset = position
         if let dur = currentDuration, offset >= dur - 0.5 { offset = 0; position = 0 }
-        try? AVAudioSession.sharedInstance().setActive(true)
+        activateSession()
         do {
             try engine.startEngineIfNeeded()
         } catch {
+            sessionActive = false
             NSLog("AethraKairos: engine start failed in play() — %@", String(describing: error))
         }
         // A paused deck is inaudible, so re-scheduling from the held position is
@@ -745,7 +769,7 @@ enum MixStyle: String, CaseIterable {
                 // download parks an autoplay; a play press during a parked
                 // load (toggle flips the intent) starts it.
                 if self.wantsPlayback {
-                    try? AVAudioSession.sharedInstance().setActive(true)
+                    self.activateSession()
                     // AN ENGINE THAT WILL NOT START IS NOT A BAD TRACK. It used
                     // to share the load's catch and burn three tracks in two
                     // seconds whenever the session was not yet ours (waking the
@@ -757,6 +781,7 @@ enum MixStyle: String, CaseIterable {
                         try self.engine.startEngineIfNeeded()
                     } catch {
                         engineUp = false
+                        self.sessionActive = false     // the next ask re-claims the session
                         NSLog("AethraKairos: engine start failed after load — %@", String(describing: error))
                     }
                     if let hold = self.skipHoldDeck, hold != deck {
@@ -871,6 +896,7 @@ enum MixStyle: String, CaseIterable {
     private func handleInterruption(_ type: AVAudioSession.InterruptionType?, shouldResume: Bool) {
         switch type {
         case .began?:
+            sessionActive = false            // the system took it; the next play asks again
             // The intent counts too: a track still downloading, or an engine
             // we are still trying to start, comes back when the system says so.
             resumeAfterInterruption = isPlaying || wantsPlayback
@@ -898,6 +924,16 @@ enum MixStyle: String, CaseIterable {
         // starts a stale graph either. A running engine makes this a no-op;
         // the start below re-installs the tap against the new format.
         engine.reconfigureAfterOutputChange()
+        // ALREADY PLAYING: nothing to recover. An HDMI or AirPlay re-handshake
+        // posts its configuration change several times, and the first
+        // recovery already restarted the engine; the later ones used to cancel
+        // a running crossfade (a click on the incoming deck) and re-seek the
+        // audible deck. A running engine with a live deck is left alone.
+        if engine.isEngineRunning, engine.isLive(deck: activeDeck) {
+            recoveryFailures = 0
+            if statusLine.hasPrefix("audio output unavailable") { statusLine = "" }
+            return
+        }
         // Wanted: the transport says playing, or it gave up saying so (below)
         // while the listener's intent still stands.
         let wanted = isPlaying || (wantsPlayback && recoveryFailures > 0)
@@ -918,11 +954,12 @@ enum MixStyle: String, CaseIterable {
             return
         }
         cancelSeam()
-        try? AVAudioSession.sharedInstance().setActive(true)
+        activateSession()
         do {
             try engine.startEngineIfNeeded()
         } catch {
             recoveryFailures += 1
+            sessionActive = false
             NSLog("AethraKairos: audio recovery %d failed — %@", recoveryFailures, String(describing: error))
             if recoveryFailures >= Self.maxRecoveryFailures, isPlaying {
                 // ~10 s of silence: stop telling the HUD, Now Playing and the
@@ -955,9 +992,17 @@ enum MixStyle: String, CaseIterable {
         // asks again in half a second; a third refusal replaces the engine.
         playRefusals += 1
         let now = ProcessInfo.processInfo.systemUptime
-        if playRefusals >= 3, now - lastRebuildAt >= 30 {
+        guard playRefusals >= 3 else { return }
+        if let id = current?.id, id == rebuiltForTrack, failureStreak < 3, hasNext() {
+            playRefusals = 0
+            rebuiltForTrack = nil
+            failureStreak += 1
+            NSLog("AethraKairos: a fresh engine refuses this track too — moving on to the next")
+            hardSwitch(to: currentIndex + 1, startAt: 0, autoplay: true)
+        } else if now - lastRebuildAt >= 30 {
             playRefusals = 0
             lastRebuildAt = now
+            rebuiltForTrack = current?.id
             NSLog("AethraKairos: the deck keeps refusing to play — building a fresh audio engine")
             rebuildAudioAfterMediaServicesReset()
         }
@@ -980,6 +1025,7 @@ enum MixStyle: String, CaseIterable {
         pendingOpTask?.cancel()
         pendingOpTask = nil
         engine.teardown()
+        sessionActive = false             // the reset took the session with it
         skipHoldDeck = nil                // the old engine's decks are gone
         engine = DeckEngine()
         wireEngine()
@@ -1035,6 +1081,7 @@ enum MixStyle: String, CaseIterable {
             if deadPolls >= 2 { recoverAudio() }
         } else {
             deadPolls = 0
+            if isPlaying { rebuiltForTrack = nil }    // the track plays: the rebuild cured it
         }
         if isPlaying {
             if ProcessInfo.processInfo.systemUptime >= suppressPositionUntil,

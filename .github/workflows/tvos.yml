@@ -36,6 +36,10 @@ on:
         type: choice
         options: [none, testflight]
         default: none
+      soak_minutes:
+        description: 'How long the simulator soak plays (minutes, 1–200; ignored for testflight)'
+        type: number
+        default: 12
   pull_request:
     paths:
       - 'tvos/**'
@@ -806,7 +810,8 @@ jobs:
 
   # Endurance before shipping: the listener's report was "it crashes after a
   # song or a few songs", and every check above runs for seconds. This job
-  # PLAYS the real library in the simulator for twelve minutes under --soak:
+  # PLAYS the real library in the simulator under --soak — twelve minutes on a
+  # PR, as long as soak_minutes asks on a dispatch (hours-scale endurance):
   # the nonstop mix starts the moment the catalog lands, and the transport is
   # hurried (each track jumps to 28 s before its end, every fourth skips), so
   # a seam or a hard switch fires every ~30 s, ~25 track changes in all, across
@@ -818,7 +823,7 @@ jobs:
     name: simulator soak (plays through track changes)
     if: inputs.channel != 'testflight'
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 260
     steps:
       - uses: actions/checkout@v7
 
@@ -894,7 +899,13 @@ jobs:
           echo "app pid: ${PID:-none}"
           ALIVE=yes
           T=0
-          SOAK_SECONDS=720
+          # 12 minutes on a PR; a dispatch can ask for hours-scale endurance
+          SOAK_MIN="${{ inputs.soak_minutes || 12 }}"
+          case "$SOAK_MIN" in ''|*[!0-9]*) SOAK_MIN=12 ;; esac
+          [ "$SOAK_MIN" -lt 1 ] && SOAK_MIN=1
+          [ "$SOAK_MIN" -gt 200 ] && SOAK_MIN=200
+          SOAK_SECONDS=$((SOAK_MIN * 60))
+          echo "soaking for $SOAK_MIN minutes"
           while [ "$T" -lt "$SOAK_SECONDS" ]; do
             sleep 15
             T=$((T + 15))
@@ -925,6 +936,14 @@ jobs:
           echo "art steps:       $(grep -c 'art step' soak/app.log || true)  (last: $(grep 'art step' soak/app.log | tail -1 | sed 's/.*art step/art step/'))"
           echo "engine running in reports: $(grep -c 'engine running' soak/app.log || true) / $(grep -c 'soak: footprint' soak/app.log || true)"
           echo "process alive at the end: $ALIVE"
+          # the memory trend: a leak shows as the last readings sitting well
+          # above the first ones, not as one high sample
+          grep -o 'footprint [0-9]* MB' soak/app.log | awk '{print $2}' > soak/footprint.txt || true
+          if [ -s soak/footprint.txt ]; then
+            awk '{v[NR]=$1; if(NR==1||$1<lo)lo=$1; if($1>hi)hi=$1}
+                 END{k=(NR<10)?NR:10; for(i=1;i<=k;i++){a+=v[i]; b+=v[NR-k+i]}
+                     printf "footprint MB:    first %d, min %d, max %d, last %d (mean of first %d %.0f, of last %d %.0f, %d readings)\n", v[1], lo, hi, v[NR], k, a/k, k, b/k, NR}' soak/footprint.txt
+          fi
           CRASHED=no
           if [ -n "$NEW" ]; then
             CRASHED=yes
