@@ -783,6 +783,22 @@ jobs:
           xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES
           sleep 22
           xcrun simctl io "$UDID" screenshot ui/shelves.png
+          # the waveform bloom: the nonstop mix on the field, photographed
+          # mid-glide two seconds after the second song change
+          xcrun simctl terminate "$UDID" com.aethrakairos.tv || true
+          xcrun simctl spawn "$UDID" log stream --style compact \
+            --predicate 'eventMessage CONTAINS "soak: track"' > ui/tracks.log 2>&1 &
+          LOGPID=$!
+          sleep 2
+          xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --soak
+          for i in $(seq 1 120); do
+            sleep 1
+            [ "$(grep -c 'soak: track' ui/tracks.log || true)" -ge 2 ] && break
+          done
+          sleep 2
+          xcrun simctl io "$UDID" screenshot ui/bloom.png || true
+          kill "$LOGPID" 2>/dev/null || true
+          echo "song changes seen before the bloom shot: $(grep -c 'soak: track' ui/tracks.log || true)"
           pip3 install --quiet pillow 2>/dev/null || pip3 install --quiet --break-system-packages pillow 2>/dev/null || true
           python3 - << 'PY' || echo "pixel scan unavailable"
           from PIL import Image
@@ -795,7 +811,8 @@ jobs:
           print(f"AMBER PIXELS (1/4 sampled): {amber}  ({w}x{h})")
           print("VERDICT:", "FOCUS RING VISIBLE" if amber > 150 else "NO FOCUS RING")
           PY
-          for NAME in welcome shelves; do
+          for NAME in welcome shelves bloom; do
+            [ -f "ui/$NAME.png" ] || continue
             sips -Z 960 "ui/$NAME.png" --out "ui/$NAME.jpg" -s format jpeg -s formatOptions 60 >/dev/null
             echo "== BEGIN BASE64 JPEG ($NAME) =="
             base64 -i "ui/$NAME.jpg" | fold -w 300
