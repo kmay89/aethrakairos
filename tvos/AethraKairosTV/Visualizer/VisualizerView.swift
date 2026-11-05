@@ -80,7 +80,7 @@ private struct MetalSurface: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> MTKView {
-        let view = MTKView()
+        let view = FieldView()
         view.device = MTLCreateSystemDefaultDevice()
         view.preferredFramesPerSecond = lowPower ? 30 : 60
         view.colorPixelFormat = .bgra8Unorm
@@ -108,6 +108,26 @@ private struct MetalSurface: UIViewRepresentable {
         // rebuilds them on the first frame back, exactly as after a size
         // change. Only the background: a pause under an overlay keeps them.
         if purge { context.coordinator.releaseTargets() }
+    }
+}
+
+/// THE DRAWABLE STOPS AT 1440 LINES. The art never renders above 1440 (see
+/// internalSize), but on a 4K TV the drawable was native 3840x2160, so the
+/// GRADE — bloom taps and grain over every pixel — ran 8.3M fragments a frame
+/// that no rung of the governor could shed, and under heat that one pass was
+/// the dropped frame. Capping the drawable at 1440 lines leaves the picture
+/// as sharp as its art and lets the TV's own scaler do the last step. A 1080p
+/// TV keeps its native drawable.
+private final class FieldView: MTKView {
+    private static let maxLines: CGFloat = 1440
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard let screen = window?.screen else { return }
+        let native = min(screen.nativeBounds.width, screen.nativeBounds.height)
+        guard native > Self.maxLines, screen.scale > 0 else { return }
+        let scale = screen.scale * Self.maxLines / native
+        if abs(contentScaleFactor - scale) > 0.001 { contentScaleFactor = scale }
     }
 }
 
@@ -796,30 +816,56 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         gpuClock.reset()                  // the new size earns its own record
     }
 
+    /// One art size's five offscreen targets.
+    private struct Chain {
+        var a, b, c, lens, echo: MTLTexture?
+        var width: Int { a?.width ?? 0 }
+        var height: Int { a?.height ?? 0 }
+    }
+
+    /// THE SPARE CHAIN. On a 4K TV a heavy room renders at 1080 lines and a
+    /// light one at 1440, and about half of all handovers cross between the
+    /// two — each crossing used to allocate five full-size targets on the
+    /// main thread inside draw(), a dropped frame exactly on the cut (and the
+    /// governor's rung changes did the same). The chain just left is kept as
+    /// the spare, so going back to it is a swap, never an allocation; only a
+    /// size neither chain has allocates. Two chains are ~230 MB at most.
+    private var spare = Chain()
+
     private func rebuildTargets(size drawable: CGSize) {
         let size = internalSize(for: drawable)
         guard let device, size.width >= 1, size.height >= 1 else { return }
-        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float,
-                                                            width: Int(size.width),
-                                                            height: Int(size.height),
-                                                            mipmapped: false)
-        desc.usage = [.renderTarget, .shaderRead]
-        desc.storageMode = .private
-        // let the old chain go FIRST: a resize between the 1440p and 1080p
-        // art sizes (a heavy room arriving or leaving) otherwise held both
-        // chains at once, ~230 MB at the peak
-        releaseTargets()
-        texA = device.makeTexture(descriptor: desc)
-        texB = device.makeTexture(descriptor: desc)
-        texC = device.makeTexture(descriptor: desc)
-        lensTex = device.makeTexture(descriptor: desc)   // the LENS output, same size
-        echoTex = device.makeTexture(descriptor: desc)   // ECHO's memory, same size
-        echoLive = false
+        let w = Int(size.width), h = Int(size.height)
+        let live = Chain(a: texA, b: texB, c: texC, lens: lensTex, echo: echoTex)
+        var next: Chain
+        if spare.width == w, spare.height == h, spare.b != nil, spare.c != nil {
+            next = spare
+        } else {
+            // the old spare goes FIRST, so the peak is two chains, never three
+            spare = Chain()
+            let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float,
+                                                                width: w, height: h,
+                                                                mipmapped: false)
+            desc.usage = [.renderTarget, .shaderRead]
+            desc.storageMode = .private
+            next = Chain(a: device.makeTexture(descriptor: desc),
+                         b: device.makeTexture(descriptor: desc),
+                         c: device.makeTexture(descriptor: desc),
+                         lens: device.makeTexture(descriptor: desc),   // the LENS output, same size
+                         echo: device.makeTexture(descriptor: desc))   // ECHO's memory, same size
+        }
+        spare = live.a != nil && (live.width != w || live.height != h) ? live : Chain()
+        texA = next.a
+        texB = next.b
+        texC = next.c
+        lensTex = next.lens
+        echoTex = next.echo
+        echoLive = false              // a swapped-in echo remembers another size's frame
     }
 
-    /// Lets the offscreen chain go while the view is paused. Command buffers
-    /// still in flight hold their own references, and draw() reallocates the
-    /// chain the moment it finds texA missing.
+    /// Lets the offscreen chains go (the spare too) while the app is in the
+    /// background. Command buffers still in flight hold their own references,
+    /// and draw() reallocates the chain the moment it finds texA missing.
     func releaseTargets() {
         texA = nil
         texB = nil
@@ -827,6 +873,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         lensTex = nil
         echoTex = nil
         echoLive = false
+        spare = Chain()
     }
 
     // MARK: remote steps
@@ -1214,6 +1261,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         // the rubato: rooms run in musical time, clamped to the dance floor
         let rate = min(max(0.45 + 1.05 * Double(dispEnergy), 0.4), 1.9)
         musicalTime += dt * rate
+        if !musicalTime.isFinite { musicalTime = 0 }   // one bad level must never freeze the field for good
 
         // -- the story: acts centred on the script's real apex, eased (tau 3 s);
         //    the white budget eased (tau 2.5 s) and never taller than the
@@ -1418,6 +1466,13 @@ final class VizRenderer: NSObject, MTKViewDelegate {
         if wordKey != lastWordKey {
             lastWordKey = wordKey
             rasterizeWord(for: player.current)
+            // A night in ONE room (Auto Rooms off, or a long dwell) never
+            // reaches the handover that wraps the musical clock, and a Float
+            // time past ~16k s steps coarsely enough to judder. A new song is
+            // the one moment a restart of the room's motion reads as natural.
+            if musicalTime > Self.musicalTimeWrap * 2, transitionProgress >= 1 {
+                musicalTime = 0
+            }
         }
 
         uploadAudioTextures(frame: frame, dt: dt)

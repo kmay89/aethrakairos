@@ -202,7 +202,10 @@ final class Analyzer {
         var wi = waveIdx
         var mi = monoIdx
         for i in 0..<n {
-            let m = (c0[i] + c1[i]) * 0.5
+            var m = (c0[i] + c1[i]) * 0.5
+            // one non-finite sample would ride the smoothing (and every level
+            // and the musical clock after it) forever; it is silence instead
+            if !m.isFinite { m = 0 }
             monoRing[mi & (Self.monoRingN - 1)] = m
             mi += 1
             if i % stride == 0 {
