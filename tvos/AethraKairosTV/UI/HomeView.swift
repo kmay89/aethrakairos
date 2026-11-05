@@ -46,7 +46,9 @@ struct HomeView: View {
     @State private var bootGraceOver = false
     // PLAY was pressed before the library arrived: the nonstop mix starts the
     // moment the catalog lands, instead of the press being lost.
-    @State private var playWhenReady = false
+    /// A mood pressed before the library landed: held, and played the
+    /// moment the catalog arrives — a press is never dropped.
+    @State private var pendingMood: Mood?
 
     // The welcome's entrance: false until it first appears, then each line
     // rises in on its own beat (see Stagecraft's entrance).
@@ -113,10 +115,10 @@ struct HomeView: View {
             StageView(isPresented: $showStage)
         }
         .onChange(of: catalogStore.catalog) { _, catalog in
-            // a PLAY that was waiting on the library plays now
-            guard playWhenReady, let catalog else { return }
-            playWhenReady = false
-            startNonstop(in: catalog)
+            // a mood that was waiting on the library plays now
+            guard let mood = pendingMood, let catalog else { return }
+            pendingMood = nil
+            start(mood, in: catalog)
         }
         .onChange(of: scenePhase) { _, phase in
             // tvOS keeps a suspended app for days, so an offline first launch
@@ -138,10 +140,7 @@ struct HomeView: View {
                 if let catalog = catalogStore.catalog {
                     FrontDoorRow(player: player, catalog: catalog, roomName: roomName,
                                  onPrimary: { frontDoorPrimary(catalog) },
-                                 onNewMix: {
-                                     player.playEverything(in: catalog)
-                                     dismissShelves()
-                                 })
+                                 onMood: { start($0, in: catalog) })
                     journeyShelf
                     ritualsShelf(catalog)
                     albumsShelf(catalog)
@@ -219,11 +218,12 @@ struct HomeView: View {
 
     /// The welcome, built around ONE press, and staged like a title card: the
     /// live light show glows through on the right, the words sit on the dark
-    /// side of the scrim, and each line rises in on its own beat. PLAY is the
-    /// first control and so the one focus lands on: click it (or the remote's
-    /// play/pause key) and the whole library starts as a nonstop mix, straight
-    /// onto the field. BROWSE opens the shelves. Menu skips to the shelves,
-    /// SETTINGS can replay it, and it never interrupts twice.
+    /// side of the scrim, and each line rises in on its own beat. Three moods
+    /// are the first controls — PARTY, CHILL, SHUFFLE — and focus lands on the
+    /// first: one click and that mood starts as a nonstop mix, straight onto
+    /// the field (the remote's play/pause key is SHUFFLE). BROWSE opens the
+    /// shelves. Menu skips to the shelves, SETTINGS can replay it, and it
+    /// never interrupts twice.
     private var introOverlay: some View {
         ZStack(alignment: .leading) {
             // light on the open side before a note has played
@@ -260,14 +260,22 @@ struct HomeView: View {
                     .foregroundStyle(Color.akDim)
                     .entrance(entered, delay: 0.45)
 
-                HStack(alignment: .center, spacing: 36) {
-                    Button {
-                        startFromWelcome()
-                    } label: {
-                        HeroLabel(symbol: "play.fill", title: "PLAY",
-                                  line: "One click. Music and light, nonstop.")
+                Text("PICK A MOOD  ·  ONE CLICK, AND IT PLAYS NONSTOP")
+                    .font(.system(size: 19, weight: .bold, design: .monospaced))
+                    .tracking(5)
+                    .foregroundStyle(Color.akDim)
+                    .padding(.top, 54)
+                    .entrance(entered, delay: 0.6)
+
+                HStack(alignment: .center, spacing: 34) {
+                    ForEach(Mood.allCases) { mood in
+                        Button {
+                            startFromWelcome(mood)
+                        } label: {
+                            MoodLabel(mood: mood)
+                        }
+                        .buttonStyle(HeroButtonStyle(tint: mood.tint))
                     }
-                    .buttonStyle(HeroButtonStyle())
 
                     Button {
                         withAnimation { introSeen = true }
@@ -284,10 +292,10 @@ struct HomeView: View {
                     }
                     .buttonStyle(ShelfChipStyle())
                 }
-                .padding(.top, 64)
+                .padding(.top, 22)
                 .entrance(entered, delay: 0.7)
 
-                if playWhenReady {
+                if pendingMood != nil {
                     // the press was heard; the library is still on its way
                     Text(catalogStore.statusLine.isEmpty ? "Tuning the library…" : catalogStore.statusLine)
                         .font(.system(size: 19, design: .monospaced))
@@ -303,7 +311,7 @@ struct HomeView: View {
                     introFact("✦", "125 LIGHT SHOWS",
                               "Oceans, lightning, galaxies — every one dances to the beat.")
                     introFact("◈", "A MIX FOR EVERY MOOD",
-                              "Working out, dinner, focus or bedtime — all in BROWSE.")
+                              "Party, chill or shuffle — and rituals for every hour in BROWSE.")
                     introFact("♥", "FREE FOR EVERYONE",
                               "No account, no ads, no cost. Nothing is tracked or shared.")
                 }
@@ -321,8 +329,8 @@ struct HomeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .onAppear { entered = true }
-        // the remote's play/pause key is PLAY here too
-        .onPlayPauseCommand { startFromWelcome() }
+        // the remote's play/pause key plays here too: the whole library
+        .onPlayPauseCommand { startFromWelcome(.shuffle) }
         .onExitCommand { withAnimation { introSeen = true } }
     }
 
@@ -343,15 +351,23 @@ struct HomeView: View {
         .frame(width: 330, alignment: .leading)
     }
 
-    /// The welcome's PLAY: the nonstop mix (or the session already on the
-    /// deck), straight onto the field. Before the library has landed the
-    /// press is held, not dropped — see playWhenReady.
-    private func startFromWelcome() {
+    /// A welcome mood: that mood's nonstop mix, straight onto the field.
+    /// Before the library has landed the press is held, not dropped — see
+    /// pendingMood.
+    private func startFromWelcome(_ mood: Mood) {
         guard let catalog = catalogStore.catalog else {
-            playWhenReady = true
+            pendingMood = mood
             return
         }
-        startNonstop(in: catalog)
+        start(mood, in: catalog)
+    }
+
+    /// A chosen mood always deals fresh — it is a choice of what to hear —
+    /// then the screen goes to the field.
+    private func start(_ mood: Mood, in catalog: Catalog) {
+        withAnimation { introSeen = true }
+        player.play(mood: mood, in: catalog)
+        dismissShelves()
     }
 
     /// One press, music: resume what is on the deck if something is, else

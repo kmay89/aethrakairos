@@ -25,15 +25,21 @@ import UIKit
 /// focus, lifted and glowing so it reads from the far end of the room.
 /// The ring only animates while focused, so an unfocused hero costs nothing.
 struct HeroButtonStyle: ButtonStyle {
+    /// The light the hero is lit by: the house's ice and amber, or a mood's own.
+    var tint: [Color] = [.scIce, .scAmber]
+
     func makeBody(configuration: Configuration) -> some View {
-        HeroBody(configuration: configuration)
+        HeroBody(configuration: configuration, tint: tint)
     }
 
     private struct HeroBody: View {
         let configuration: Configuration
+        let tint: [Color]
         @Environment(\.isFocused) private var focused
 
         var body: some View {
+            let lead = tint.first ?? .scIce
+            let tail = tint.last ?? .scAmber
             configuration.label
                 .padding(.horizontal, 46)
                 .padding(.vertical, 26)
@@ -41,12 +47,12 @@ struct HeroButtonStyle: ButtonStyle {
                     Capsule(style: .continuous)
                         .fill(LinearGradient(
                             colors: focused
-                                ? [Color.scIce.opacity(0.34), Color.scAmber.opacity(0.20)]
+                                ? [lead.opacity(0.36), tail.opacity(0.22)]
                                 : [Color.white.opacity(0.12), Color.white.opacity(0.06)],
                             startPoint: .leading, endPoint: .trailing))
                 )
-                .overlay(HeroRing(active: focused))
-                .shadow(color: Color.scIce.opacity(focused ? 0.55 : 0), radius: focused ? 40 : 0)
+                .overlay(HeroRing(active: focused, colors: tint))
+                .shadow(color: lead.opacity(focused ? 0.55 : 0), radius: focused ? 40 : 0)
                 .shadow(color: .black.opacity(focused ? 0.5 : 0.2), radius: 24, y: 14)
                 .scaleEffect(configuration.isPressed ? 0.96 : (focused ? 1.08 : 1.0))
                 .animation(.spring(response: 0.38, dampingFraction: 0.78), value: focused)
@@ -59,6 +65,7 @@ struct HeroButtonStyle: ButtonStyle {
 /// amber and the beat's rose, one revolution every five seconds.
 private struct HeroRing: View {
     let active: Bool
+    let colors: [Color]
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !active)) { timeline in
@@ -66,7 +73,7 @@ private struct HeroRing: View {
             let angle = Angle.degrees((t * 72).truncatingRemainder(dividingBy: 360))
             Capsule(style: .continuous)
                 .strokeBorder(
-                    AngularGradient(colors: [.scIce, .scAmber, .scBeat, .scIce],
+                    AngularGradient(colors: colors + [.scBeat, colors.first ?? .scIce],
                                     center: .center, angle: angle),
                     lineWidth: active ? 4 : 1.5)
                 .opacity(active ? 1 : 0.4)
@@ -100,6 +107,72 @@ struct HeroLabel: View {
     }
 }
 
+// MARK: - the moods
+
+extension Mood {
+    /// Each mood's own light: party burns amber into the beat's rose, chill
+    /// is ice going to the deep blue of a late sky, shuffle is the whole house.
+    var tint: [Color] {
+        switch self {
+        case .party: return [.scAmber, .scBeat]
+        case .chill: return [.scIce, .scTide]
+        case .shuffle: return [.scIce, .scAmber]
+        }
+    }
+}
+
+/// A mood's face on the welcome: the glyph lit in the mood's colours, the
+/// word, and one line — a card, so three sit side by side.
+struct MoodLabel: View {
+    let mood: Mood
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: mood.symbol)
+                .font(.system(size: 46, weight: .semibold))
+                .foregroundStyle(LinearGradient(colors: mood.tint,
+                                                startPoint: .topLeading, endPoint: .bottomTrailing))
+                .shadow(color: (mood.tint.first ?? .scIce).opacity(0.6), radius: 14)
+            Text(mood.title)
+                .font(.system(size: 38, weight: .heavy))
+                .tracking(6)
+                .foregroundStyle(Color.scInk)
+                .lineLimit(1)
+            Text(mood.line)
+                .font(.system(size: 19, weight: .medium))
+                .foregroundStyle(Color.scInk.opacity(0.72))
+                .lineLimit(1)
+        }
+        .frame(width: 270, alignment: .leading)
+    }
+}
+
+/// The billboard's small mood chip: switch the mood mid-session in one press.
+/// The mood that is playing wears a lit dot.
+struct MoodChip: View {
+    let mood: Mood
+    let current: Bool
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: mood.symbol)
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundStyle(LinearGradient(colors: mood.tint,
+                                                startPoint: .topLeading, endPoint: .bottomTrailing))
+            Text(mood.title)
+                .font(.system(size: 24, weight: .semibold))
+                .tracking(4)
+                .foregroundStyle(Color.scInk)
+            if current {
+                Circle()
+                    .fill(mood.tint.first ?? .scIce)
+                    .frame(width: 10, height: 10)
+                    .shadow(color: (mood.tint.first ?? .scIce).opacity(0.8), radius: 6)
+            }
+        }
+    }
+}
+
 // MARK: - the entrance
 
 /// Rise and fade in, after `delay`, once `shown` turns true — the welcome
@@ -126,10 +199,11 @@ extension View {
 
 /// The first row of the shelves, and so the one focus lands on. The sleeve
 /// of what is playing (or the house emblem when nothing is), what state the
-/// music is in, its title large, where the field is, and the one button:
-/// PLAY when nothing is on the deck (the nonstop mix), RESUME when a session
-/// is paused or was restored, BACK TO THE FIELD while music plays. NEW MIX
-/// beside it re-deals the whole library at any time.
+/// music is in, its title large, where the field is, and the buttons. With
+/// nothing on the deck they are the three moods (PARTY, CHILL, SHUFFLE),
+/// each a nonstop mix. Once a session exists the one button is RESUME (paused
+/// or restored) or BACK TO THE FIELD (playing), and the three moods sit
+/// beside it as chips, so a mood can be changed at any time in one press.
 ///
 /// This view observes the Player so HomeView doesn't have to.
 struct FrontDoorRow: View {
@@ -137,7 +211,7 @@ struct FrontDoorRow: View {
     let catalog: Catalog
     let roomName: String
     let onPrimary: () -> Void
-    let onNewMix: () -> Void
+    let onMood: (Mood) -> Void
 
     var body: some View {
         let track = player.current
@@ -165,28 +239,31 @@ struct FrontDoorRow: View {
                     .foregroundStyle(Color.scDim)
                     .lineLimit(1)
                     .padding(.top, 10)
-                HStack(spacing: 30) {
+                if track == nil {
+                    HStack(spacing: 30) {
+                        ForEach(Mood.allCases) { mood in
+                            Button { onMood(mood) } label: { MoodLabel(mood: mood) }
+                                .buttonStyle(HeroButtonStyle(tint: mood.tint))
+                        }
+                    }
+                    .padding(.top, 40)
+                } else {
                     Button(action: onPrimary) {
                         HeroLabel(symbol: primarySymbol(track), title: primaryTitle(track),
                                   line: primaryLine(track))
                     }
-                    .buttonStyle(HeroButtonStyle())
-                    if track != nil {
-                        Button(action: onNewMix) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("NEW MIX")
-                                    .font(.system(size: 26, weight: .semibold))
-                                    .tracking(4)
-                                    .foregroundStyle(Color.scInk)
-                                Text("Shuffle everything, nonstop.")
-                                    .font(.system(size: 18))
-                                    .foregroundStyle(Color.scDim)
+                    .buttonStyle(HeroButtonStyle(tint: player.mood?.tint ?? [.scIce, .scAmber]))
+                    .padding(.top, 36)
+                    HStack(spacing: 22) {
+                        ForEach(Mood.allCases) { mood in
+                            Button { onMood(mood) } label: {
+                                MoodChip(mood: mood, current: player.mood == mood)
                             }
+                            .buttonStyle(ShelfChipStyle())
                         }
-                        .buttonStyle(ShelfChipStyle())
                     }
+                    .padding(.top, 26)
                 }
-                .padding(.top, 40)
             }
             Spacer(minLength: 0)
         }
@@ -222,8 +299,10 @@ struct FrontDoorRow: View {
     }
 
     private func eyebrow(_ track: Track?) -> String {
-        guard track != nil else { return "READY WHEN YOU ARE" }
-        return player.isPlaying ? "NOW PLAYING" : "PAUSED"
+        guard track != nil else { return "PICK A MOOD" }
+        let state = player.isPlaying ? "NOW PLAYING" : "PAUSED"
+        guard let mood = player.mood else { return state }
+        return "\(state)  ·  \(mood.title)"
     }
 
     private func subtitle(_ track: Track?, _ album: Album?) -> String {
@@ -483,5 +562,6 @@ extension Color {
     static let scAmber = Color(red: 255 / 255, green: 180 / 255, blue: 84 / 255)
     static let scIce = Color(red: 110 / 255, green: 231 / 255, blue: 255 / 255)
     static let scBeat = Color(red: 255 / 255, green: 92 / 255, blue: 135 / 255)
+    static let scTide = Color(red: 96 / 255, green: 118 / 255, blue: 255 / 255)
     static let scGlassHard = Color(red: 10 / 255, green: 13 / 255, blue: 24 / 255).opacity(0.72)
 }

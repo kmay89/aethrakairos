@@ -148,6 +148,71 @@ struct Catalog: Equatable {
     }
 }
 
+/* THE THREE MOODS — the welcome's three doors into the nonstop mix.
+   PARTY is the library's hottest songs and CHILL its calmest, each read
+   off the measured features (energy, onsets, brightness are catalog-
+   relative 0..1, so a percentile is the honest cut and no threshold has
+   to be guessed). SHUFFLE is everything. A mood keeps its pool across
+   the endless re-deals, so a party stays a party all night. */
+enum Mood: String, CaseIterable, Identifiable {
+    case party, chill, shuffle
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .party: return "PARTY"
+        case .chill: return "CHILL"
+        case .shuffle: return "SHUFFLE"
+        }
+    }
+
+    var line: String {
+        switch self {
+        case .party: return "The big ones, back to back."
+        case .chill: return "Slow, soft and easy."
+        case .shuffle: return "Everything, dealt fresh."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .party: return "flame.fill"
+        case .chill: return "moon.stars.fill"
+        case .shuffle: return "shuffle"
+        }
+    }
+
+    /// The share of the measured library a mood keeps, and the fewest songs
+    /// it may be — a small library falls back to everything.
+    static let share = 0.4
+    static let minimumPool = 12
+}
+
+extension Catalog {
+    /// The songs a mood plays from, in catalog order (the player shuffles).
+    func tracks(for mood: Mood) -> [Track] {
+        let score: (Features) -> Double
+        switch mood {
+        case .shuffle:
+            return tracks
+        case .party:
+            score = { 0.6 * $0.energy + 0.4 * $0.onsets }
+        case .chill:
+            score = { 0.5 * (1 - $0.energy) + 0.3 * (1 - $0.onsets) + 0.2 * (1 - $0.brightness) }
+        }
+        let measured = tracks.compactMap { t -> (Track, Double)? in
+            guard let f = t.features else { return nil }
+            let s = score(f)
+            return s.isFinite ? (t, s) : nil
+        }
+        let keep = Int((Double(measured.count) * Mood.share).rounded())
+        guard keep >= Mood.minimumPool else { return tracks }
+        let chosen = Set(measured.sorted { $0.1 > $1.1 }.prefix(keep).map { $0.0.id })
+        return tracks.filter { chosen.contains($0.id) }
+    }
+}
+
 enum CatalogError: LocalizedError, Equatable {
     case v1FlatCatalog        // top-level "tracks" with no "albums"
     case wrongVersion(Int)    // anything != 2

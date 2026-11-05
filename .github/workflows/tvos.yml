@@ -80,7 +80,7 @@ jobs:
 
   # Eyes before shipping: boot a tvOS Simulator, install the app, launch it,
   # and photograph what a viewer actually sees. The launch frame proves the
-  # focus engine is alive (the welcome's PLAY chip renders its focus ring
+  # focus engine is alive (the welcome's first mood, PARTY, renders its focus ring
   # only when focused) — the exact regression that reached hardware three
   # times while every compile check stayed green. Since stage 4 of the dance
   # layer the job also FILMS six rooms under the drive-demo metronome (the
@@ -148,7 +148,7 @@ jobs:
           sleep 14
           mkdir -p shots
           xcrun simctl io "$UDID" screenshot shots/01-launch-welcome.png
-          echo "The welcome should show PLAY carrying its focus ring (ice outline, lifted)."
+          echo "The welcome should show PARTY carrying its focus ring (amber-to-rose outline, lifted)."
           # Live rooms, via the CI camera hooks: -introSeen YES skips the
           # welcome (read natively by @AppStorage), --field starts with the
           # shelves down, --start-room opens on a named room. Two frames:
@@ -730,7 +730,7 @@ jobs:
   # and the shelves (-introSeen YES) a few seconds after the library lands,
   # each printed into the log as a 960 px JPEG so a design pass can be judged
   # in minutes rather than after the room films. The welcome is also scanned
-  # for PLAY's focus ring.
+  # for PARTY's focus ring (amber, the first mood's light).
   ui-shots:
     name: welcome and shelves screenshots
     if: inputs.channel != 'testflight'
@@ -789,10 +789,11 @@ jobs:
           im = Image.open('ui/welcome.png').convert('RGB')
           w, h = im.size
           px = im.load()
-          ice = sum(1 for y in range(0, h, 2) for x in range(0, w, 2)
-                    if abs(px[x, y][0]-110) < 50 and abs(px[x, y][1]-231) < 45 and abs(px[x, y][2]-255) < 45)
-          print(f"ICE PIXELS (1/4 sampled): {ice}  ({w}x{h})")
-          print("VERDICT:", "FOCUS RING VISIBLE" if ice > 150 else "NO FOCUS RING")
+          # PARTY holds focus first, and its ring burns amber into rose
+          amber = sum(1 for y in range(0, h, 2) for x in range(0, w, 2)
+                      if abs(px[x, y][0]-255) < 40 and abs(px[x, y][1]-180) < 45 and abs(px[x, y][2]-84) < 50)
+          print(f"AMBER PIXELS (1/4 sampled): {amber}  ({w}x{h})")
+          print("VERDICT:", "FOCUS RING VISIBLE" if amber > 150 else "NO FOCUS RING")
           PY
           for NAME in welcome shelves; do
             sips -Z 960 "ui/$NAME.png" --out "ui/$NAME.jpg" -s format jpeg -s formatOptions 60 >/dev/null
