@@ -252,6 +252,11 @@ private struct ZenWaveform: View {
        for a real jump (a new song, a seek), which re-anchors the figure. */
     @State private var anchorPos: Double?
     @State private var anchorAt = Date()
+    /// The detail painting (WaveArt) and the song second its left edge shows.
+    /// Until it lands (or for a song whose file never decoded) the env's
+    /// ribbons stand in.
+    @State private var art: (image: CGImage, from: Double)?
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         GeometryReader { geo in
@@ -266,11 +271,20 @@ private struct ZenWaveform: View {
                 let playhead = anchor + (playing ? max(0, now.timeIntervalSince(anchorAt)) : 0)
                 // where the figure's first second sits on screen
                 let x = w * Self.nowAt - CGFloat(playhead - (anchor - before)) * ptPerSec
-                let figure = WaveFigure(track: track, from: anchor - before, to: anchor + after,
-                                        ptPerSec: ptPerSec, height: h, accent: accent)
-                figure.equatable()
-                .frame(width: CGFloat(before + after) * ptPerSec, height: h, alignment: .leading)
-                .offset(x: x)
+                Group {
+                    if let art {
+                        Image(decorative: art.image, scale: displayScale)
+                            .resizable()
+                            .frame(width: CGFloat(before + after) * ptPerSec, height: h)
+                            .offset(x: w * Self.nowAt - CGFloat(playhead - art.from) * ptPerSec)
+                    } else {
+                        WaveFigure(track: track, from: anchor - before, to: anchor + after,
+                                   ptPerSec: ptPerSec, height: h, accent: accent)
+                            .equatable()
+                            .frame(width: CGFloat(before + after) * ptPerSec, height: h, alignment: .leading)
+                            .offset(x: x)
+                    }
+                }
                 .frame(width: w, height: h, alignment: .leading)
                 // fixed to the screen, not the figure: the edges fade into the
                 // room, and the road ahead of the now-line is dimmer
@@ -285,6 +299,25 @@ private struct ZenWaveform: View {
                 .overlay(alignment: .leading) { nowLine(height: h).offset(x: w * Self.nowAt - 1) }
                 .scaleEffect(x: 1, y: CGFloat(grow(t)), anchor: .center)
                 .opacity(envelope(t))
+            }
+            .task(id: "\(track.id)|\(anchor)|\(Int(w))x\(Int(h))") {
+                // the song's detail, read when its deck loaded it: wait a beat
+                // for a read still under way, then paint it once, off the main
+                // thread
+                guard w > 8, h > 8 else { return }
+                var detail: WaveDetail?
+                for _ in 0..<20 {
+                    detail = await WaveDetailStore.shared.detail(for: track.id)
+                    if detail != nil || Task.isCancelled { break }
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+                guard let detail, !Task.isCancelled else { return }
+                let from = anchor - before
+                let image = await WaveArt.render(
+                    detail: detail, track: track, from: from, to: anchor + after,
+                    width: Int((CGFloat(before + after) * ptPerSec * displayScale).rounded()),
+                    height: Int((h * displayScale).rounded()))
+                if let image, !Task.isCancelled { art = (image, from) }
             }
         }
         .onAppear {
