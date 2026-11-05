@@ -228,10 +228,21 @@ enum MixStyle: String, CaseIterable {
     private var deckDuration: [Double] = [0, 0]
     private var deckClaim = [0, 0]          // stale deferred stops must not kill a re-used deck
     private var shuffle = false
-    /// The queue is the NONSTOP MIX (playEverything): when it runs low a fresh
-    /// shuffle of the whole library is dealt onto its end, so the music never
-    /// stops on its own. Any other choice of what to play turns it off.
+    /// The queue is the NONSTOP MIX (a mood, or playEverything): when it runs
+    /// low a fresh shuffle of the mood's pool is dealt onto its end, so the
+    /// music never stops on its own. Any other choice of what to play turns
+    /// it off, and forgets the mood.
     private(set) var endless = false
+    /// The mood the nonstop mix is playing (nil for anything else), and the
+    /// songs it deals from.
+    @Published private(set) var mood: Mood?
+    private var moodPool: [Track] = []
+
+    private func endNonstop() {
+        endless = false
+        moodPool = []
+        if mood != nil { mood = nil }
+    }
     private var generation = 0              // one materialization wins; stale loads drop out
     private var playedSecondsThisTrack: Double = 0
     private var failureStreak = 0
@@ -386,7 +397,7 @@ enum MixStyle: String, CaseIterable {
     // MARK: transport
 
     func setQueue(_ tracks: [Track], startAt index: Int, autoplay: Bool) {
-        endless = false
+        endNonstop()
         releaseSkipHold(fade: 0.25)
         recordHistoryForCurrent()
         cancelSeam()
@@ -414,7 +425,7 @@ enum MixStyle: String, CaseIterable {
         let tracks = keys.compactMap { catalog.track(forKey: $0) }
         guard !tracks.isEmpty else { return }
         shuffle = false
-        endless = false
+        endNonstop()
         if let cur = current, let slot = tracks.firstIndex(where: { $0.id == cur.id }) {
             cancelSeam()               // next-up changed; the old plan is void
             queue = tracks
@@ -426,14 +437,23 @@ enum MixStyle: String, CaseIterable {
         }
     }
 
-    /// ONE PRESS, MUSIC: the whole library, shuffled, played nonstop — the
-    /// welcome's PLAY and the shelves' PLAY land here. The auto-mixer blends
-    /// each seam as it always does; the queue re-deals itself at its end.
-    func playEverything(in catalog: Catalog) {
-        let deck = catalog.tracks.shuffled()
+    /// ONE PRESS, MUSIC: a mood's songs, shuffled, played nonstop — the
+    /// welcome's three doors and the billboard's mood chips land here. The
+    /// auto-mixer blends each seam as it always does; the queue re-deals the
+    /// same mood at its end.
+    func play(mood: Mood, in catalog: Catalog) {
+        let pool = catalog.tracks(for: mood)
+        let deck = pool.shuffled()
         guard !deck.isEmpty else { return }
         setQueue(deck, startAt: 0, autoplay: true)
         endless = true
+        moodPool = pool
+        self.mood = mood
+    }
+
+    /// The whole library, nonstop: SHUFFLE.
+    func playEverything(in catalog: Catalog) {
+        play(mood: .shuffle, in: catalog)
     }
 
     /// The nonstop mix never reaches its end: two tracks out, another pass of
@@ -441,7 +461,7 @@ enum MixStyle: String, CaseIterable {
     /// track, so an armed seam stays valid.
     private func extendEndlessIfNeeded() {
         guard endless, let catalog, currentIndex >= 0, currentIndex >= queue.count - 2 else { return }
-        var more = catalog.tracks.shuffled()
+        var more = (moodPool.isEmpty ? catalog.tracks : moodPool).shuffled()
         guard !more.isEmpty else { return }
         // never the same song twice in a row across the pass boundary
         if more.count > 1, let last = queue.last, more[0].id == last.id {
