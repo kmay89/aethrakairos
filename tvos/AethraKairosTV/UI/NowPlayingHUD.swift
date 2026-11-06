@@ -266,7 +266,8 @@ private struct ZenWaveform: View {
             let w = geo.size.width, h = geo.size.height
             let ptPerSec = w / CGFloat(Self.span)
             let before = Double(Self.nowAt) * Self.span + 0.5
-            let after = (1 - Double(Self.nowAt)) * Self.span + Self.window + 0.5
+            // (the camera hook holds the bloom for a long while: it paints more road)
+            let after = (1 - Double(Self.nowAt)) * Self.span + Self.window + 0.5 + (Self.holdForCamera ? 60 : 0)
             let anchor = anchorPos ?? position
             TimelineView(.animation) { timeline in
                 let now = timeline.date

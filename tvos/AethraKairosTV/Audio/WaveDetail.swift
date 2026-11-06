@@ -31,6 +31,9 @@ struct WaveDetail {
 
     static let columnsPerSecond: Double = 150
     private static let crossLo: Double = 200, crossHi: Double = 2000
+    /// The highs stop where the web's 16 kHz decode stops: air above 8 kHz is
+    /// hiss on a picture, and it swelled the hats' band over everything.
+    private static let airTop: Double = 8000
     /// The display lift per band: a hat a tenth of the kick's power still reads.
     private static let bandTilt: [Float] = [1, 1.6, 3]
     /// The body's trailing window and the peak's hold, per band, in ms.
@@ -90,10 +93,11 @@ struct WaveDetail {
         var bs = [[Float]](repeating: [Float](repeating: 0, count: n), count: 3)
 
         // the crossovers (Linkwitz-Riley, two Butterworth sections a side):
-        // low LP·LP, mid HP·HP·LP·LP, high HP·HP
+        // low LP·LP, mid HP·HP·LP·LP, high HP·HP·LP·LP (closed at 8 kHz)
         let lpLo = section(lowpass: true, f: crossLo, sr: sr), hpLo = section(lowpass: false, f: crossLo, sr: sr)
         let lpHi = section(lowpass: true, f: crossHi, sr: sr), hpHi = section(lowpass: false, f: crossHi, sr: sr)
-        let chains: [[Double]] = [lpLo + lpLo, hpLo + hpLo + lpHi + lpHi, hpHi + hpHi]
+        let lpAir = section(lowpass: true, f: min(airTop, sr * 0.45), sr: sr)
+        let chains: [[Double]] = [lpLo + lpLo, hpLo + hpLo + lpHi + lpHi, hpHi + hpHi + lpAir + lpAir]
         var setups: [vDSP_biquad_Setup] = []
         for c in chains {
             guard let st = vDSP_biquad_CreateSetup(c, vDSP_Length(c.count / 5)) else {
@@ -329,14 +333,15 @@ enum WaveArt {
         let lo, mi, hi, loE, miE, hiE, loC, miC, hiC: SIMD3<Float>
     }
 
-    /// The band colours off the key's hue (the web's waveBandColours): the
-    /// lows dark and warm fifty degrees down the wheel, the body the key
-    /// itself, the highs airy and near-white forty degrees up.
+    /// The band colours off the key's hue (the web's waveBandColours, with
+    /// the chroma lifted for a TV across a room): the lows dark and warm fifty
+    /// degrees down the wheel, the body the key itself, the highs bright and
+    /// airy forty degrees up — lit, but still a colour, never a white wash.
     static func palette(for track: Track) -> Palette3 {
         let h = Palette.camelotHue(track.mix?.key) ?? 200
-        let lo = Palette.Stop(l: 0.56, c: 0.17, h: (h + 310).truncatingRemainder(dividingBy: 360))
-        let mi = Palette.Stop(l: 0.72, c: 0.13, h: h)
-        let hi = Palette.Stop(l: 0.93, c: 0.04, h: (h + 40).truncatingRemainder(dividingBy: 360))
+        let lo = Palette.Stop(l: 0.58, c: 0.20, h: (h + 310).truncatingRemainder(dividingBy: 360))
+        let mi = Palette.Stop(l: 0.73, c: 0.17, h: h)
+        let hi = Palette.Stop(l: 0.88, c: 0.10, h: (h + 40).truncatingRemainder(dividingBy: 360))
         func rgb(_ s: Palette.Stop, _ dl: Double = 0) -> SIMD3<Float> {
             Palette.oklchToRGB(l: Palette.lClamp(s.l + dl), c: s.c, h: s.h)
         }
@@ -416,7 +421,7 @@ enum WaveArt {
 
         // the aura, one fill per tilt step
         for j in 0..<N where !aura[j].isEmpty {
-            c.setFillColor(color(pal.lut[j], 0.16))
+            c.setFillColor(color(pal.lut[j], 0.22))
             c.addPath(aura[j]); c.fillPath()
         }
         // the bodies: the band's colour at the centre line, darker at the edges;
@@ -431,9 +436,9 @@ enum WaveArt {
             c.drawLinearGradient(g, start: CGPoint(x: 0, y: 0), end: CGPoint(x: 0, y: CGFloat(H)), options: [])
             c.restoreGState()
         }
-        paintBody(mi, pal.mi, pal.miE, 0.82)
+        paintBody(mi, pal.mi, pal.miE, 0.85)
         paintBody(lo, pal.lo, pal.loE, 0.95)
-        paintBody(hi, pal.hi, pal.hiE, 0.95)
+        paintBody(hi, pal.hi, pal.hiE, 0.78)     // the hats on top, the lows still glowing through
         c.setAlpha(0.6)
         for (path, col) in [(miC, pal.miC), (loC, pal.loC), (hiC, pal.hiC)] where !path.isEmpty {
             c.setFillColor(color(col, 1)); c.addPath(path); c.fillPath()
@@ -476,10 +481,9 @@ enum WaveArt {
                                   space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return sharp }
         let rect = CGRect(x: 0, y: 0, width: W, height: H)
-        out.setAlpha(0.85)
-        out.setBlendMode(.plusLighter)
+        // laid under, not added: an added glow stacked the centre to white
+        out.setAlpha(0.8)
         out.draw(glow, in: rect)
-        out.setBlendMode(.normal)
         out.setAlpha(1)
         out.draw(sharp, in: rect)
         return out.makeImage() ?? sharp
