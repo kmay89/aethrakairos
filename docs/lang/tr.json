@@ -1745,6 +1745,7 @@
  "Play deck {d}": "Deck {d} çal",
  "Play something first — the decks wake with the first track": "Önce bir şey çal — deckler ilk parçayla uyanır",
  "SYNC needs a tempo on both decks": "SYNC için her iki deckte tempo gerekir",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} ile {s} BPM ±8 % dışında — bunun yerine nudge kullan",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} {bpm} ile eşleşti",
  "Sync deck {d} to the other deck": "Deck {d} parçasını diğer deckle senkronla",
  "The set pinned this song to play in full — the fader waits for it": "Set bu şarkıyı baştan sona çalmak üzere sabitledi — fader onu bekliyor",

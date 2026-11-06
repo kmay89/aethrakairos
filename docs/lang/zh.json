@@ -1745,6 +1745,7 @@
  "Play deck {d}": "播放唱机 {d}",
  "Play something first — the decks wake with the first track": "先播放点什么——唱机随第一首曲子苏醒",
  "SYNC needs a tempo on both decks": "SYNC 需要两台唱机都有速度",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} 对 {s} BPM 超出 ±8 % — 请改用微调（nudge）",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} 已对齐到 {bpm}",
  "Sync deck {d} to the other deck": "把唱机 {d} 同步到另一台",
  "The set pinned this song to play in full — the fader waits for it": "歌单把这首歌钉为完整播放——推子等它播完",

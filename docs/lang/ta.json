@@ -1745,6 +1745,7 @@
  "Play deck {d}": "டெக் {d} இயக்கு",
  "Play something first — the decks wake with the first track": "முதலில் எதையாவது இயக்கு — முதல் பாடலுடன் டெக்குகள் விழிக்கின்றன",
  "SYNC needs a tempo on both decks": "SYNC-க்கு இரு டெக்கிலும் டெம்போ தேவை",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} vs {s} BPM ±8 % வரம்பைத் தாண்டியுள்ளது — அதற்குப் பதிலாக nudge செய்யவும்",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} {bpm}-க்கு இணைக்கப்பட்டது",
  "Sync deck {d} to the other deck": "டெக் {d}-ஐ மற்ற டெக்குடன் ஒத்திசை",
  "The set pinned this song to play in full — the fader waits for it": "செட் இந்தப் பாடலை முழுதாக இயக்க நிலைநிறுத்தியுள்ளது — ஃபேடர் அதற்காகக் காத்திருக்கிறது",

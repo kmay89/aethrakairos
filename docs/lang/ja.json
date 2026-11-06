@@ -1745,6 +1745,7 @@
  "Play deck {d}": "デッキ{d}を再生",
  "Play something first — the decks wake with the first track": "まず何か再生して — デッキは最初の曲で目を覚まします",
  "SYNC needs a tempo on both decks": "SYNCには両デッキのテンポが必要です",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} 対 {s} BPM は ±8 % の範囲外です — 代わりにナッジしてください",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck}を{bpm}に合わせました",
  "Sync deck {d} to the other deck": "デッキ{d}をもう一方のデッキに同期",
  "The set pinned this song to play in full — the fader waits for it": "セットがこの曲をフル再生に固定しています — フェーダーは待ちます",

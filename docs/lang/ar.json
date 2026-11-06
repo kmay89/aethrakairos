@@ -1943,6 +1943,7 @@
  "Play deck {d}": "تشغيل المنصّة {d}",
  "Play something first — the decks wake with the first track": "شغِّل شيئًا أولًا — تستيقظ المنصّات مع أول مقطوعة",
  "SYNC needs a tempo on both decks": "يحتاج SYNC إلى إيقاع على المنصّتين",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} مقابل {s} BPM خارج ±8 % — ادفع برفق (nudge) بدلاً من ذلك",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} مطابَقة عند {bpm}",
  "Sync deck {d} to the other deck": "مزامنة المنصّة {d} مع المنصّة الأخرى",
  "The set pinned this song to play in full — the fader waits for it": "ثبّتت المجموعة هذه الأغنية لتُعزَف كاملة — الفيدر ينتظرها",

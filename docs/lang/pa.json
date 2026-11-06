@@ -1745,6 +1745,7 @@
  "Play deck {d}": "ਡੈੱਕ {d} ਵਜਾਓ",
  "Play something first — the decks wake with the first track": "ਪਹਿਲਾਂ ਕੁਝ ਵਜਾਓ — ਡੈੱਕ ਪਹਿਲੇ ਟਰੈਕ ਨਾਲ ਜਾਗਦੇ ਹਨ",
  "SYNC needs a tempo on both decks": "SYNC ਨੂੰ ਦੋਵਾਂ ਡੈੱਕਾਂ ਉੱਤੇ ਟੈਂਪੋ ਚਾਹੀਦਾ ਹੈ",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} ਬਨਾਮ {s} BPM ±8 % ਤੋਂ ਬਾਹਰ ਹੈ — ਇਸ ਦੀ ਬਜਾਏ nudge ਕਰੋ",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} {bpm} ਨਾਲ ਮਿਲਾਇਆ",
  "Sync deck {d} to the other deck": "ਡੈੱਕ {d} ਨੂੰ ਦੂਜੇ ਡੈੱਕ ਨਾਲ ਸਿੰਕ ਕਰੋ",
  "The set pinned this song to play in full — the fader waits for it": "ਸੈੱਟ ਨੇ ਇਹ ਗੀਤ ਪੂਰਾ ਵਜਾਉਣ ਲਈ ਟਿਕਾਇਆ ਹੈ — ਫ਼ੇਡਰ ਇਸ ਦੀ ਉਡੀਕ ਕਰਦਾ ਹੈ",

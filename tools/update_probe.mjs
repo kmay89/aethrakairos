@@ -18,7 +18,7 @@
  *   current    no deploy at all — a correct app is silent, and a card raised in
  *              error can leave
  *   finger     a pending update never reloads under a tap (the ✕ report)
- *   quiet      an idle page with a fresh deploy refreshes itself — no card, no toast
+ *   quiet      a fresh page shows the badge, never reloads while young, swaps in the quiet
  *   again      the reported loop: the origin probe must reach the origin, and a
  *              swap already applied must never be offered a second time
  *   idle       a worker installed from a changed sw.js while the shell stayed
@@ -154,14 +154,16 @@ for (const [tag, stampSw, label] of [['stamped', true, 'stamped'], ['unstamped',
   });
 }
 
-/* ------------------------------------------------- AN IDLE PAGE JUST UPDATES
- * Nothing playing (the usual state at launch) means a ready update applies at
- * once — so the card, the pulse and the toast were an announcement for a reload
- * already on its way, and every launch after a deploy flashed an offer and then
- * vanished. An idle page should simply come back on the new build, having never
- * shown a card at all. */
+/* ------------------------------------------------- AN IDLE PAGE UPDATES IN THE QUIET
+ * A fresh page used to read as quiet-forever, so a ready update applied itself
+ * seconds after the page had painted: every launch after a deploy opened and
+ * then refreshed under the listener's eyes. Now the launch counts as a touch and
+ * the quiet is counted from boot: the badge shows (no toast in the first
+ * minute), nothing reloads while the page is young — and once the room has
+ * genuinely been quiet and hands-off for the gate's two minutes (simulated here
+ * by backdating the stamps), the page swaps itself with no card and no toast. */
 if (want('quiet')){
-  console.log('\nidle page, fresh deploy — it refreshes itself, no card, no toast');
+  console.log('\nidle page, fresh deploy — the badge, no reload while young; the swap lands in the quiet');
   await run('quiet', true, async ({ origin, ctx, dir }) => {
     const page = await ctx.newPage();
     await page.goto(origin + '/', { waitUntil: 'domcontentloaded' });
@@ -178,17 +180,26 @@ if (want('quiet')){
       }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['hidden', 'disabled'] });
     });
     const toastsBefore = await page.evaluate(() => [...document.getElementById('toasts').children].map(t => t.textContent));
+    const from = await build(page);
     deploy(dir, true);
-    const nav = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => null);
     await page.evaluate(() => checkForUpdate());
-    const sawCard = await page.evaluate(() => new Promise(r => setTimeout(() => r(window.__sawCard), 400))).catch(() => false);
-    const toastsAfter = await page.evaluate(() => [...document.getElementById('toasts').children].map(t => t.textContent)).catch(() => []);
+    // the badge arrives; the young page does not reload under the eyes that just opened it
+    const young = await page.evaluate(() => new Promise(r => setTimeout(() => r({
+      card: window.__sawCard, build: typeof MB8_BUILD === 'string' ? MB8_BUILD : '?',
+      requested: typeof updateRequested !== 'undefined' ? updateRequested : null,
+    }), 8000))).catch(() => null);
+    const toastsYoung = await page.evaluate(() => [...document.getElementById('toasts').children].map(t => t.textContent)).catch(() => []);
+    verdict('quiet: a fresh page shows the badge and does not reload itself while young',
+      !!young && young.card && young.build === from && young.requested === false,
+      young ? `card ${young.card} · still ${young.build} · requested ${young.requested}` : 'page gone');
+    verdict('quiet: …and no toast in the first minute (the badge is the word)',
+      !toastsYoung.some(t => /new version/i.test(t) && !toastsBefore.includes(t)), 'toasts: ' + toastsYoung.join(' | '));
+    // the quiet has passed (backdated: two minutes of silence, a minute hands-off) — the 5 s poll swaps the page
+    const nav = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => null);
+    await page.evaluate(() => { UPDATE._lastPlayingAt = Date.now() - 3 * 60 * 1000; UPDATE._lastTouchAt = Date.now() - 2 * 60 * 1000; });
     await nav;
     await page.waitForFunction('window.__mb8Booted === true', null, { timeout: 25000 }).catch(() => {});
-    verdict('quiet: an idle page lands the new build by itself', (await build(page)) === NEW);
-    verdict('quiet: and never showed an offer on the way',
-      !sawCard && !toastsAfter.some(t => /new version/i.test(t) && !toastsBefore.includes(t)),
-      sawCard ? 'the card flashed up' : 'no card, no toast');
+    verdict('quiet: once the room has been quiet and hands-off, the page lands the new build by itself', (await build(page)) === NEW, `${from} -> ${await build(page)}`);
   });
 }
 
@@ -217,6 +228,9 @@ if (want('finger')){
     await page.waitForFunction('UPDATE.ready()', null, { timeout: 30000 }).catch(() => {});
     // the page reloading out from under the panel IS the failure — report it,
     // don't crash on the destroyed context
+    // the page is aged past its boot grace first: a young page holds the swap on its own,
+    // and this scenario is about the open panel and the tap — only they may hold it now
+    await page.evaluate(() => { const t = Date.now() - 3 * 60 * 1000; UPDATE._bootAt = t; UPDATE._lastTouchAt = t; UPDATE._lastPlayingAt = t; });
     const x = await page.evaluate(() => { const r = document.getElementById('plClose').getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }).catch(() => null);
     if (x) await page.mouse.click(x.x, x.y);                 // a real pointer, as a finger would
@@ -229,7 +243,8 @@ if (want('finger')){
       await page.evaluate(() => !document.getElementById('btnUpdate').hidden && UPDATE.ready()));
     // put the app down: a minute with no touch and nothing open → it lands by itself
     const nav = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => null);
-    await page.evaluate(() => { UPDATE._lastTouchAt = Date.now() - 61000; maybeAutoApply(); });
+    // put down: hands off for a minute AND quiet for the gate's two — a fresh page is quiet since boot, not forever
+    await page.evaluate(() => { UPDATE._lastTouchAt = Date.now() - 61000; UPDATE._lastPlayingAt = Date.now() - 3 * 60 * 1000; maybeAutoApply(); });
     await nav;
     const landed = await page.waitForFunction(n => typeof MB8_BUILD === 'string' && MB8_BUILD === n && window.__mb8Booted === true,
       NEW, { timeout: 25000 }).then(() => true).catch(() => false);

@@ -259,6 +259,7 @@ await page.evaluate(() => {
  * position (the shuffle bag is free to reorder), with A jumped to `before`
  * seconds short of its bar line so the probe does not sit through a whole
  * track. Returns everything the gates below read. */
+let lastWalk0 = null;   // the way home as measureSeam caught it starting (walkHome reads it)
 async function measureSeam(title, before, warmFirst){
   const base = await page.evaluate(() => {
     Object.assign(window.__seam, { seamAt: null, bAtSeam: null, bMoved: null, bLate: null });
@@ -311,6 +312,8 @@ async function measureSeam(title, before, warmFirst){
     return a.length ? a.reduce((x, s) => x + s.r, 0) / a.length : 0;
   });
   await page.waitForFunction(n => (window.__mixCompleted || 0) > n, base.done, { timeout: 90000 });
+  // the way home, caught as it starts (walkHome reads it 1.8 s on, by which time a short walk has landed)
+  lastWalk0 = await page.evaluate(() => MIXER._home ? { from: +MIXER._home.from.toFixed(5), secs: +MIXER._home.secs.toFixed(2) } : null);
   await page.waitForTimeout(1800);      // let B play on alone, so it can be measured alone
   const m = await page.evaluate(dur => {
     const s = window.__seam, t0 = s.seamAt;
@@ -421,7 +424,9 @@ const readSettle = () => page.evaluate(() => {
       paused: d.a.paused });
   });
   return { decks: out, phase: MIXER.phase, trim: MIXER.trim, audioT0: MIXER.audioT0,
-    trimI: MIXER.trimI, latched: !!MIXER._latched, aligns: MIXER._aligns };
+    trimI: MIXER.trimI, latched: !!MIXER._latched, aligns: MIXER._aligns,
+    // the loudness trim the record on air is owed — what playIndex() would give it
+    want: normLin(player.tracks[player.cur]) };
 });
 function settleGates(settle, tag){
   const act = settle.decks.find(d => d.active), idle = settle.decks.find(d => !d.active);
@@ -434,15 +439,51 @@ function settleGates(settle, tag){
       && !settle.latched && settle.aligns === 0,
     JSON.stringify({ phase: settle.phase, trim: settle.trim, trimI: settle.trimI,
       latched: settle.latched, aligns: settle.aligns }));
-  R(tag + 'the surviving deck is at unity gain and unity rate',
-    Math.abs(act.gain - 1) < 0.06 && Math.abs(act.rate - 1) < 0.002,
-    'gain ' + act.gain + ' rate ' + act.rate);
+  /* "unity" is the record's OWN loudness trim, not 1.0: an auto-mixed record
+     used to arrive on a deck whose trim nobody set, so it sat at 1.0 (or at
+     the last record's trim) and this check, written against 1.0, held only
+     because of that. The fixture's records are trimmed +6 dB. */
+  R(tag + 'the surviving deck is at its record\'s trim and unity rate',
+    Math.abs(act.gain - settle.want) < 0.06 * settle.want && Math.abs(act.rate - 1) < 0.002,
+    'gain ' + act.gain + ' (owed ' + (+settle.want.toFixed(4)) + ') rate ' + act.rate);
   R(tag + 'the retired deck is silent and paused', idle.gain < 0.02 && idle.paused,
     'gain ' + idle.gain + ' paused ' + idle.paused);
   R(tag + 'both decks leave the bass shelf flat and the filter open',
     settle.decks.every(d => Math.abs(d.shelf) < 0.01 && d.filter > 15000),
     settle.decks.map(d => 'shelf ' + d.shelf + '/f ' + d.filter).join(' · '));
 }
+/* THE WAY HOME. The blend holds the record on air at its own tempo and pitches
+ * the incoming to it (glideRates: rateA is 1 at every f); once alone on air the
+ * incoming glides home to its own tempo at ten cents a second (seamHomeRate).
+ * So the surviving deck is not at unity the instant the seam finishes — it is
+ * on its way, and must land within its walking time, moving one way only. The
+ * settle gates below read the deck once it is home. */
+async function walkHome(tag){
+  const w0 = lastWalk0;
+  const t0 = Date.now(), rates = [];
+  let st, secs = null;
+  for (;;){
+    st = await page.evaluate(() => {
+      const d = AE.decks[AE.active], h = MIXER._home;
+      return { rate: +d.a.playbackRate.toFixed(5), home: !!h, secs: h ? +h.secs.toFixed(2) : null, from: h ? +h.from.toFixed(5) : null };
+    });
+    if (st.home && secs == null) secs = st.secs;
+    rates.push(st.rate);
+    if (!st.home || Date.now() - t0 > 15000) break;
+    await page.waitForTimeout(100);
+  }
+  const took = (Date.now() - t0) / 1000;
+  const dir = Math.sign(rates[rates.length - 1] - rates[0]);
+  const oneWay = rates.every((r, i) => i === 0 || r === rates[i - 1] || Math.sign(r - rates[i - 1]) === dir);
+  const landed = !st.home && Math.abs(rates[rates.length - 1] - 1) < 0.002;
+  // the walk must have been SEEN starting (the fixture's pair is 28 cents apart: a walk of seconds), or the gate would pass an old step as 'already home'
+  const seen = !!(w0 && w0.secs > 0 && Math.abs(w0.from - 1) >= 0.001);
+  const inTime = !seen || (Date.now() - t0) / 1000 + 1.8 <= w0.secs + 1.5;
+  R(tag + 'the incoming record comes home at a walking pace — seen starting, one way, in its own time, to its own tempo',
+    seen && landed && oneWay && inTime,
+    (w0 ? 'from ' + w0.from + ' over ' + w0.secs + ' s' : 'NO WALK SEEN') + ' · read ' + (secs == null ? 'home' : 'at ' + rates[0]) + ' after 1.8 s · ' + rates.length + ' reads · landed ' + rates[rates.length - 1]);
+}
+await walkHome('');
 settleGates(await readSettle(), '');
 
 /* THE ROOM CHANGED HANDS WITH THE MUSIC. The seam cues the visual director on
@@ -498,6 +539,7 @@ R('the incoming deck is rolling before the blend can be heard', rolledInTime(s2)
 blendGates(s2, 'cued: ');
 R('cued: the beat lock holds inside its 40 ms contract', s2.m.phase != null && s2.m.phase < 40,
   s2.m.phase == null ? 'not measured' : s2.m.phase.toFixed(1) + ' ms');
+await walkHome('cued: ');
 settleGates(await readSettle(), 'cued: ');
 const left2 = await page.evaluate(() => ({ cue: !!MIXER._cue, poll: !!MIXER._cueT }));
 R('cued: nothing of the cue outlives the seam', !left2.cue && !left2.poll, JSON.stringify(left2));

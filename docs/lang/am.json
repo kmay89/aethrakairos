@@ -1745,6 +1745,7 @@
  "Play deck {d}": "ዴክ {d} አጫውት",
  "Play something first — the decks wake with the first track": "መጀመሪያ የሆነ ነገር አጫውት — ዴኮቹ ከመጀመሪያው ትራክ ጋር ይነቃሉ",
  "SYNC needs a tempo on both decks": "SYNC በሁለቱም ዴኮች ላይ ቴምፖ ይፈልጋል",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} እና {s} BPM ከ ±8 % ውጭ ናቸው — በምትኩ ንኩ (nudge)",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} በ{bpm} ተመሳስሏል",
  "Sync deck {d} to the other deck": "ዴክ {d}ን ከሌላኛው ዴክ ጋር አመሳስል",
  "The set pinned this song to play in full — the fader waits for it": "ሴቱ ይህን ዘፈን ሙሉ እንዲጫወት ወስኗል — ፌደሩ ይጠብቀዋል",

@@ -28,9 +28,9 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' XFORM_KINDS, XFORM_MIN_DUR, segueFx, segueFxDur,' +
   ' smoothEnv, analyzeStructure, moodOf, structureCeiling, pickLens, segueStyle, segueShouldFire, pickStructure, dropPoints, nextDropAfter, sectionLabel, qualitySigKey, readQualityMemory, qualitySeed, writeQualityMemory, mixNarration, mixTechnique, stemsAt, stemRGB, STEM_PAL, STEM_OKLCH,' +
   ' SEGUE_BARS, SECTION_CHANGE, sectionChangeClass, LENS_HYST,' +
-  ' camelotParse, camelotCompat, tempoFoldRatio, planTransition, glideRates, driftTrim,' +
+  ' camelotParse, camelotCompat, tempoFoldRatio, SYNC_MAX_TEMPO, SYNC_VINYL_MAX, keyLockFor, planTransition, glideRates, SEAM_HOME_CENTS_PER_S, seamHomeSecs, seamHomeRate, driftTrim,' +
   ' mixMatchScore, chartSet, nextUp, energyArcBias, stemWindow, vocalClashBias,' +
-  ' equalPowerXfade, xfadeCurve, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
+  ' equalPowerXfade, xfadeCurve, seamOutHold, seamLeadAvail, seamPhaseTrim, seamPhaseErr, seamTake, seamNudge, seamBuffered, seamStreamReady, seamDeferBar, seamEntry, seamLeadFor, SEAM_LEAD, BEATMIX_LEAD,' +
   ' SEAM_CUE_S, SEAM_CUE_MIN, SEAM_CUE_TOL, SEAM_CUE_LAT, seamCueTarget, seamCuePoint, seamCueDue, seamCueStep, seamCueHolds, seamCueLearn,' +
   ' SEAM_SCENE, seamSceneCue, pinchDolly, ndcOf,' +
   ' XFADER_CUT_EDGE, XFADER_PARK, FADER_IDLE_S, xfaderGains, xfaderPosFromSeam, xfaderPosFromGains, xfaderArbiter, syncRateFor, faderIdleStop, XFADER_HOME, xfaderHeld, xfaderAutoTo, XFADER_STEP_ASIDE, xfaderCancelMode, deckSlot, seamPitchCarry, XF_DBL_MS, XF_DBL_REACH, xfaderDoubleTap, boothFaderKey,' +
@@ -97,8 +97,8 @@ const code = block('pure') + '\n' + block('dmx') + '\n' + block('solver') + '\n'
   ' lavaCohesion, lavaRestDensity, lavaRestGrad, lavaCohesionScale, lavaBudget,' +
   ' makeLava, lavaNeighbours, lavaConfine, lavaStep, lavaWallDensity, lavaDensityError,' +
   ' LIMITER, dbToLin, linToDb, interPeak, makeLimiter, limiterProcess, limiterWorkletSource, BAND_HZ, bandBins,' +
-  ' VINYL_REV_SEC, VINYL_RING_SEC, VINYL_RAMP_SEC, PLATTER, makePlatter, platterStep, platterHandRate, platterDelta, hermite4,' +
-  ' platterHandFollow, makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylWorkletSource,' +
+  ' VINYL_REV_SEC, VINYL_RING_SEC, VINYL_RING_IOS_SEC, VINYL_RAMP_SEC, PLATTER, makePlatter, platterStep, platterHandRate, platterDelta, hermite4, vinylThrowSpeed, VINYL_INPUT_PERIOD, vinylBackLead,' +
+  ' platterHandFollow, makeVinyl, vinylRead, vinylProcess, vinylCommand, vinylSnap, vinylWorkletSource,' +
   ' VINYL_CUT_SEC, vinylReadAir, vinylToneK, vinylCutSpec, vinylScriptStep, vinylScriptCut, vinylScriptBlock, vinylSnap, VINYL_PRESETS, vinylPresetSteps, vinylLanding, vinylNextLine, VINYL_SONG_LOW_SR,' +
   ' WAVE_V, WAVE_HZ, WAVE_SR, WAVE_TILT, WAVE_PLANES, WAVE_MIPS, waveBiquad, wavePct, waveDetail, waveQuant, waveFromEnv, waveRange, waveGrid, waveBeatPos, waveWorkerSource,' +
   ' waveTrailMean, waveTrailMax, waveTilt, waveMip, waveNorm, wavePack, waveLevel, waveRangeAt, waveFoldPeaks, waveOnsets, waveBandColours, waveTiltAt, waveTiltLUT, waveGridStyle, waveDeckTime, waveRateStep, waveClock,' +
@@ -637,13 +637,45 @@ test('beatmix geometry: bar-aligned start, overlap fits, eight beats by default'
   assert.equal(shortRegion.beats, 8, 'regions clamp the blend');
 });
 
-test('the master tempo curve glides and lands', () => {
-  const g0 = S.glideRates(126, 120, 0), g1 = S.glideRates(126, 120, 1);
-  assert.ok(Math.abs(g0.rateA - 1) < 1e-9, 'A starts untouched');
-  assert.ok(Math.abs(g1.rateB - 1) < 1e-9, 'B lands untouched');
-  assert.ok(g1.rateA < 1 && g0.rateB > 1, 'both stretch toward each other');
+test('the record on air never moves: A holds, B is matched to it throughout, and comes home afterwards at a walking pace', () => {
+  const g0 = S.glideRates(126, 120, 0), g1 = S.glideRates(126, 120, 1), gh = S.glideRates(126, 120, 0.5);
+  assert.ok(g0.rateA === 1 && g1.rateA === 1 && gh.rateA === 1, 'A is untouched at every f (it used to slide to B\'s tempo as it faded)');
+  assert.ok(Math.abs(g0.rateB - 126 / 120) < 1e-9 && Math.abs(g1.rateB - 126 / 120) < 1e-9, 'B is pitched to A for the whole blend');
   const half = S.glideRates(140, 70, 1);
-  assert.ok(Math.abs(half.rateB - 1) < 1e-9, 'half-time glide respects the fold');
+  assert.ok(Math.abs(half.rateB - 1) < 1e-9, 'half-time: the fold makes 70 and 140 one tempo');
+  assert.ok(Math.abs(S.glideRates(124, 126, 0).rateB / S.glideRates(124, 126, 0).rateA - 124 / 126) < 1e-12, 'the ratio the phase lock reads is what it was');
+  // the way home: ten cents a second, geometric, never under a second, nothing for nothing
+  assert.equal(S.SEAM_HOME_CENTS_PER_S, 10);
+  const from = 126 / 120, cents = 1200 * Math.log2(1 / from);
+  assert.ok(Math.abs(S.seamHomeSecs(from, 1) - Math.abs(cents) / 10) < 1e-9, '84 cents: 8.4 s');
+  assert.equal(S.seamHomeSecs(1.0002, 1), 0, 'a third of a cent is nothing'); assert.equal(S.seamHomeSecs(1.003, 1), 1, '…and five cents is still a second');
+  assert.equal(S.seamHomeRate(from, 1, 0), from); assert.equal(S.seamHomeRate(from, 1, 1), 1); assert.equal(S.seamHomeRate(from, 1, 2), 1, 'clamped');
+  assert.ok(Math.abs(1200 * Math.log2(S.seamHomeRate(from, 1, 0.5) / from) - cents / 2) < 1e-9, 'half way in cents at half time');
+  // wired: finish starts it, update ticks it, a hand, a seam and the cancel's retune drop it; the on-air record holds its own pitch through the seam
+  assert.match(html, /this\._homeStart\(nd, deckRate\(SPEED\.rate \* DECKS\.pitch\(AE\.decks\.indexOf\(nd\)\)\)\);\s*if \(nd\.shelf\)/, 'finish: the way home, and no lock write before it lands');
+  // the landing writes the one key-lock rule's pitch mode (at 1× inaudible; switched on at a rate still 3 % off it was a half-semitone step)
+  assert.match(html, /if \(u >= 1\)\{ this\._home = null; this\._homeLock\(h\.d\); \}/, '_homeTick lands');
+  // the way home ends WHERE IT IS: the rate as it stands becomes a carried ratio (synced by it), never a step of the gap left
+  assert.match(html, /_homeDrop\(d\)\{[\s\S]{0,400}DECKS\.carry\(i, \(h\.d\.a\.playbackRate \|\| h\.to\) \/ \(h\.speed \|\| 1\)\);[^\n]*\n\s*this\._homeLock\(h\.d\);/, '_homeDrop carries the ratio to the speed the walk was composed with');
+  assert.match(html, /this\._home = \{ d, from, to, t0: performance\.now\(\), secs, speed: SPEED\.rate \|\| 1 \};/, 'the walk remembers its speed (a tap has moved SPEED.rate by the time the drop runs: dividing by the new speed swallowed the tap)');
+  assert.ok(!/_homeDrop\(d\)\{[\s\S]{0,600}playbackRate = /.test(html), '_homeDrop writes no rate');
+  assert.match(html, /carry\(i, ratio\)\{[\s\S]{0,300}s\.pitch = r; s\.synced = Math\.abs\(r - 1\) > 1e-6;/, 'DECKS.carry: the ratio is a sync');
+  assert.match(html, /DECKS\.carry\(i, r \/ \(SPEED\.rate \|\| 1\)\);/, 'the hand-mode cancel carries the same way');
+  assert.match(html, /this\._homeLock\(d\); return; \}/, 'a way home of no length');
+  assert.match(html, /_homeLock\(d\)\{[^}]*keyLockFor\(SPEED\.keyLock, SPEED\.rate, s && s\.synced, s && s\.pitch\)/, '_homeLock is the rule');
+  // a speed or key-lock tap during the way home ends it (the tick would write the old speed back next frame and land on it)
+  assert.match(html, /if \(typeof MIXER !== 'undefined' && MIXER\._home && !seam\) MIXER\._homeDrop\(\);\s*\/\/[^\n]*\n\s*if \(seam\) MIXER\._seamLocks\(\);\s*if \(AE\.decks && !seam\) AE\.decks\.forEach/, 'SPEED.apply drops it (and mid-seam writes the blend\'s pitch modes)');
+  assert.match(html, /this\._homeTick\(\);\s*\/\/ the incoming record of the last seam, on its way home/, 'update');
+  // a cue the hand moved after the plan was made re-plans the seam (fire() places B from the plan's entry, not the slot's cue)
+  assert.match(html, /plan\.cueAt = held \? hs\.cue : null;\s*\/\/[^\n]*\n\s*this\.plan = plan;/, 'the plan remembers its cue');
+  assert.match(html, /if \(this\.plan && this\.plan\.cueAt != null && hs\.owner === 'hand' && hs\.cue !== this\.plan\.cueAt\)\{ this\.cancel\('replan'\); return; \}/, 'update re-plans');
+  // a hand scratching the record going out loses it at finish: its focus moves on
+  assert.match(html, /od\.a\.pause\(\);\s*\/\/[^\n]*\n\s*if \(typeof DECKS !== 'undefined'\)\{ const oi = AE\.decks\.indexOf\(od\); if \(DECKS\.focus === oi && DECKS\.slots\[oi\] && DECKS\.slots\[oi\]\.owner !== 'hand'\) DECKS\.focus = -1; \}/, 'finish');
+  assert.equal((html.match(/this\._homeDrop\(\);/g) || []).length, 2, 'fire and the retune');
+  // the way home ends under a hand on THAT platter (VINYL engage), never under a filter tweak or a pad (DECKS.hand is every booth control: that stepped the record on air, lock off, mid-glide)
+  assert.match(html, /hand\(\)\{ this\._handAt = performance\.now\(\); \},/, 'DECKS.hand is a stamp only');
+  assert.match(html, /engage\(oneShot\)\{\s*\/\/[^\n]*\n\s*if \(typeof MIXER !== 'undefined' && MIXER\._home\) MIXER\._homeDrop\(this\.deck\(\)\);/, 'the platter\'s engage drops its own deck\'s way home');
+  assert.match(html, /k = seamPitchCarry\(this\._pA, 0\);\s*\/\/ the on-air record holds its own pitch too/, '_applyRates');
 });
 
 test('drift trim is proportional, clamped, and signed right', () => {
@@ -3569,6 +3601,48 @@ test('updateGate: a person using the app is not a quiet room — no reload under
   // the listener's own wish still fires at its boundary, busy or not
   assert.equal(S.updateGate({ ready: true, armed: 'afterTrack', playing: false, busy: true, touchedAgo: 0, now: 0 }), 'apply');
 });
+test('updateGate: a DJ in the booth is not a quiet room, and a hidden page never swaps itself', () => {
+  const idle = { ready: true, playing: false, quietFor: 9e9, touchedAgo: 9e9, now: 0 };
+  assert.equal(S.updateGate(idle), 'apply', 'the baseline');
+  /* the report: "the browser refreshes the page" — a set paused between records
+     with the booth open (busy never counted the booth), and an iPhone back from
+     a pocket, where the lock had paused the audio and the quiet clock ran */
+  assert.equal(S.updateGate(Object.assign({}, idle, { booth: true })), 'wait', 'the booth open, records on the decks, a platter in hand: a person');
+  assert.equal(S.updateGate(Object.assign({}, idle, { hidden: true })), 'wait', 'a hidden page is not an idle room');
+  assert.equal(S.updateGate(Object.assign({}, idle, { booth: false, hidden: false })), 'apply');
+  // the listener's own wish fires at its boundary — but never in a pocket or under a DJ's hands: a system pause reads as 'not playing'
+  assert.equal(S.updateGate({ ready: true, armed: 'afterTrack', playing: false, booth: true, hidden: false, now: 0 }), 'wait', 'after this track, in the booth: waits');
+  assert.equal(S.updateGate({ ready: true, armed: 'afterTrack', playing: false, trackChanged: true, booth: false, hidden: true, now: 0 }), 'wait', 'after this track, hidden (a call paused it): waits');
+  assert.equal(S.updateGate({ ready: true, armed: 'afterTrack', playing: false, trackChanged: true, booth: false, hidden: false, now: 0 }), 'apply', '…and lands at the first poll with the page visible and the booth at rest');
+  // the inputs are wired, and boothInUse reads every hand the booth can have
+  assert.match(html, /booth: boothInUse\(\),\s*hidden: !!document\.hidden,/, 'autoApplyVerdict feeds both');
+  const bi = html.indexOf('function boothInUse(){');
+  const body = html.slice(bi, bi + 1200);
+  for (const k of ['BOOTH.open', "s.owner === 'hand'", 'VINYL.engaged', 'LOOPER.engaged()', 'FX.loop', "MIXER.phase === 'running'", "DECKROUTE.phase !== 'direct'"])
+    assert.ok(body.includes(k), 'boothInUse reads ' + k);
+});
+test('the update flow in the player: the quiet is counted from boot, coming back is a touch, a hand\'s record is music', () => {
+  const up = html.slice(html.indexOf('const UPDATE = {'), html.indexOf('const UPDATE = {') + 4000);
+  assert.match(up, /_bootAt: Date\.now\(\),\s*_lastTouchAt: Date\.now\(\),[^\n]*\n\s*_lastPlayingAt: Date\.now\(\),/, 'a fresh page is quiet SINCE BOOT, not quiet forever (it reloaded itself seconds after painting)');
+  const av = html.slice(html.indexOf('function autoApplyVerdict(){'), html.indexOf('function autoApplyVerdict(){') + 1600);
+  assert.match(av, /const rolling = !!player\.playing \|\| \(typeof DECKS !== 'undefined' && !!DECKS\.handRolling\(\)\);\s*if \(rolling\) UPDATE\._lastPlayingAt = Date\.now\(\);/, 'a record rolling by hand stamps the quiet clock');
+  assert.match(av, /playing: rolling,/, '…and reads as playing');
+  assert.match(html, /window\.addEventListener\('pointermove', \(\) => \{ const n = Date\.now\(\); if \(n - UPDATE\._lastTouchAt > 1000\) UPDATE\._lastTouchAt = n; \}, \{ passive: true, capture: true \}\);/, 'a hand that never lifts is still a hand');
+  assert.match(html, /document\.addEventListener\('visibilitychange', \(\) => \{ if \(!document\.hidden\) UPDATE\._lastTouchAt = Date\.now\(\); \}\);\s*window\.addEventListener\('pageshow', \(\) => \{ UPDATE\._lastTouchAt = Date\.now\(\); \}\);/, 'coming back to the page is a touch: a minute of visible quiet before any swap');
+  assert.match(html, /if \(!UPDATE\.deferrals && Date\.now\(\) - UPDATE\._bootAt >= UP_TOUCH_MS\) toast\(T\('A new version is ready/, 'an offer that arrives with the boot is the badge, not a toast');
+  assert.match(html, /#booth,#plList,#libList,#crateBody,\.pn-panel,\.act-list,#langGate \.lg-card\{overscroll-behavior:contain\}/, 'a panel\'s scroll never chains to the document (iOS pull-to-refresh)');
+  // a return to the page re-checks the origin at most once a quarter hour (the worker revalidates the 4 MB shell each time)
+  assert.match(html, /const UP_CHECK_GAP_MS = 15 \* 60 \* 1000;/);
+  // every surface a person can be reading or playing in is 'busy' (the console, the piano, the echo, the rig, the crate, a break prompt — a page read idle under an open console and reloaded); MIDI play is a touch
+  assert.match(html, /\|\| open\('console'\) \|\| open\('piano'\) \|\| open\('echoPanel'\) \|\| open\('rig'\) \|\| open\('crate'\) \|\| open\('breakPrompt'\);/, 'appInUse');
+  assert.match(html, /_midiEvent\(e\)\{\s*if \(typeof UPDATE !== 'undefined'\) UPDATE\._lastTouchAt = Date\.now\(\);/, 'a MIDI key is a touch');
+  assert.match(html, /const checkOnReturn = \(\) => \{ if \(Date\.now\(\) - \(UPDATE\._checkedAt \|\| 0\) >= UP_CHECK_GAP_MS\) checkForUpdate\(\); \};/);
+  assert.match(html, /_lastPlayingAt: Date\.now\(\),[^\n]*\n\s*_checkedAt: Date\.now\(\),/, 'the launch counts as the last check: a return seconds after boot does not fetch the shell again');
+  assert.match(html, /function checkForUpdate\(\)\{\s*UPDATE\._checkedAt = Date\.now\(\);/);
+  // the pressing's gate: two gigabytes or less presses nothing; under four, or an iPhone that says nothing, presses at the low rate (no longer dead code)
+  assert.match(html, /if \(mem != null && isFinite\(mem\) && mem <= 2\)\{ this\._song = \{ key, state: 'failed', sr: 0 \}; return; \}\s*const low = \(IS_IOS && mem == null\) \|\| \(mem != null && isFinite\(mem\) && mem < 4\);/);
+  assert.match(html, /const tsr = vinylSongRate\(dur, low \? VINYL_SONG_LOW_SR : 0\);/);
+});
 test('updateGate: SHOW mode is never yanked, even paused', () => {
   assert.equal(S.updateGate({ ready: true, playing: false, quietFor: 9e9, show: true, now: 0 }), 'wait');
 });
@@ -5151,6 +5225,249 @@ test('equalPowerXfade: constant acoustic power across the whole blend', () => {
   assert.deepEqual(S.equalPowerXfade(2), S.equalPowerXfade(1), 'clamps above 1');
 });
 
+test('seamOutHold: A at its trim is held as before; A mid-glide is ramped onto the trim across the lead-in, never stepped', () => {
+  // at the trim: exactly the old hold
+  assert.deepEqual(S.seamOutHold(0.8, 0.8, 10, 10.45), { ev: [['set', 0.8, 10]], from: 0.8 });
+  assert.deepEqual(S.seamOutHold(0.8004, 0.8, 10, 10.45).ev, [['set', 0.8, 10]], 'inside a thousandth: the old hold');
+  // mid-glide from a take's unity: held where it is, ramped to the trim, ending before the curve at t0
+  const g = S.seamOutHold(1, 0.56, 10, 10.45);
+  assert.deepEqual(g.ev[0], ['set', 1, 10], 'held at its own level, not stepped to 0.56');
+  assert.equal(g.ev[1][0], 'ramp'); assert.equal(g.ev[1][1], 0.56);
+  assert.ok(g.ev[1][2] < 10.45 && g.ev[1][2] > 10, 'the ramp ends inside the lead-in, before the curve');
+  assert.equal(g.from, 0.56, 'the out-curve is the trim\'s, as before');
+  // no lead to ramp in (a gapless seam): the out-curve starts from where A is
+  const z = S.seamOutHold(1, 0.56, 10, 10.01);
+  assert.deepEqual(z, { ev: [['set', 1, 10]], from: 1 });
+  // an unreadable value falls back to the trim
+  assert.deepEqual(S.seamOutHold(NaN, 0.7, 5, 5.5), { ev: [['set', 0.7, 5]], from: 0.7 });
+  // fire() clamps tNow to the seam's origin: with t0 === tNow every event sits AT t0, never inside the curve's window
+  for (const v of [0.56, 1]){
+    const h = S.seamOutHold(v, 0.56, 7, 7);
+    assert.ok(h.ev.every(([, , at]) => at <= 7), 'no hold event lands after the curve starts');
+  }
+});
+test('MIXER.fire: the incoming deck takes its own record\'s trim; the hold sits at the seam\'s origin; a schedule that threw still crossfades', () => {
+  const f0 = html.indexOf('  fire(now){');
+  const body = html.slice(f0, f0 + 26000);
+  const nAt = body.indexOf('nd.norm = normLin(B);'), curveAt = body.indexOf("xfadeCurve(nd.norm || 1, 'in', N)");
+  assert.ok(nAt > 0 && curveAt > nAt, 'nd.norm is the incoming record\'s before the in-curve is scaled by it (auto seams played at unity or a stale trim)');
+  // …and from the moment the record takes the deck, so a hand starting the armed or cued deck itself opens it at the right level
+  const pl = html.indexOf('  _preload(B, plan, seekOnly){');
+  const plBody = html.slice(pl, pl + 6000);
+  assert.ok(plBody.indexOf('nd.norm = normLin(B);') > plBody.indexOf('ws.trackIdx = player.tracks.indexOf(B);'), '_preload trims the deck as it seats the record');
+  const se = html.indexOf('  _seat(nd, B){');
+  assert.match(html.slice(se, se + 300), /nd\.norm = normLin\(B\);/, '_seat trims it too');
+  // nothing is loaded into a deck the transport is still fading out (it cut the outgoing record dead)
+  assert.match(html, /if \(AE\.xfading\) return;\s*if \(d\.a\.duration - t < 90 && player\.hasNext\(\)\) this\.arm\(\);/, 'MIXER.update arms nothing during a transport crossfade');
+  const tm = html.indexOf('  tryMixNow(){');
+  assert.match(html.slice(tm, tm + 1800), /if \(AE\.xfading\) return false;/, 'tryMixNow plans nothing onto a retiring deck');
+  // a pause during a take re-takes at once: a kept EQ press rides it
+  const op = html.indexOf('  onPause(){');
+  assert.match(html.slice(op, op + 2200), /this\.abortTake\('pause'\);\s*if \(BOOTH\.open\) this\.take\('pause'\);\s*if \(eq && this\.phase === 'taking' && \(eq\.lo \|\| eq\.mid \|\| eq\.hi\)\)\{ Object\.assign\(FX\.eq, eq\);/);
+  assert.match(body, /const tNow = Math\.min\(AE\.ctx\.currentTime, t0\);/, 'the hold never lands inside the curve (Chromium threw, freezing both gains)');
+  assert.match(html, /if \(AE\.graphLive && this\.audioT0 != null\) this\.lastF = f; else this\.setVolumes\(f\);/, 'run() crossfades by frame when the scheduled curves threw');
+  // the take's kept EQ press goes with a take that is called off; the FX bank answers a take in flight with the booth's word
+  const ab = html.indexOf('  abortTake(why){');
+  assert.match(html.slice(ab, ab + 600), /FX\.eq\.lo = FX\.eq\.mid = FX\.eq\.hi = 0; try \{ FX\.applyEq\(\); \} catch \(e\)\{\}/);
+  const fw = html.indexOf('function fxDeadWord(){');
+  assert.match(html.slice(fw, fw + 400), /DECKROUTE\.phase === 'taking'\) return T\('Deck B is joining — matching the record on air…'\);/);
+  assert.equal((html.match(/if \(!FX\.live\(\)\)\{ toast\(fxDeadWord\(\)\); return; \}/g) || []).length, 2, 'both FX refusals use it');
+});
+test('the tempo gates are one number: SYNC refuses beyond it, the vinyl ride is the 1× listener\'s only, the hand\'s Q stays on its side, the cut fader is a switch', () => {
+  assert.equal(S.SYNC_MAX_TEMPO, 0.08); assert.equal(S.SYNC_VINYL_MAX, 0.03);
+  // every matcher reads the one constant (they used to carry their own 0.08)
+  assert.match(html, /Math\.abs\(r - 1\) > \(opts\.maxTempo \|\| SYNC_MAX_TEMPO\)/, 'planTransition');
+  assert.match(html, /o\.maxTempo == null \? SYNC_MAX_TEMPO : o\.maxTempo/, 'planMixNow');
+  assert.match(html, /\/ SYNC_MAX_TEMPO\) \* 0\.12;/, 'mixMatchScore');
+  // the hand's SYNC: 128 against 100 is +4.3 semitones — refused, untouched, with the numbers
+  const sy = html.slice(html.indexOf('  sync(slot){'), html.indexOf('  sync(slot){') + 2600);
+  assert.match(sy, /const ratio = syncRateFor\(mixM\.bpm, mixS\.bpm\);\s*if \(Math\.abs\(ratio - 1\) > SYNC_MAX_TEMPO\)\{ this\.syncWhy = 'range'; this\.syncBpm = \{ m: Math\.round\(mixM\.bpm\), s: Math\.round\(mixS\.bpm\) \}; return false; \}\s*s\.pitch = ratio; s\.synced = true;/);
+  assert.ok(Math.abs(S.syncRateFor(100, 128) - 1) > S.SYNC_MAX_TEMPO && Math.abs(S.syncRateFor(128, 124) - 1) <= S.SYNC_MAX_TEMPO, 'the fold decides');
+  assert.match(html, /DECKS\.syncWhy === 'range' \? T\('SYNC · \{m\} vs \{s\} BPM is outside ±8 % — nudge instead', DECKS\.syncBpm/, 'the booth says why');
+  // THE ONE KEY-LOCK RULE: the vinyl ride (preservesPitch off) only at the listener's 1×, and for a synced record only within 3 %
+  assert.equal(S.keyLockFor(true, 1, true, 1.02), false, 'synced, 1×, 2 %: vinyl');
+  assert.equal(S.keyLockFor(true, 1, true, 1.05), true, 'synced, 1×, 5 %: the lock stays (a semitone of vinyl is not a sound)');
+  assert.equal(S.keyLockFor(true, 1.25, true, 1.02), true, 'at 1.25× the lock stays whatever the ratio');
+  assert.equal(S.keyLockFor(true, 1, false, 1.02), true, 'not synced: the listener\'s lock');
+  assert.equal(S.keyLockFor(false, 1, true, 1.05), false, 'the listener has it off: off');
+  assert.equal(S.keyLockFor(true, 1, true, undefined), false, 'no pitch reads as 1: within the window');
+  assert.equal(S.keyLockFor(true, 1, true, 0.975), false); assert.equal(S.keyLockFor(true, 1, true, 0.96), true);
+  // …and every writer of a deck's pitch mode goes through it (two that disagreed flipped the record on air at a seam's first sample)
+  assert.match(html, /setPitchLock\(d\.a, keyLockFor\(this\.keyLock, this\.rate, s && s\.synced, s && s\.pitch\)\);/, 'SPEED.apply');
+  assert.match(html, /setPitchLock\(nd\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, sl && sl\.synced, sl && sl\.pitch\)\);\s*return true;/, '_seat');
+  assert.match(html, /const g = glideRates\(p\.bpmA, p\.bpmB, 0\), k = seamPitchCarry\(this\._pA, 0\);\s*this\._seamLocks\(\);\s*od\.a\.playbackRate = this\._lastRateA/, 'fire(): the blend\'s pitch modes (_seamLocks), no rate of the record on air touched');
+  assert.match(html, /_seamLocks\(\)\{[\s\S]{0,700}setPitchLock\(od\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, s && s\.synced, s && s\.pitch\)\);\s*setPitchLock\(nd\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, true, glideRates\(p\.bpmA, p\.bpmB, 0\)\.rateB \* seamPitchCarry\(this\._pA, 0\)\)\);/, '_seamLocks: the record on air by its slot, the incoming for its ratio');
+  // a speed or key-lock tap while a seam runs: the seam owns the rates, the pitch modes follow the new speed (a lock dropped for the 1× vinyl ride stayed off at 1.25×: a major third sharp)
+  assert.match(html, /if \(seam\) MIXER\._seamLocks\(\);\s*if \(AE\.decks && !seam\) AE\.decks\.forEach/, 'SPEED.apply mid-seam');
+  // the cancel's retune is the plain rule (a hand-mode cancel's carried ratio is synced, so the blend's pitch mode holds: no half-semitone step)
+  assert.match(html, /setPitchLock\(d\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, s\.synced, s\.pitch\)\);\s*\/\/ \(already equality-guarded/, 'the cancel\'s retune');
+  assert.match(html, /if \(!c\.rate\) setPitchLock\(c\.d\.a, keyLockFor\(SPEED\.keyLock, SPEED\.rate, true, ratio\)\);/, 'the pre-rolled cue, for the ratio it rolls at');
+  assert.ok(!/setPitchLock\([a-z]+\.a, false\)/.test(html), 'no writer drops a lock unconditionally');
+  assert.ok(!/setPitchLock\([a-z]+\.a, SPEED\.keyLock && !/.test(html), 'no writer keeps the old synced-only rule');
+  // the hand's Q goes to the side it sweeps; the parked side stays Butterworth (a +9.5 dB sub resonator otherwise)
+  assert.match(html, /d\._fxLast = d\._fxHand \? null : \{ lp: FILTER_OPEN, hp: L \? L\.hp : 0, qlp: L \? L\.qlp : 0, qhp: L \? L\.qhp : 0 \};/, 'seamOpen hands the tick its own shape (a {q} left both Q compares NaN: the hand\'s Q never written again after a filtered fade)');
+  assert.match(html, /const qLp = hand && hand\.x < 0 \? hand\.q : Math\.SQRT1_2, qHp = hand && hand\.x > 0 \? hand\.q : Math\.SQRT1_2;/);
+  assert.ok(!/d\.filter\.Q\.setTargetAtTime\(qd, now, tau\); d\.hp\.Q\.setTargetAtTime\(qd, now, tau\);/.test(html), 'one Q no longer lands on both');
+  // the CUT law's edge
+  assert.match(html, /this\.gainWrite\(d\.fader\.gain, gi, this\.fader\.curve === 'cut' \? 0\.0015 : 0\.006\);/);
+});
+test('the hand on the platter: a dropped hand re-takes the record, a still finger throws nothing, a hold-release lands where the tape will be, a re-grab survives the landing', () => {
+  // a still finger throws nothing
+  assert.equal(S.vinylThrowSpeed(5, 0), 5);
+  assert.ok(S.vinylThrowSpeed(5, 0.02) > 2 && S.vinylThrowSpeed(5, 0.02) < 5, 'twenty milliseconds keeps most of it');
+  assert.equal(S.vinylThrowSpeed(5, 0.06), 0, 'three frames still: a put-down');
+  assert.equal(S.vinylThrowSpeed(NaN, 0), 0); assert.equal(S.vinylThrowSpeed(3, -1), 0);
+  // the seek is aimed where the tape will be through the release ramp
+  assert.ok(Math.abs(S.vinylBackLead(0.3, 1) - 0.3) < 1e-9, 'already at speed: the whole latency');
+  const fromRest = S.vinylBackLead(0.3, 0);
+  assert.ok(fromRest > 0.3 - S.PLATTER.releaseTau && fromRest < 0.3, 'from a dead stop the tape covers ~a release tau less: ' + fromRest.toFixed(4));
+  assert.ok(Math.abs(S.vinylBackLead(0.3, 0) - (0.3 - S.PLATTER.releaseTau * (1 - Math.exp(-0.3 / S.PLATTER.releaseTau)))) < 1e-12, 'the closed form');
+  assert.equal(S.vinylBackLead(0, 0), 0);
+  // the rebase: the head goes to the live edge and the finger's place moves with it
+  const V = S.makeVinyl(48000, 2);
+  S.vinylCommand(V, { op: 'engage', gen: 1 }); V.written = 48000; V.pos = 48000 - 3 - 9000; V.gain = 1;
+  S.vinylCommand(V, { op: 'grab' }); S.vinylCommand(V, { op: 'handAt', x: 0.1 });
+  const before = { from: V.handFrom, to: V.handTo, pos: V.pos };
+  V.written = 60000;
+  S.vinylCommand(V, { op: 'rebase' });
+  assert.equal(V.pos, 60000 - 3, 'the head is at the live edge');
+  assert.equal(V.handFrom - before.from, V.pos - before.pos, 'the grab point moved with it');
+  assert.equal(V.handTo - before.to, V.pos - before.pos, 'and so did the finger\'s place (not cleared)');
+  // …and the hole behind it (the seek's silence, then pre-seek tape) is floored: a back-stroke stalls at its edge
+  assert.equal(V.floor, 60000 - 3, 'the floor is the rebase point');
+  assert.match(html, /const oldest = Math\.max\(0, w - cap \+ 4, S\.floor \|\| 0\);/, 'vinylProcess reads no older than the floor');
+  assert.ok(V.snapFrom === before.pos && V.snapU === 0, 'under the snap\'s own fade');
+  assert.equal(S.VINYL_RING_IOS_SEC, 12);
+  // wired: both grabs re-engage a dropped hand; the lift ages the speed; the landing rebases a held record; the latched brake restarts
+  assert.equal((html.match(/if \(!this\.engaged && !this\.engage\(!this\.armed\)\)\{ toast\(this\.why\(\)\); return false; \}/g) || []).length, 2, 'grab and grabLine');
+  assert.ok(!/if \(!this\.armed && !this\.engage\(true\)\)/.test(html), 'the hole is closed');
+  // the lift reads the up's own clock and forgives one input period: a frame-old last sample (no pointerrawupdate) is not a still finger
+  assert.equal(S.VINYL_INPUT_PERIOD, 0.017);
+  assert.match(html, /lift\(t\)\{[\s\S]{0,400}const v = vinylThrowSpeed\(p\.v, Math\.max\(0, \(\(t > 0 \? t : performance\.now\(\)\) - p\.t\) \/ 1000 - VINYL_INPUT_PERIOD\)\);/);
+  assert.ok(S.vinylThrowSpeed(3, Math.max(0, 0.0167 - S.VINYL_INPUT_PERIOD)) > 2.9, 'a flick read a frame late keeps its speed');
+  assert.match(html, /const to = Math\.max\(0, this\._landing\(place\) \+ vinylBackLead\(this\._seekLat, this\.rate\)\);/);
+  assert.match(html, /if \(holding\(\)\)\{ this\.post\(\{ op: 'rebase' \}\); return; \}\s*this\.drop\(\);/);
+  assert.match(html, /if \(idle && this\.mode === 'stopped'\)\{/, 'the stopped platter restarts, latched or one-shot');
+  assert.match(html, /this\.lag > \(this\.song\(\) \? VINYL_RING_SEC : VINYL\.ringSec\(\)\) - 3/, 'the reach is the ring\'s real length');
+  assert.match(html, /processorOptions: \{ seconds: VINYL\.ringSec\(\) \}/);
+  // the hand's samples come unaligned where the browser offers them, and are never fed twice
+  assert.match(html, /const rawFeed = 'onpointerrawupdate' in window;/);
+  assert.match(html, /if \(rawFeed\) cv\.addEventListener\('pointerrawupdate', ev => \{ const dk = jogs\.get\(ev\.pointerId\); if \(dk != null\) feed\(ev, dk\); \}\);/);
+  assert.match(html, /const dk = jogs\.get\(ev\.pointerId\);\s*if \(dk != null\)\{\s*if \(!rawFeed\) feed\(ev, dk\);\s*ev\.preventDefault\(\);/, 'pointermove feeds only where raw updates do not');
+  // two fingers, two platters: a jog per pointer; the finger that lifts lifts ITS hand; a platter under a finger is that finger's
+  assert.match(html, /const jogs = new Map\(\);/); assert.ok(!/let jog = null/.test(html));
+  assert.match(html, /for \(const dk of jogs\.values\(\)\) if \(dk === j\.deck\) return;/, 'a second finger on the same platter is refused');
+  assert.match(html, /jogs\.delete\(ev\.pointerId\); VINYL\.for\(dk\)\.lift\(ev\.timeStamp\); VINYL\._cursor\(\);/, 'the lift is the finger\'s own, on its own clock');
+  // the booth closing lets go; a lost capture lifts; a cancel keeps a hand's focus
+  assert.match(html, /this\.releaseCues\(\);[^\n]*\n\s*VINYL\.drop\(\);/, 'BOOTH.toggle(false) drops every hand');
+  assert.match(html, /cv\.addEventListener\('lostpointercapture', ev => \{\s*if \(liftJog\(ev\)\) return;/, 'lostpointercapture lifts a scratch');
+  assert.match(html, /cv\.addEventListener\('pointercancel', up\);\s*cv\.addEventListener\('lostpointercapture', up\);[^\n]*\n\}/, '…and on the wave strip too');
+  assert.match(html, /if \(!this\.inHand\(this\.focus\)\) this\.focus = -1;/, 'settle keeps a focus on a deck in hand');
+  assert.equal((html.match(/this\.focus = slot;\s*\/\/ the cancel's settle looked before/g) || []).length, 1, 'play re-asserts');
+  assert.match(html, /s\.owner = 'hand'; this\.focus = slot; this\._gainTo\(d, d\.norm \|\| 1\);/, 'cue re-asserts');
+});
+test('a hand\'s cue is the entry: the planner takes it, the lead-in is what the deck holds before it, a fade enters there', () => {
+  const A = mkMixTrack(1), B = mkMixTrack(2, { mix: { bpm: 124, key: '8B' } });
+  const spb = 60 / 124;
+  const plain = S.planTransition(A, B), cued = S.planTransition(A, B, { startB: 60 });
+  assert.equal(plain.type, 'beatmix'); assert.equal(cued.type, 'beatmix');
+  assert.ok(Math.abs(cued.startB - 60) <= spb / 2 + 1e-9 && Math.abs(((cued.startB - 0.4) / spb) - Math.round((cued.startB - 0.4) / spb)) < 1e-6, 'the cue, on B\'s own grid: ' + cued.startB);
+  assert.ok(Math.abs(plain.startB - 0.4) < 1e-9, 'without a cue the mix-in, as before');
+  // the lead a parked deck can give: what is buffered before the cue in the range the cue sits in
+  const tr = pairs => ({ length: pairs.length, start: i => pairs[i][0], end: i => pairs[i][1] });
+  assert.equal(S.seamLeadAvail(tr([[0, 1.5], [60, 200]]), 60, 1), 0, 'a seek buffers forward: nothing before the cue');
+  assert.ok(Math.abs(S.seamLeadAvail(tr([[0, 1.5], [59.6, 200]]), 60, 1) - 0.4) < 1e-9, 'four tenths held: four tenths of lead');
+  assert.equal(S.seamLeadAvail(tr([[0, 200]]), 60, 1), 1, 'the whole file: the full lead');
+  assert.equal(S.seamLeadAvail(tr([[0, 50]]), 60, 1), 0, 'the cue not buffered at all');
+  assert.equal(S.seamLeadAvail([[0, 200]], 60, 1), 1, 'pairs work too');
+  assert.equal(S.seamLeadAvail(null, 60, 1), 0);
+  // a plan carrying its lead is believed by seamLeadFor; without one the defaults stand
+  assert.equal(S.seamLeadFor({ type: 'beatmix', startB: 60, lead: 0 }), 0);
+  assert.ok(Math.abs(S.seamLeadFor({ type: 'beatmix', startB: 60, lead: 0.4 }) - 0.4) < 1e-9);
+  assert.equal(S.seamLeadFor({ type: 'beatmix', startB: 60 }), S.BEATMIX_LEAD);
+  // wired: arm() and MIX NOW plan from the cue and carry the lead; a hand's record is parked at, and faded in from, its cue
+  assert.match(html, /albumSequential: isAlbumSequential\(A, B\), startB: held \? hs\.cue : undefined \}\)\);/, 'arm plans from the cue');
+  assert.match(html, /lead: BEATMIX_LEAD, startB: held \? hs\.cue : undefined \}\);/, 'the late re-plan too');
+  assert.equal((html.match(/if \(held && plan\.type === 'beatmix'\) plan\.lead = seamLeadAvail\(hd\.a\.buffered, plan\.startB, BEATMIX_LEAD\);/g) || []).length, 2, 'arm and MIX NOW carry the lead');
+  assert.match(html, /\(seekOnly && hs\.owner === 'hand' && hs\.cue > 0 \? hs\.cue : 0\);/, '_preload parks a hand\'s record at its cue for a fade');
+  assert.match(html, /: handCue;\s*\} catch \(e\)\{\}/, 'fire() enters a fade at the cue');
+});
+test('the platter follows where the finger IS: timestamped samples carry its speed; the head sits on a frame at 1×; a snap ramps from nothing', () => {
+  const sr = 48000, N = 128, dtB = N / sr;
+  const mk = () => { const S = S_.makeVinyl(sr, 24); S.engaged = true; S.gain = 1; S.written = sr * 10; S.pos = S.written - 3;
+    S_.vinylCommand(S, { op: 'feel', lead: 0.007, tau: 0.0035 }); S_.vinylCommand(S, { op: 'grab' }); return S; };
+  const S_ = S;
+  const inL = new Float32Array(N), out = new Float32Array(N);
+  // a finger moving steadily at 1× of music, sampled every 8 ms and delivered 3 ms late: with its times the record runs where the finger is
+  const lagOf = withTimes => {
+    const V = mk(); let t = 0; for (let b = 0; b < 60; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    const pos0 = V.pos; let next = 0, errs = [];
+    for (let b = 0; b < 400; b++){
+      // a sample made at `next` is received (and applied) at the next block boundary t ≥ next: a message cannot arrive before it was sent
+      // (the main thread's clock has an origin of its own — 7.3e6 ms here — so the offset has to be LEARNED; stamped on this clock the test passed a worklet that ignored it)
+      while (next <= t){ const x = (next - 0) * 1.0; const m = { op: 'handAt', x }; if (withTimes){ m.ts = next * 1000 + 7.3e6; m.now = m.ts + 0.2; } S_.vinylCommand(V, m, t); next += 0.008; }
+      S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB;
+      if (b > 150){ const fingerNow = t * 1.0; errs.push(fingerNow - (V.pos - pos0) / sr); }
+    }
+    return errs.reduce((a, e) => a + e, 0) / errs.length;
+  };
+  const plain = lagOf(false), timed = lagOf(true);
+  assert.ok(plain > 0.008, 'reported places alone: the record runs a lead behind the finger: ' + plain.toFixed(4) + ' s');
+  assert.ok(timed < plain - 0.006 && Math.abs(timed) < 0.004, 'with its times the record is carried to where the finger is: ' + timed.toFixed(4) + ' s behind (was ' + plain.toFixed(4) + ')');
+  // A PLANTED FINGER: the carry runs for one period, then the finger's frame moves to the record and the spring stops it where it is —
+  // never a spring-back (the old carry held 20 ms for 50 ms and then played 22 ms of music backwards at every stop)
+  { const V = mk(); let t = 0; for (let b = 0; b < 60; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    const from0 = V.handFrom; let x = 0, next = t; const samples = [];
+    for (let b = 0; b < 60; b++){                                           // a drag at 1× for 160 ms, sampled every 16.7 ms…
+      while (next <= t && samples.length < 9){ x = (next - samples[0] || 0); samples.push(next); S_.vinylCommand(V, { op: 'handAt', x: samples.length === 1 ? 0 : next - samples[0], ts: next * 1000 + 7.3e6, now: next * 1000 + 7.3e6 }, t); next += 0.0167; }
+      S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    assert.ok(Math.abs(V.handV / sr - 1) < 0.05, 'the finger\'s speed is read: ' + (V.handV / sr).toFixed(2) + '×');
+    assert.ok(Math.abs(V.handDt - 0.0167) < 0.002, 'and its period: ' + (V.handDt * 1000).toFixed(1) + ' ms');
+    const atPlant = V.pos; let minStep = Infinity, prev = V.pos;             // …then it plants (no more samples)
+    for (let b = 0; b < 60; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; minStep = Math.min(minStep, V.pos - prev); prev = V.pos; }
+    assert.ok(minStep >= 0, 'the record never plays backwards after the plant: the smallest block step was ' + minStep.toFixed(1) + ' frames');
+    assert.ok(V.pos - atPlant < 0.035 * sr && V.pos - atPlant > 0, 'it eases to a stop within a period and a lead of music: ' + ((V.pos - atPlant) / sr * 1000).toFixed(1) + ' ms');
+    assert.ok(V.handFrom > from0 && Math.abs(V.handTo - V.pos) < 1, 'the finger\'s frame moved to the record: its next deltas go on from where the record is');
+    assert.ok(Math.abs(V.hand) < 0.02, 'and the spring is at rest: ' + V.hand.toFixed(3)); }
+  // A STEADY DRAG rides the finger, not a staircase: the rate ripple across sixty blocks stays small (the carry saturating at a fixed 20 ms swung it 0.7–1.2× sixty times a second)
+  { const V = mk(); let t = 0; for (let b = 0; b < 60; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    let next = t; const t00 = t, rates = [];
+    for (let b = 0; b < 150; b++){
+      while (next <= t){ S_.vinylCommand(V, { op: 'handAt', x: next - t00, ts: next * 1000 + 7.3e6, now: next * 1000 + 7.3e6 + 2 }, t); next += 0.0167; }
+      S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; if (b > 60) rates.push(V.hand); }
+    const mean = rates.reduce((a, r) => a + r, 0) / rates.length, sd = Math.sqrt(rates.reduce((a, r) => a + (r - mean) ** 2, 0) / rates.length);
+    assert.ok(Math.abs(mean - 1) < 0.05 && sd < 0.15, 'a 1× drag at 60 Hz: mean ' + mean.toFixed(3) + '× · ripple ' + sd.toFixed(3)); }
+  // ONE TIME BASE: when the learned offset drops (an underrun: this clock loses ground), the last sample's time moves with it — a 30 ms drop made a 1× drag an 8× lunge for a sample
+  { const V = mk(); let t = 0; for (let b = 0; b < 60; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    let next = t; const t00 = t; let peak = 0, clk = 0;
+    for (let b = 0; b < 120; b++){
+      if (b === 60) clk = -0.030;
+      while (next <= t){ S_.vinylCommand(V, { op: 'handAt', x: next - t00, ts: next * 1000 + 7.3e6, now: next * 1000 + 7.3e6 + 2 }, t + clk); next += 0.0167; }
+      S_.vinylProcess(V, inL, inL, out, out, N, t + clk); t += dtB; if (b > 60) peak = Math.max(peak, Math.abs(V.handV / sr)); }
+    assert.ok(peak < 1.3, 'after a 30 ms clock drop the finger\'s speed still reads about 1×: peak ' + peak.toFixed(2) + '×'); }
+  // the learned offset creeps up a millisecond a second (a min that never rose aged every sample for good once this clock gained on the main one), and a grab forgets it
+  { const V = mk(); S_.vinylCommand(V, { op: 'handAt', x: 0, ts: 7.3e6, now: 7.3e6 }, 1.0); const off0 = V.clkOff;
+    for (let b = 0; b < Math.round(1 / dtB); b++) S_.vinylProcess(V, inL, inL, out, out, N, 1.0 + b * dtB);
+    assert.ok(Math.abs(V.clkOff - off0 - 0.001) < 1e-4, 'one second on: ' + ((V.clkOff - off0) * 1000).toFixed(2) + ' ms up');
+    S_.vinylCommand(V, { op: 'grab' }); assert.equal(V.clkOff, Infinity); assert.equal(V.handDt, 0); assert.equal(V.handAtT, -1); }
+  // THE HALF-BLOCK RAMP: a rate that moved is reached by the block's middle, not stepped at its edge (a block from rate 0 to 1 covers 96.5 frames, not 128)
+  { const V = mk(); S_.vinylCommand(V, { op: 'lift' }); V.platter.mode = 'motor'; V.platter.rate = 1; V.rateLast = 0; V.hand = null; V.snapFrom = -1; const p0 = V.pos;
+    S_.vinylProcess(V, inL, inL, out, out, N, 5.0);
+    const h = N >> 1; assert.ok(Math.abs((V.pos - p0) - ((h + 1) / 2 + (N - h))) < 1e-6, 'a block from 0 to 1×: ' + (V.pos - p0).toFixed(2) + ' frames (a step would be 128)'); assert.equal(V.rateLast, 1); }
+  // at 1× with nothing on it the head eases onto a frame: the read is the sample itself
+  { const V = mk(); S_.vinylCommand(V, { op: 'handAt', x: 0.0137 }); let t = 0;
+    for (let b = 0; b < 40; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    S_.vinylCommand(V, { op: 'lift' });
+    for (let b = 0; b < 1200; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }   // the motor's spin-up and its last fifth of a cent
+    assert.equal(V.platter.rate, 1, 'the motor arrives exactly');
+    assert.ok(Math.abs(V.pos - Math.round(V.pos)) < 1e-6, 'the head sits on a frame: fraction ' + (V.pos - Math.floor(V.pos)).toFixed(6)); }
+  // the ramp never carries a hand's rate across a snap
+  { const V = mk(); S_.vinylCommand(V, { op: 'handAt', x: -0.3 }); let t = 0;
+    for (let b = 0; b < 30; b++){ S_.vinylProcess(V, inL, inL, out, out, N, t); t += dtB; }
+    S_.vinylSnap(V); assert.equal(V.rateLast, V.platter.rate); }
+  assert.equal(S.PLATTER.handPeriod, 0.0167); assert.equal(S.PLATTER.handDtMin, 0.004); assert.equal(S.PLATTER.handDtMax, 0.025); assert.equal(S.PLATTER.handSlack, 0.006);
+  assert.ok(!/handAhead|handStill/.test(html), 'the fixed look-ahead and the 50 ms hold are gone');
+});
 test('xfadeCurve: monotonic, norm-scaled, correct endpoints per side', () => {
   const out = S.xfadeCurve(0.8, 'out', 32), inc = S.xfadeCurve(0.5, 'in', 32);
   assert.equal(out.length, 32); assert.equal(inc.length, 32);
@@ -11968,9 +12285,9 @@ test('the rack in the player: release walks FX_PARK, the gate is curves, the sea
                    // the LFO: stopped late, swapped under a duck, glided on drift
                    'this._lfoEnd(U, o, at);', 'if (live){ this._w(U.lfoG.gain, 0, 0.01); this._lfoStop(u, 0.05); }',
                    'U.lfo.frequency.setTargetAtTime(fxFlangeParams(this.amount, this.div, bpm).rateHz, AE.ctx.currentTime, 0.05);',
-                   'f.hp.Q.linearRampToValueAtTime(qDb(sw.qTop), tRel);', 'const qd = qDb(q); d.filter.Q.setTargetAtTime(qd, now, tau);',
+                   'f.hp.Q.linearRampToValueAtTime(qDb(sw.qTop), tRel);', 'd.filter.Q.setTargetAtTime(qDb(qLp), now, tau);', 'd.hp.Q.setTargetAtTime(qDb(qHp), now, tau);',
                    'this._gateAt = b ? gateAnchor(t, b.at, step) : t;', 'd._fxBrake = 400 + r * 20000;',
-                   'const a = fxFilterArbiter(hand, seam, brake), q = hand ? hand.q : Math.SQRT1_2;',
+                   'const a = fxFilterArbiter(hand, seam, brake);',
                    'd.filter.frequency.setTargetAtTime(a.lp, now, tau);', 'if (d._fxSched) continue;',
                    'p.exponentialRampToValueAtTime(to, t + fxEchoGlide(from, to));', 'conv.normalize = true;',
                    'const r = fxAutoStep(this._autoSt, o, barPhase, bars);', 'f.hp.frequency.exponentialRampToValueAtTime(sw.hzTop, tRel);',
@@ -12075,7 +12392,7 @@ test('the decks in the player: slots by identity, the restore onto the idle deck
   const mixer = html.slice(html.indexOf('const MIXER = {'), html.indexOf('/* hidden tabs get no rAF'));
   assert.ok(mixer.includes("this._pA = (typeof DECKS !== 'undefined') ? DECKS.pitch(AE.active) : 1;"), 'R13: the on-air pitch is read at fire');
   assert.ok(mixer.includes('od.a.playbackRate = this._lastRateA = deckRate(g.rateA * k * SPEED.rate);') && mixer.includes('nd.a.playbackRate = this._lastRateB = deckRate(g.rateB * k * SPEED.rate);'), 'R13: fire carries it');
-  assert.ok(mixer.includes('k = seamPitchCarry(this._pA, f);') && mixer.includes('const rA = deckRate(g.rateA * k * SPEED.rate), rB = deckRate(g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate);'), 'R13: the glide carries it home');
+  assert.ok(mixer.includes('k = seamPitchCarry(this._pA, 0);') && mixer.includes('const rA = deckRate(g.rateA * k * SPEED.rate), rB = deckRate(g.rateB * (1 + this.trim + (this._pull || 0)) * k * SPEED.rate);'), 'R13: the blend holds the on-air pitch (the incoming comes home in finish, through _homeStart)');
   assert.equal((mixer.match(/this\._lastRateA = this\._lastRateB = 1; this\._pA = 1;/g) || []).length, 2, 'R13: finish and cancel let it go');
   assert.ok(mixer.includes('const fresh = ws.rec !== had;') && mixer.includes('if (fresh){ const mB = mixOf(B); ws.cue = (mB && mB.in && mB.in.start) || 0; }'), 'R29: the auto-DJ\'s record gets its own cue');
   assert.ok(mixer.includes('if (fresh && nd.a.paused){\n      { const r = deckRate(SPEED.rate); try { if (nd.a.playbackRate !== r) nd.a.playbackRate = r; } catch (e){} }\n      setPitchLock(nd.a, SPEED.keyLock);'),
@@ -12894,7 +13211,7 @@ test('the cued deck in the player: parked by the warm, rolled silent, skipped by
   assert.ok(cancel.indexOf("this._uncue('cancel:'") < cancel.indexOf("if (this.phase === 'idle'){ syncMixHud(); return; }"), 'cancel parks the cue before anything else meets the deck');
   const uncue = mixer.slice(mixer.indexOf('  _uncue(why, o){'), mixer.indexOf('  _cueStop(){'));
   assert.ok(uncue.includes('d.a.pause();') && uncue.includes('d.a.currentTime = d._seekTo;'), 'paused and put back where the warm parked it');
-  assert.ok(uncue.includes('setPitchLock(d.a, SPEED.keyLock && !DECKS.slots[i].synced);'), 'its own rate and key lock back');
+  assert.ok(uncue.includes('setPitchLock(d.a, keyLockFor(SPEED.keyLock, SPEED.rate, DECKS.slots[i].synced, DECKS.slots[i].pitch));'), 'its own rate, and the one key-lock rule');
   const roll = mixer.slice(mixer.indexOf('  _cueRoll(nd, to){'), mixer.indexOf('  _cueRate(){'));
   assert.ok(roll.includes('DECKS.gainWrite(nd.gain.gain, 0, 0.002);') && roll.includes('DECKS.gainWrite(nd.fader.gain, 0, 0.002);'),
     'silent on both nodes, through the arbiter');
@@ -13012,7 +13329,7 @@ test('the mixer on held rates: the take seeks with the learned refill, and a pul
 test('a refused seam start holds the auto-DJ off that record: no re-arm, no commit/uncommit churn until a new record is on air', () => {
   const mx = html.slice(html.indexOf('const MIXER = {'), html.indexOf('const MIXER = {') + 200000);
   const up = mx.slice(mx.indexOf('  update(now, dt){'), mx.indexOf('  exitTime(dur, plan, track){'));
-  assert.ok(/if \(this\._holdRec && this\._holdRec === player\.tracks\[player\.cur\]\) return;\n\s+if \(d\.a\.duration - t < 90 && player\.hasNext\(\)\) this\.arm\(\);/.test(up), 'update() does not arm a held record');
+  assert.ok(/if \(this\._holdRec && this\._holdRec === player\.tracks\[player\.cur\]\) return;\n[\s\S]{0,900}?if \(d\.a\.duration - t < 90 && player\.hasNext\(\)\) this\.arm\(\);/.test(up), 'update() does not arm a held record');
   const rf = mx.slice(mx.indexOf('  _refused(od, nd){'), mx.indexOf('  setVolumes(f){'));
   assert.ok(rf.indexOf('this._holdRec = player.tracks[player.cur]') > rf.indexOf('player.uncommitMix();'), '_refused holds the record back on air (after the un-commit)');
   assert.ok(mx.includes("this._holdRec = player.tracks[player.cur] || null; this.cancel('unblessed');"), 'an unblessed start holds the same way');
@@ -13225,8 +13542,18 @@ test('the iPhone hand-back keeps its raise: no seam finish or take trim writes t
   // the EQ the pads show is on the rack the moment ensureCtx builds it
   assert.match(html, /AE\.graphLive = !IS_IOS;\s*\/\/[^\n]*\n\s*try \{ if \(typeof FX !== 'undefined'\) FX\.applyEq\(\); \} catch \(e\)\{\}/, 'ensureCtx applies the remembered EQ');
   // where the graph can never carry the music the EQ bank says so, as the FX bank does
-  assert.match(html, /if \(IS_IOS && !IOS_GRAPH\)\{ toast\(T\('The EQ needs the engine — on this device the music plays direct'\)\); return; \}/, 'the EQ pad refuses with a word');
-  assert.match(html, /const e = this\.EQS\[key\], dead = IS_IOS && !IOS_GRAPH;[\s\S]{0,300}lit = !dead &&/, 'and is painted dead, never lit');
+  // (on an iPhone that is the live route: no booth graph, a refused take, or no take yet — the FX bank's own rule)
+  assert.match(html, /if \(eqDeadNow\(\)\)\{ toast\(T\('The EQ needs the engine — on this device the music plays direct'\)\); return; \}/, 'the EQ pad refuses with a word');
+  assert.match(html, /const e = this\.EQS\[key\], dead = eqDeadNow\(\);[\s\S]{0,300}lit = !dead &&/, 'and is painted dead, never lit');
+  const ed = html.indexOf('function eqDeadNow(){');
+  assert.match(html.slice(ed, ed + 200), /if \(!IS_IOS \|\| AE\.graphLive\) return false;\s*return !\(IOS_GRAPH && typeof DECKROUTE !== 'undefined' && DECKROUTE\.phase === 'taking'\);/, 'dead only on an iPhone off the graph, and never while a take is joining (the tap that starts it is kept)');
+  // MIXER.fire holds A where it is (seamOutHold) rather than stepping it to the trim
+  assert.match(html, /const gA = od\.gain\.gain, hA = seamOutHold\(gA\.value, od\.norm \|\| 1, tNow, t0\);/, 'fire() uses the hold');
+  // the mixer arms nothing while the take's trim glide is still landing (a seam fired then stepped the deck to its trim)
+  assert.match(html, /TAKE_SETTLE_MS: 2000, _tookAt: 0,/, 'DECKROUTE carries the settle window');
+  const fT = html.indexOf('  _finishTake(){');
+  assert.match(html.slice(fT, fT + 200), /this\._tookAt = performance\.now\(\);/, '_finishTake stamps the take');
+  assert.match(html, /if \(this\.phase === 'idle' && typeof DECKROUTE !== 'undefined' && DECKROUTE\._tookAt > 0\s*&& performance\.now\(\) - DECKROUTE\._tookAt < DECKROUTE\.TAKE_SETTLE_MS\) return;/, 'MIXER.update waits it out before arming');
 });
 test('the route in the player: gated, opt-in, and today\'s code wherever it is not on', () => {
   assert.ok(html.includes('const IOS_GRAPH_DEFAULT = false;'), 'A4: the route ships off');

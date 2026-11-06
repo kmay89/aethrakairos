@@ -1745,6 +1745,7 @@
  "Play deck {d}": "Phát deck {d}",
  "Play something first — the decks wake with the first track": "Hãy phát gì đó trước — các deck thức dậy cùng bản nhạc đầu tiên",
  "SYNC needs a tempo on both decks": "SYNC cần tempo ở cả hai deck",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} so với {s} BPM nằm ngoài ±8 % — hãy nudge thay vào đó",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} đã khớp ở {bpm}",
  "Sync deck {d} to the other deck": "Đồng bộ deck {d} với deck kia",
  "The set pinned this song to play in full — the fader waits for it": "Set đã ghim bài này để phát trọn vẹn — fader chờ nó",

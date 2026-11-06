@@ -1745,6 +1745,7 @@
  "Play deck {d}": "เล่นเด็ค {d}",
  "Play something first — the decks wake with the first track": "เล่นอะไรสักอย่างก่อน — เด็คจะตื่นพร้อมเพลงแรก",
  "SYNC needs a tempo on both decks": "SYNC ต้องมีเทมโปทั้งสองเด็ค",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} กับ {s} BPM อยู่นอกช่วง ±8 % — ใช้ nudge แทน",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} จับคู่ที่ {bpm}",
  "Sync deck {d} to the other deck": "ซิงก์เด็ค {d} กับอีกเด็ค",
  "The set pinned this song to play in full — the fader waits for it": "เซ็ตปักหมุดให้เพลงนี้เล่นจนจบ — เฟดเดอร์รอมันอยู่",

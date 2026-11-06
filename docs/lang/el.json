@@ -1745,6 +1745,7 @@
  "Play deck {d}": "Αναπαραγωγή του deck {d}",
  "Play something first — the decks wake with the first track": "Παίξε πρώτα κάτι — τα deck ξυπνούν με το πρώτο κομμάτι",
  "SYNC needs a tempo on both decks": "Το SYNC χρειάζεται τέμπο και στα δύο deck",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} έναντι {s} BPM είναι εκτός ±8 % — κάνε nudge αντί γι’ αυτό",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} ταίριαξε στα {bpm}",
  "Sync deck {d} to the other deck": "Συγχρονισμός του deck {d} με το άλλο deck",
  "The set pinned this song to play in full — the fader waits for it": "Το set κάρφωσε αυτό το τραγούδι να παίξει ολόκληρο — το fader το περιμένει",

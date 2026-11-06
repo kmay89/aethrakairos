@@ -1745,6 +1745,7 @@
  "Play deck {d}": "پخشِ دک {d}",
  "Play something first — the decks wake with the first track": "اول چیزی پخش کن — دک‌ها با اولین قطعه بیدار می‌شوند",
  "SYNC needs a tempo on both decks": "SYNC به تمپو روی هر دو دک نیاز دارد",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} در برابر {s} BPM خارج از ±8 % است — به جای آن nudge کنید",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} روی {bpm} هماهنگ شد",
  "Sync deck {d} to the other deck": "هماهنگ‌کردنِ دک {d} با دکِ دیگر",
  "The set pinned this song to play in full — the fader waits for it": "ست این آهنگ را برای پخشِ کامل سنجاق کرده — فیدر منتظرش می‌ماند",

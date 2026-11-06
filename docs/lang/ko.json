@@ -1745,6 +1745,7 @@
  "Play deck {d}": "덱 {d} 재생",
  "Play something first — the decks wake with the first track": "먼저 뭔가 재생하세요 — 덱은 첫 트랙과 함께 깨어나요",
  "SYNC needs a tempo on both decks": "SYNC에는 두 덱 모두 템포가 필요해요",
+ "SYNC · {m} vs {s} BPM is outside ±8 % — nudge instead": "SYNC · {m} 대 {s} BPM은 ±8 % 범위 밖입니다 — 대신 너지(nudge)하세요",
  "SYNC · {deck} matched at {bpm}": "SYNC · {deck} {bpm}에 맞춤",
  "Sync deck {d} to the other deck": "덱 {d}을 다른 덱에 동기화",
  "The set pinned this song to play in full — the fader waits for it": "세트가 이 곡을 끝까지 틀도록 고정했어요 — 페이더는 기다려요",
