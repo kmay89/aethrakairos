@@ -265,7 +265,8 @@ rituals can be saved like any journey and re-dealt against a grown library.
 ## The mix engine — a mobile DJ that knows when not to
 
 Toggle **MIX** in the transport HUD and transitions stop being seams. The
-architecture is MixMeister's, reborn: every decision is made *ahead of
+architecture is a compiled mix, in the tradition of offline mix planners
+(MixMeister is the classic; no affiliation): every decision is made *ahead of
 playback* from publish-time metadata, and the runtime only executes.
 
 **At publish time** every track gets a `mix` block: a beat grid (an Ellis
@@ -614,7 +615,7 @@ An iTunes-density table of every track — title, album, time, BPM, key, energy
 against the track that's playing by the *same planner that performs the
 transition*, so a green "mix 32" is a promise, not a guess. Key chips are
 colored around the Camelot wheel; sort by any column (Match puts the safest
-next tracks on top, Serato-style); filter by anything. Per row: play now,
+next tracks on top, as DJ library software does); filter by anything. Per row: play now,
 **mix next** (commits it as the next track — the mixer plans the seam), and a
 heart. The footer holds the showcase button: **Chart a set from here** —
 30 min / 1 hr / 2 hr — which arranges the crate into one continuous line by

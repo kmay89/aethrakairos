@@ -68,6 +68,24 @@
     Strict-Transport-Security = "max-age=31536000"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    # powers the player never uses, refused outright, so nothing it loads
+    # could ever ask for them (the microphone and MIDI stay: the mic-reactive
+    # visual and the piano use them, always behind the browser's own prompt)
+    Permissions-Policy = "camera=(), geolocation=(), payment=(), usb=(), browsing-topics=()"
+
+# the self-hosted type (docs/fonts/): the files never change in place — a
+# new font version is a new file — so a month in the browser's cache is safe
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=2592000"
+
+# the notices are UTF-8 plain text (em dashes, ö): say so, or a browser
+# guesses Latin-1 and the credits arrive as mojibake
+[[headers]]
+  for = "/third-party-notices.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
 
 # the service worker must never be served stale, or updates stall
 [[headers]]
