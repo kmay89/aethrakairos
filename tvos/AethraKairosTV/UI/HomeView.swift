@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import CoreImage.CIFilterBuiltins
 
 /// The 10-foot flow: the field is the app. The visualizer runs full-bleed at
 /// the root, the zen HUD floats over it, and the shelves are a frosted overlay
@@ -33,6 +34,10 @@ struct HomeView: View {
     // The Stage screen, reached from the shelves' STAGE entry — the TV joins a
     // booth's wire and renders the field from its packet, playing no audio.
     @State private var showStage = false
+    /// Settings → PRIVACY & CREDITS: the policy in short, its address as a QR
+    /// code, the copyright and the credits (App Review 5.1.1 wants the policy
+    /// reachable inside the app, not only on the product page).
+    @State private var showAbout = false
     /// The welcome was reopened from SETTINGS (so it sits over the app, and
     /// Menu closes it). On a first launch it is the app's root, and Menu at a
     /// root belongs to tvOS: it goes to the Home Screen (App Review checks).
@@ -78,7 +83,7 @@ struct HomeView: View {
             // dimmed backdrop there, and the GPU it frees keeps the glass and
             // every focus animation over it at a full 60.
             VisualizerView(player: player, roomStep: roomStep, roomName: $roomName,
-                           paused: scenePhase != .active || showConsole || showStage,
+                           paused: scenePhase != .active || showConsole || showStage || showAbout,
                            lowPower: !introSeen || shelvesShown,
                            purge: scenePhase == .background)
                 .ignoresSafeArea()
@@ -117,6 +122,9 @@ struct HomeView: View {
         }
         .fullScreenCover(isPresented: $showStage) {
             StageView(isPresented: $showStage)
+        }
+        .fullScreenCover(isPresented: $showAbout) {
+            AboutPanel(isPresented: $showAbout)
         }
         .onChange(of: catalogStore.catalog) { _, catalog in
             // a mood that was waiting on the library plays now
@@ -328,6 +336,13 @@ struct HomeView: View {
                     .foregroundStyle(Color.akDim.opacity(0.8))
                     .padding(.top, 36)
                     .entrance(entered, delay: 1.2)
+                // the photosensitivity notice: said once, plainly, where the
+                // light is first promised, with the way to turn it down
+                Text("The light shows flash and change brightness with the music. Sensitive to flashing light? Turn on Reduce Flashing in Settings.")
+                    .font(.system(size: 16))
+                    .foregroundStyle(Color.akDim.opacity(0.75))
+                    .padding(.top, 12)
+                    .entrance(entered, delay: 1.3)
             }
             .padding(.horizontal, 100)
             .padding(.vertical, 40)
@@ -461,14 +476,23 @@ struct HomeView: View {
                 }
             }
             .frame(maxWidth: 860)
-            Button {
-                introReplay = true
-                withAnimation { introSeen = false }
-            } label: {
-                settingLabel("WELCOME", "See the intro again.")
-                    .frame(width: 500, alignment: .leading)
+            HStack(spacing: 30) {
+                Button {
+                    introReplay = true
+                    withAnimation { introSeen = false }
+                } label: {
+                    settingLabel("WELCOME", "See the intro again.")
+                        .frame(width: 500, alignment: .leading)
+                }
+                .buttonStyle(ShelfChipStyle())
+                Button {
+                    showAbout = true
+                } label: {
+                    settingLabel("PRIVACY & CREDITS", "What this app keeps, and who made what.")
+                        .frame(width: 500, alignment: .leading)
+                }
+                .buttonStyle(ShelfChipStyle())
             }
-            .buttonStyle(ShelfChipStyle())
         }
         .focusSection()
     }
@@ -815,4 +839,95 @@ private extension Color {
     static let akIce = Color(red: 110 / 255, green: 231 / 255, blue: 255 / 255)
     static let akBeat = Color(red: 255 / 255, green: 92 / 255, blue: 135 / 255)
     static let akGlassHard = Color(red: 10 / 255, green: 13 / 255, blue: 24 / 255).opacity(0.72)
+}
+
+// MARK: - privacy & credits
+
+/// The policy in short, where App Review (5.1.1) and a curious listener both
+/// look for it: inside the app. The full text lives at the address the QR
+/// code carries; this panel says the same things in fewer words and never
+/// anything the full policy does not.
+private struct AboutPanel: View {
+    @Binding var isPresented: Bool
+
+    static let policyURL = "https://aethrakairos.com/privacy"
+
+    var body: some View {
+        ZStack {
+            Color.akVoid.ignoresSafeArea()
+            HStack(alignment: .top, spacing: 90) {
+                VStack(alignment: .leading, spacing: 22) {
+                    Text("PRIVACY")
+                        .font(.system(size: 22, weight: .bold, design: .monospaced))
+                        .tracking(6)
+                        .foregroundStyle(Color.akIce)
+                    Text("Aethra Kairos collects no personal data.")
+                        .font(.system(size: 40, design: .serif))
+                        .italic()
+                        .foregroundStyle(Color.akInk)
+                    point("No account, no sign-in, no ads, no analytics, no tracking, and nothing sold or shared.")
+                    point("To play, this Apple TV downloads the music catalog from aethrakairos.com and the songs from media.aethrakairos.com. Like any web server, they see the request — including the network address it came from — only to deliver the file.")
+                    point("The songs you love, what you played and your settings are kept on this Apple TV only. Deleting the app deletes them.")
+                    point("Downloaded songs are cached on this Apple TV so they don't have to be fetched twice.")
+                    Text("CREDITS")
+                        .font(.system(size: 22, weight: .bold, design: .monospaced))
+                        .tracking(6)
+                        .foregroundStyle(Color.akIce)
+                        .padding(.top, 18)
+                    point("Music, light shows and code © 2026 ERRERlabs / Aethra Kairos. All rights reserved.")
+                    point("Light-show formulas credited to their authors, among them Inigo Quilez, Daniel White and Paul Nylander, Tom Lowe and Jos Stam. Full notices at aethrakairos.com/third-party-notices.txt.")
+                    point("Apple TV and Siri are trademarks of Apple Inc.")
+                }
+                .frame(maxWidth: 1040, alignment: .leading)
+
+                VStack(alignment: .center, spacing: 22) {
+                    if let qr = Self.qrImage(Self.policyURL) {
+                        Image(uiImage: qr)
+                            .interpolation(.none)
+                            .resizable()
+                            .frame(width: 300, height: 300)
+                            .padding(18)
+                            .background(Color.white, in: RoundedRectangle(cornerRadius: 18))
+                    }
+                    Text("The full policy")
+                        .font(.system(size: 20))
+                        .foregroundStyle(Color.akDim)
+                    Text("aethrakairos.com/privacy")
+                        .font(.system(size: 24, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Color.akInk)
+                    Button {
+                        isPresented = false
+                    } label: {
+                        Text("DONE")
+                            .font(.system(size: 24, weight: .semibold))
+                            .tracking(4)
+                            .frame(width: 260)
+                    }
+                    .padding(.top, 30)
+                }
+                .frame(width: 400)
+            }
+            .padding(.horizontal, 110)
+            .padding(.vertical, 80)
+        }
+        .onExitCommand { isPresented = false }
+    }
+
+    private func point(_ line: String) -> some View {
+        Text(line)
+            .font(.system(size: 23))
+            .foregroundStyle(Color.akDim)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// A QR code of `text`, one point per module (the view scales it up with
+    /// no interpolation, so the modules stay crisp).
+    static func qrImage(_ text: String) -> UIImage? {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(text.utf8)
+        filter.correctionLevel = "M"
+        guard let output = filter.outputImage,
+              let cg = CIContext().createCGImage(output, from: output.extent) else { return nil }
+        return UIImage(cgImage: cg)
+    }
 }

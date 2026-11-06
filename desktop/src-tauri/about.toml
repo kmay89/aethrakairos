@@ -1,0 +1,24 @@
+# cargo-about: the licences the Mac app's Rust dependencies may carry. All
+# permissive except MPL-2.0 (file-level copyleft: the crates are used
+# unmodified, and their source is public on crates.io). A crate under any
+# licence not listed here fails the generation — on purpose: a new kind of
+# licence is a decision, not a default.
+accepted = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "CDLA-Permissive-2.0",
+    "MPL-2.0",
+    "BSL-1.0",
+    "0BSD",
+    "CC0-1.0",
+    "Unlicense",
+]
+# the app itself is first-party, not a third-party notice
+private = { ignore = true }

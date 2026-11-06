@@ -32,6 +32,7 @@
     "active": true,
     "targets": ["app", "dmg"],
     "category": "Music",
+    "copyright": "© 2026 ERRERlabs / Aethra Kairos. All rights reserved.",
     "shortDescription": "The open-source label player.",
     "longDescription": "Aethra Kairos — a music player with a live, music-reactive visualizer. Free, in your browser or on your Mac, no login, ever.",
     "icon": [
@@ -41,6 +42,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": ["THIRD-PARTY-LICENSES.txt"],
     "createUpdaterArtifacts": false,
     "macOS": {
       "minimumSystemVersion": "10.15",

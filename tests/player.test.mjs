@@ -1139,6 +1139,37 @@ test('flash governor: a 30 Hz full-field strobe emerges under 3 flashes/sec', ()
   }
 });
 
+test('flash governor: no strobe frequency, at any depth, beats 3 flashes/sec', () => {
+  // The worst case is not the fastest strobe (the governor flattens that to
+  // a shimmer) but the one tuned to the rate: a square wave whose half-period
+  // just lets a 0.1 swing complete. Sweep every half-period from 1 to 60
+  // frames, at full, mid and shallow depth, and slide a 1 s window frame by
+  // frame. At the old rate (0.9) this found 4 flashes a second.
+  for (let h = 1; h <= 60; h++){
+    for (const [a, b] of [[0, 1], [0.3, 0.6], [0, 0.2]]){
+      const st = S.makeSafeColorState(1), tr = [];
+      for (let i = 0; i < 480; i++){
+        const v = Math.floor(i / h) % 2 ? b : a;
+        tr.push(S.relLuma(S.safeColorStep(st, [[v, v, v]], 1 / 60)[0]));
+      }
+      for (let w = 60; w + 60 <= tr.length; w++){
+        const f = S.countFlashes(tr.slice(w, w + 60));
+        assert.ok(f <= 3, `half-period ${h} frames, ${a}..${b}, window ${w}: ${f} flashes`);
+      }
+    }
+  }
+});
+
+test('countFlashes is not blind to a slow first leg (the hysteresis)', () => {
+  // a governed ramp moves a few thousandths a frame; the counter must still
+  // see a 0 → 0.5 → 0 → 0.5 → 0 trace as two flashes, however finely sampled
+  const tr = [];
+  for (let leg = 0; leg < 4; leg++)
+    for (let i = 0; i < 100; i++) tr.push(leg % 2 ? 0.5 - i * 0.005 : i * 0.005);
+  tr.push(0);
+  assert.equal(S.countFlashes(tr), 2);
+});
+
 test('flash governor: an eight-beat glide passes through untouched', () => {
   const st = S.makeSafeColorState(1);
   const dt = 1 / 60;
@@ -10026,7 +10057,8 @@ test('safe v2: the governor\'s blend — a luminance held back arrives by crossf
   };
   const old = run(false), v2 = run(true);
   assert.ok(old.some(o => o.rgb.some(v => v > 1)), 'the old path scales a falling luminance up past 1.0 (the clipping the blend removes)');
-  const rate = 0.9 + (0.5 - 0.9) * ((0.95 - 0.3) / 0.95);     // the red rate for this target
+  const R = S.SAFE_TUNING.rate, RR = S.SAFE_TUNING.redRate;
+  const rate = R + (RR - R) * ((0.95 - 0.3) / 0.95);           // the red rate for this target
   let prevL = 0.85;
   for (const o of v2){
     assert.ok(o.rgb.every(v => v >= 0 && v <= 1), 'the blend never leaves 0..1: ' + o.rgb.map(v => v.toFixed(3)));
@@ -13568,6 +13600,56 @@ test('the route in the player: gated, opt-in, and today\'s code wherever it is n
   assert.ok(html.includes("const stayPut = stayPutRule({ ios: IS_IOS, xfade, playing: this.playing, cued, graph: AE.graphLive,"), 'playIndex asks the tested rule');
   assert.ok(html.includes('plan = iosSeamPlan(plan, !ratesHeld());'), 'A1: the auto-DJ\'s seam meets two tempi in the fade on held rates');
   assert.ok(html.includes('if (ratesHeld()) return false;\n    if (typeof MIXER !== \'undefined\' && (MIXER.phase === \'running\''), 'A1: SYNC stands down on held rates');
+});
+
+// ---------------------------------------------------------------- privacy & notices
+// The privacy page promises the player loads nothing from anyone else; these
+// keep that sentence true.
+
+test('privacy: the player loads no font, script or style from a third-party host', () => {
+  const hits = [];
+  for (const m of html.matchAll(/<(?:script|link)\b[^>]*?(?:src|href)\s*=\s*["']([^"']+)["']/gi)){
+    const u = m[1];
+    if (/^(https?:)?\/\//i.test(u)) hits.push(u);
+  }
+  assert.deepEqual(hits, [], 'third-party <script>/<link> hosts: ' + hits.join(', '));
+  assert.ok(!/fonts\.(googleapis|gstatic)\.com|cdnjs\.cloudflare\.com/.test(html), 'no Google Fonts or cdnjs reference remains');
+  const css = readFileSync(join(root, 'docs/fonts/fonts.css'), 'utf8');
+  const srcs = [...css.matchAll(/url\(([^)]+)\)/g)].map(m => m[1]);
+  assert.ok(srcs.length >= 7, 'fonts.css declares the faces');
+  for (const u of srcs){
+    assert.ok(/^\.\/[\w-]+\.woff2$/.test(u), 'a face is a local file: ' + u);
+    readFileSync(join(root, 'docs/fonts', u.slice(2)));   // and the file ships
+  }
+  for (const f of ['Spectral-OFL.txt', 'IBMPlexMono-OFL.txt'])
+    assert.ok(/SIL Open Font License/.test(readFileSync(join(root, 'docs/fonts', f), 'utf8')), f + ' ships beside the fonts');
+});
+
+test('the served notices are the repository\'s notices, verbatim', () => {
+  assert.equal(readFileSync(join(root, 'docs/third-party-notices.txt'), 'utf8'),
+               readFileSync(join(root, 'THIRD-PARTY-NOTICES'), 'utf8'),
+               'docs/third-party-notices.txt drifted — copy THIRD-PARTY-NOTICES over it');
+});
+
+test('catalog.resolve hands out web URLs only — a catalog cannot smuggle a script scheme', () => {
+  const i0 = html.indexOf('  resolve(u, base, root){'), i1 = html.indexOf('\n  },', i0);
+  assert.ok(i0 > 0 && i1 > i0, 'catalog.resolve is where the test looks');
+  const C = new Function('return {' + html.slice(i0, i1) + '\n  }};')();
+  const root0 = 'https://aethrakairos.com/catalog.json';
+  assert.equal(C.resolve('javascript:alert(1)', '', root0), null);
+  const under = C.resolve('JavaScript:alert(1)', 'audio', root0);   // under a base it is only a path
+  assert.ok(under === null || /^https:\/\/aethrakairos\.com\//.test(under), 'never a script URL: ' + under);
+  assert.equal(C.resolve('vbscript:x', '', root0), null);
+  assert.equal(C.resolve('LICENSE-AUDIO', '', root0), 'https://aethrakairos.com/LICENSE-AUDIO');
+  assert.equal(C.resolve('a.mp3', 'audio', root0), 'https://aethrakairos.com/audio/a.mp3');
+  assert.equal(C.resolve('https://media.aethrakairos.com/a.mp3', '', root0), 'https://media.aethrakairos.com/a.mp3');
+  assert.equal(C.resolve('//media.aethrakairos.com/a.mp3', '', root0), '//media.aethrakairos.com/a.mp3');
+});
+
+test('photosensitivity: the notice is on the first-run card and in the help', () => {
+  const fr0 = html.indexOf('<section id="firstRun"'), fr1 = html.indexOf('</section>', fr0);
+  assert.ok(/class="fr-safe"[\s\S]*?<b>CALM<\/b>/.test(html.slice(fr0, fr1)), 'first run names the flashing and the way to calm it');
+  assert.ok(/<b>Photosensitivity\.<\/b>/.test(html), 'help carries the notice');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

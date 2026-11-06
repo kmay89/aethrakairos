@@ -30,9 +30,10 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <!-- identity mark: the A of Aethra, the lemniscate of Möbius⁸ as its crossbar -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2305060e'/%3E%3Cpath d='M32 9 L14 55 M32 9 L50 55' fill='none' stroke='%23e9edf6' stroke-width='4.2' stroke-linecap='round'/%3E%3Cg transform='translate(32 40) scale(.55) translate(-32 -32)'%3E%3Ccircle cx='23.5' cy='32' r='8.5' fill='%2305060e' stroke='%23ffb454' stroke-width='6.5'/%3E%3Ccircle cx='40.5' cy='32' r='8.5' fill='none' stroke='%236ee7ff' stroke-width='6.5' opacity='.92'/%3E%3C/g%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,700;1,500;1,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- the type is served from this site, never a font CDN: no visitor's request
+     (and so no visitor's IP address) reaches a third party just to draw text.
+     Spectral and IBM Plex Mono, SIL OFL 1.1 — licences beside the files. -->
+<link href="fonts/fonts.css" rel="stylesheet">
 <style>
 /* ============================================================
    MÖBIUS⁸ — design tokens
@@ -532,6 +533,9 @@ body.zen-deep #zenScene,body.zen-deep #zenTouch{opacity:0;pointer-events:none}
 /* the library, honestly counted */
 .fr-stat{font-size:11px;color:var(--dim);letter-spacing:.03em;line-height:1.6;max-width:32em}
 .fr-stat b{color:var(--pi);font-weight:500}
+/* the photosensitivity notice: said once, where the light is first promised */
+.fr-safe{font-size:11px;color:var(--dim);opacity:.8;line-height:1.55;max-width:34em;margin:0}
+.fr-safe b{color:var(--ink);font-weight:500}
 /* two quiet alternatives */
 .fr-more{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
 .fr-mini{
@@ -3037,6 +3041,8 @@ body.booth-open .trk .ld{display:inline-block}
     <span class="fr-primary-sub">The whole library, newest first — every track, never a repeat</span>
   </button>
   <p class="fr-stat" id="frStat"></p>
+  <p class="fr-safe">The visuals flash and change brightness with the music. Sensitive to flashing light?
+    Turn on <b>CALM</b> in the player bar.</p>
   <div class="fr-more" id="frCards">
     <button class="fr-mini" type="button" data-crate="hot">Hot this week ▸</button>
     <button class="fr-mini" type="button" data-crate="surprise">Surprise me ▸</button>
@@ -4579,8 +4585,16 @@ body.booth-open .trk .ld{display:inline-block}
     <p class="lede"><b>Credits &amp; notices.</b> The player's 3-D engine is <b>three.js</b> (MIT License).
     The fractals are drawn from published mathematics, credited with thanks: the Mandelbulb (Daniel White
     and Paul Nylander), the Mandelbox (Tom Lowe), the Menger sponge distance estimate and kaleidoscopic IFS
-    (Knighty), the Sierpinski tetrahedron, and orbit traps (Clifford Pickover). The full notices are in
-    <span class="mono-inline">THIRD-PARTY-NOTICES</span> in the repository.</p>
+    (Knighty), the Sierpinski tetrahedron, and orbit traps (Clifford Pickover); the smooth minimum and torus
+    distance follow Inigo Quilez. The type is Spectral and IBM Plex Mono (SIL Open Font License), served from
+    this site. The full notices: <a href="third-party-notices.txt" target="_blank" rel="noopener">third-party
+    notices</a>.</p>
+    <p class="lede"><b>Photosensitivity.</b> The visuals flash and change brightness with the music. Their
+    brightness changes are limited to stay under three flashes a second, but no moving picture suits everyone:
+    if you are sensitive to flashing light, turn on <b>CALM</b>, and stop watching if you feel unwell.</p>
+    <p class="lede">© 2026 ERRERlabs / Aethra Kairos. Music all rights reserved; code under the MIT License.
+    <a href="privacy.html" target="_blank" rel="noopener">Privacy</a> ·
+    <a href="support.html" target="_blank" rel="noopener">Support</a></p>
     <p class="lede" style="opacity:.65">build <span id="buildLine">dev</span></p>
     <button class="btn big help-close" id="helpClose">Close</button>
   </div>
@@ -4696,10 +4710,12 @@ body.booth-open .trk .ld{display:inline-block}
 
 <!-- The 3D engine ships WITH the app (same-origin, in the service-worker shell)
      so boot never waits on a third-party CDN over a weak pipe — broadcast-grade
-     first paint. If the local copy is ever unreachable, fall back to the CDN as
-     a best effort; and if even that fails, the app degrades to audio-only (the
-     boot is wrapped in a try/catch). -->
-<script src="three.min.js" onerror="if(!window.__three2){window.__three2=1;var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';document.head.appendChild(s);}"></script>
+     first paint. There is no CDN fallback any more: a script fetched from a
+     third party would run with this page's full trust (the Mac app's native
+     bridge included) and would tell that host every visitor's address. If the
+     local copy is unreachable the app degrades to audio-only (the boot is
+     wrapped in a try/catch). -->
+<script src="three.min.js"></script>
 <script>
 'use strict';
 /* ================================================================
@@ -12800,14 +12816,22 @@ const MB8_SIGNING_PUBKEY = '';
 
 const catalog = {
   meta: null, url: null, loading: false,
-  label: '', artist: '', license: null, albums: [],
+  label: '', artist: '', license: null, albums: [], foreignHost: '',
   featured: 0, unfeatured: 0, signed: false,
 
   resolve(u, base, root){
     if (!u) return null;
     if (/^(https?:)?\/\//i.test(u) || u.startsWith('data:') || u.startsWith('blob:')) return u;
-    try { return new URL((base ? base.replace(/\/?$/, '/') : '') + u, root).href; }
-    catch (e){ return (base || '') + u; }
+    /* ONLY THE WEB'S OWN SCHEMES COME OUT. A catalog is data, and with
+       ?catalog= it can be anyone's: "javascript:…" is an absolute URL that
+       new URL() hands straight back, and the licence links in the library
+       footer would have carried it into an href — a click away from script
+       running with the player's trust (and, in the Mac app, its bridge). */
+    try {
+      const url = new URL((base ? base.replace(/\/?$/, '/') : '') + u, root);
+      return /^https?:$/.test(url.protocol) ? url.href : null;
+    }
+    catch (e){ return /^[a-z][a-z0-9+.-]*:/i.test(u) ? null : (base || '') + u; }
   },
 
   /* schema v2 only. A v1 catalog is refused with a toast naming the problem —
@@ -17193,8 +17217,11 @@ function buildRamp(stops, n, lumaGain){
    tests/player.test.mjs exactly as shipped.
    ================================================================ */
 const SAFE_TUNING = {
-  rate: 0.9,        // max relative-luminance change per second, large fields
-  redRate: 0.5,     // saturated red moves at nearly half speed (worst hazard)
+  rate: 0.6,        // max relative-luminance change per second, large fields.
+                    // 0.6 is the WCAG line, measured: a 0.1 swing then takes
+                    // 1/6 s, so an up-and-down pair cannot repeat faster than
+                    // 3 a second. 0.9 let a tuned strobe through at 4.
+  redRate: 0.4,     // saturated red moves at two-thirds speed (worst hazard)
   pulseGap: 0.34,   // s — full-amplitude beat pulses may not come faster
   pulseAttack: 0.012,// s — a hit SNAPS (one frame at 60 fps). WCAG constrains
                      // flash FREQUENCY (the gap + soft cap below), not attack
@@ -17293,15 +17320,31 @@ function safeBeatStep(state, raw, dt, tuning){
   return state.v;
 }
 /* Count WCAG flashes in a luminance trace: a flash is a pair of opposing
-   transitions of ≥0.1 relative luminance. Used by the tests to prove the
-   governor holds under a worst-case synthetic strobe. */
+   transitions of >=0.1 relative luminance. Used by the tests to prove the
+   governor holds under a worst-case synthetic strobe.
+   HYSTERESIS, NOT A FOLLOWER. Before the first transition the counter
+   holds the running low AND high and fires the moment the trace leaves
+   either by 0.1 — the old version moved its reference along with any
+   motion while it had no direction yet, so a governed ramp (a few
+   thousandths a frame) never armed it and the test could not fail.
+   After that, the reference is the extreme of the current leg. */
 function countFlashes(trace){
-  let flashes = 0, dir = 0, extreme = trace.length ? trace[0] : 0, arm = 0;
+  let flashes = 0, dir = 0, arm = 0;
+  let lo = trace.length ? trace[0] : 0, hi = lo, extreme = lo;
+  const turn = (d, v) => { if (arm){ flashes++; arm = 0; } else arm = 1; dir = d; extreme = v; };
   for (let i = 1; i < trace.length; i++){
-    const d = trace[i] - extreme;
-    if (dir >= 0 && d <= -0.1){ if (arm){ flashes++; arm = 0; } else arm = 1; dir = -1; extreme = trace[i]; }
-    else if (dir <= 0 && d >= 0.1){ if (arm){ flashes++; arm = 0; } else arm = 1; dir = 1; extreme = trace[i]; }
-    else if ((dir >= 0 && d > 0) || (dir <= 0 && d < 0)) extreme = trace[i];
+    const v = trace[i];
+    if (dir === 0){
+      lo = Math.min(lo, v); hi = Math.max(hi, v);
+      if (v - lo >= 0.1) turn(1, v);
+      else if (hi - v >= 0.1) turn(-1, v);
+    } else if (dir > 0){
+      if (v > extreme) extreme = v;
+      else if (extreme - v >= 0.1) turn(-1, v);
+    } else {
+      if (v < extreme) extreme = v;
+      else if (v - extreme >= 0.1) turn(1, v);
+    }
   }
   return flashes;
 }
@@ -19142,7 +19185,7 @@ const ECHO_QUOTES = [
   { t: 'Music is the space between the notes.', a: 'Claude Debussy (attr.)', p: 'music' },
   { t: 'I’ll tell you what freedom is to me: no fear.', a: 'Nina Simone', p: 'music' },
   { t: 'The only way to make sense out of change is to plunge into it, move with it, and join the dance.', a: 'Alan Watts', p: 'wonder' },
-  { t: 'Live the questions now. Perhaps you will then gradually, without noticing it, live along some distant day into the answer.', a: 'Rainer Maria Rilke', p: 'wonder',
+  { t: 'Live the questions now. Then perhaps, little by little and without noticing, you will live your way one far-off day into the answer.', a: 'Rainer Maria Rilke', p: 'wonder',
     o: 'Leben Sie jetzt die Fragen. Vielleicht leben Sie dann allmählich, ohne es zu merken, eines fernen Tages in die Antwort hinein.', ol: 'de' },
   { t: 'Time is but the stream I go a-fishing in.', a: 'Henry David Thoreau', p: 'wonder' },
   { t: 'Life can only be understood backwards; but it must be lived forwards.', a: 'Søren Kierkegaard', p: 'wonder',
@@ -21104,10 +21147,19 @@ function catalogChromeSync(){
   const bits = [];
   if (catalog.artist) bits.push(escapeHTML(catalog.artist));
   if (catalog.license){
+    // a link out is a web page or nothing (resolve already refuses script
+    // schemes; data: and blob: have no business in an href either)
+    const web = u => typeof u === 'string' && /^https?:\/\//i.test(u);
+    if (!web(catalog.license.code)) catalog.license.code = null;
+    if (!web(catalog.license.audio)) catalog.license.audio = null;
     if (catalog.license.code) bits.push('<a href="' + escapeHTML(catalog.license.code) + '" target="_blank" rel="noopener">' + T('code license') + '</a>');
     if (catalog.license.audio) bits.push('<a href="' + escapeHTML(catalog.license.audio) + '" target="_blank" rel="noopener">' + T('audio license') + '</a>');
   }
-  el.libFoot.innerHTML = (bits.length
+  el.libFoot.innerHTML = (catalog.foreignHost
+      ? T('outside catalog from ') + escapeHTML(catalog.foreignHost)
+        + T(' — its music and terms are its own; not affiliated with Aethra Kairos') + '<br>'
+      : '')
+    + (bits.length
     ? bits.join(' · ') + '<br>' + T('audio © all rights reserved — streaming from this catalog permitted') + '<br>'
     : '')
     + T('the open-source label player — free, ')
@@ -80004,9 +80056,15 @@ const PIANO = {
   if (location.protocol === 'http:' || location.protocol === 'https:'){
     const params = new URLSearchParams(location.search);
     const explicit = params.get('catalog');
-    const okLoad = await catalog.load(
-      new URL(explicit || 'catalog.json', location.href).href,
-      { quiet: !explicit });
+    const catUrl = new URL(explicit || 'catalog.json', location.href);
+    /* SOMEONE ELSE'S MUSIC UNDER THIS NAME needs saying so. ?catalog= can
+       point the player at any host; the library then wears that host's
+       label, and nothing on screen would tell a listener it is not ours. */
+    catalog.foreignHost = catUrl.origin !== location.origin ? catUrl.host : '';
+    const okLoad = await catalog.load(catUrl.href, { quiet: !explicit });
+    if (okLoad && catalog.foreignHost)
+      toast(T('Playing an outside catalog from ') + escapeHTML(catalog.foreignHost)
+        + T(' — not made by or affiliated with Aethra Kairos'));
     if (okLoad){
       syncSortButtons();
       // ?mixset=…/wedding.json runs a whole set by sections + anchors: the room

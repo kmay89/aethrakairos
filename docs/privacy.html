@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Privacy — Aethra Kairos</title>
-<meta name="description" content="Aethra Kairos collects no personal data: no accounts, no ads, no analytics, no tracking. What stays on your device, and what a web server sees.">
+<meta name="description" content="Aethra Kairos collects no personal data: no accounts, no ads, no analytics, no tracking. Exactly what stays on your device, what servers see, and your rights.">
 <style>
   :root{
     --bg:#05060c; --panel:#0b0e18; --line:rgba(255,255,255,.08);
@@ -26,6 +26,7 @@
   p,li{color:var(--dim);font-size:15px}
   b{color:var(--ink);font-weight:600}
   ul{padding-left:20px}
+  li{margin-bottom:8px}
   .short{padding:18px 20px;border-radius:12px;background:var(--panel);border:1px solid var(--line);color:var(--ink)}
   footer{padding:30px 0 60px;border-top:1px solid var(--line);color:var(--faint);font-size:13px}
 </style>
@@ -33,68 +34,126 @@
 <body>
 <header><div class="wrap">
   <h1>Privacy</h1>
-  <p class="tagline">Aethra Kairos — the website, the Mac app and the Apple TV app. Last updated November 6, 2026.</p>
+  <p class="tagline">Aethra Kairos — the website, the Mac app and the Apple TV app.
+    Effective November 6, 2026.</p>
 </div></header>
 
 <main class="wrap">
   <section>
     <h2>The short version</h2>
     <p class="short">Aethra Kairos does not collect personal data. There are no accounts, no ads, no analytics,
-      no tracking and no third-party SDKs, and nothing you do is sold or shared.</p>
+      no tracking, no cookies and no third-party SDKs, and nothing about you is sold or shared. Like every
+      website and app that streams, your device has to ask servers for files, and those servers see the
+      request. This page says exactly which servers, and what they see.</p>
+  </section>
+
+  <section>
+    <h2>Who we are</h2>
+    <p>Aethra Kairos is made by <b>ERRERlabs</b> ("we" on this page). For anything about this policy or
+      your data, use the <a href="support.html">support page</a>. If you would rather not ask in public,
+      say only that you have a private request, and we will give you a private address to write to.</p>
   </section>
 
   <section>
     <h2>What stays on your device</h2>
-    <p>To remember things for you, the apps keep a little data <b>on your own device only</b>:
-      the songs you heart, what you played recently, where you left off, and your settings
-      (for example Reduce Flashing or Auto Rooms). In a browser this lives in the site's local storage;
-      on Apple TV and Mac it lives in the app's own storage. It is never sent to us. Deleting the app,
-      or clearing the site's data in your browser, removes it.</p>
-    <p>Music you play is downloaded and cached on the device so it can play smoothly and does not have
-      to be fetched twice.</p>
+    <p>To remember things for you, the apps keep data <b>on your own device only</b>. It is never sent to us.</p>
+    <ul>
+      <li><b>Your library:</b> the songs you heart, what you played recently, where you left off, your queue,
+        your saved journeys and playlists.</li>
+      <li><b>Your settings:</b> for example Reduce Flashing (CALM on the web), Auto Rooms, the look, the lens,
+        and whether you have seen the welcome or a tip.</li>
+      <li><b>Caches:</b> the songs you play, the music catalog and the player itself are cached so they play
+        smoothly, work offline and are not fetched twice. The player also keeps its own analysis of songs
+        (for example where two songs mix well).</li>
+    </ul>
+    <p>In a browser and the Mac app this lives in the site's storage (local storage, IndexedDB and the
+      offline cache). On Apple TV it lives in the app's own storage. Clearing the site's data in your
+      browser, or deleting the app, removes all of it.</p>
   </section>
 
   <section>
-    <h2>What a server sees</h2>
-    <p>To play anything, your device has to ask for it. The website and the music catalog are served
-      from <b>aethrakairos.com</b> (hosted by Netlify) and the songs from <b>media.aethrakairos.com</b>
-      (Cloudflare R2). Like every web server, these providers handle standard request information — your
-      IP address, the time, the file asked for and your browser or app version — to deliver the files and
-      to keep the service secure. We do not use it to identify you, build a profile, or follow you
-      anywhere, and we do not combine it with anything.</p>
+    <h2>What servers see</h2>
+    <p>When your device asks a server for a file, the server receives standard request information: your
+      IP address, the time, the file asked for and your browser or app version. The servers involved are:</p>
+    <ul>
+      <li><b>aethrakairos.com</b>, hosted by Netlify — the website, the player and the music catalog.</li>
+      <li><b>media.aethrakairos.com</b>, Cloudflare R2 — the songs.</li>
+      <li><b>github.com</b> — the Mac app checks for updates here when it starts and every 12 hours.</li>
+    </ul>
+    <p>These providers process that information to deliver the files and keep the service secure, and keep
+      it for their own limited log periods. We do not use it to identify you, build a profile or follow you
+      anywhere, and we do not combine it with anything. The website loads no fonts, scripts or images from
+      anyone else: everything it needs is served from aethrakairos.com.</p>
+    <p>If you open the player with a link to someone else's catalog, your device fetches that catalog and its
+      songs from their server, under their own policy.</p>
   </section>
 
   <section>
     <h2>Optional features</h2>
     <ul>
-      <li><b>Stage (website).</b> When you pair screens to a booth, a four-letter room code and the
-        connection details your browsers need to find each other pass through a small mailbox service
-        at kmay89.com. The picture then travels directly between your devices. Nothing about you is
-        stored.</li>
-      <li><b>Smart lights (Mac app).</b> If you connect Philips Hue lights, the app talks to your Hue
-        bridge on your own local network. Nothing leaves your home for this.</li>
+      <li><b>Microphone (website and Mac app).</b> The mic-reactive visual and the piano lessons listen through
+        your microphone, only after you switch them on and allow it. The sound is analysed on your device,
+        moment to moment, to move the picture or hear a note. It is never recorded, stored or sent anywhere.
+        The Apple TV app does not use a microphone.</li>
+      <li><b>Stage (website).</b> To pair screens with a booth, the devices find each other through a small
+        mailbox service at <b>kmay89.com</b>, run by the same maker. It passes a four-letter room code, a
+        secret key that lets the booth reclaim its room, the booth's current colour and scene, and the
+        connection details browsers exchange to connect directly. Those connection details include the
+        devices' IP addresses. A room is forgotten after about a quarter of an hour of quiet. To find a
+        route through your router, browsers also ask a public STUN server run by Google
+        (stun.l.google.com), which sees your IP address. The picture then travels directly between your
+        devices, so each device in a stage can see the others' IP addresses.</li>
+      <li><b>Smart lights (Mac app).</b> If you connect Philips Hue lights, the app talks to your Hue bridge on
+        your own local network. Nothing leaves your home for this.</li>
+      <li><b>Sharing and clips.</b> When you share a link or save a clip, it goes where you send it, through
+        your device's own share sheet or downloads. We are not part of that.</li>
     </ul>
   </section>
 
   <section>
     <h2>Apple TV</h2>
     <p>The Apple TV app has no account and no sign-in, uses no advertising identifier, and contains no
-      analytics or tracking code. Its App Store privacy label is <b>Data Not Collected</b>.</p>
+      analytics or tracking code. It talks only to aethrakairos.com and media.aethrakairos.com. Its App
+      Store privacy label is <b>Data Not Collected</b>. Apple runs the App Store under its own privacy
+      policy; if you have chosen in your device's settings to share analytics with app developers, Apple
+      may show us anonymous, aggregated statistics such as crash counts.</p>
+  </section>
+
+  <section>
+    <h2>Legal basis and transfers</h2>
+    <p>Where the law (for example the GDPR or UK GDPR) asks for a legal basis, the request information
+      above is handled on the basis of legitimate interests: delivering what your device asked for and
+      keeping the service secure. Our providers are based in the United States and may process it there or
+      elsewhere; they rely on recognised safeguards such as the EU–U.S. Data Privacy Framework or Standard
+      Contractual Clauses.</p>
+  </section>
+
+  <section>
+    <h2>Your rights</h2>
+    <p>Depending on where you live, you may have the right to ask what personal data we hold about you, to
+      have it corrected or deleted, to object to or restrict its use, and to complain to your data
+      protection authority. We hold no accounts or profiles, so in practice there is usually nothing to
+      find, but ask anyway and we will answer, and pass on any request that concerns our providers' logs.
+      Everything kept on your device is yours to delete at any time.</p>
+    <p><b>California and other U.S. states:</b> we do not sell or share personal information, and we do not
+      use it for targeted advertising. Global Privacy Control and Do Not Track signals are honoured by
+      default, because there is nothing to opt out of.</p>
   </section>
 
   <section>
     <h2>Children</h2>
-    <p>Aethra Kairos is made for everyone, and because it collects no personal data, it collects none
-      from children either.</p>
+    <p>Aethra Kairos is made for a general audience, children included. Because it collects no personal
+      data from anyone, it collects none from children.</p>
   </section>
 
   <section>
-    <h2>Questions</h2>
-    <p>Ask anything on the <a href="support.html">support page</a>. If this policy ever changes, the
-      new version will be posted here with its date.</p>
+    <h2>Changes</h2>
+    <p>If this policy changes, the new version will be posted here with its new date. Earlier versions are
+      kept in the project's public history on GitHub.</p>
   </section>
 </main>
 
-<footer><div class="wrap"><a href="./">Aethra Kairos</a> · <a href="support.html">Support</a></div></footer>
+<footer><div class="wrap"><a href="./">Aethra Kairos</a> · <a href="support.html">Support</a> ·
+  <a href="third-party-notices.txt">Notices</a> · © 2026 ERRERlabs</div></footer>
 </body>
 </html>

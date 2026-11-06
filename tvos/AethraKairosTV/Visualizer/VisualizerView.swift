@@ -279,7 +279,10 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     private var palSeedBump: Int = 0
     private var warmEased: Double = 0
     private var safeLuma: [Double?] = [nil, nil, nil]
-    private static let safeRate = 0.9, safeRedRate = 0.5           // rel-luma per second
+    // rel-luma per second — the web's SAFE_TUNING, verbatim. 0.6 is the
+    // WCAG 2.3.1 line: a 0.1 swing takes 1/6 s, so no strobe passes at
+    // more than 3 flashes a second (0.9 let a tuned one through at 4).
+    private static let safeRate = 0.6, safeRedRate = 0.4
     private static let safeCalmRate = 0.45, safeCalmRedRate = 0.3
 
     // the handover

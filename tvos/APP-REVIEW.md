@@ -178,6 +178,9 @@ third-party content."*
   `StageClient.available = false` — until the relay it needs is deployed; see
   STAGE.md. Re-enable it, and restore its line here and in §7, only then.)
 - **Privacy Policy URL:** `https://aethrakairos.com/privacy` (`docs/privacy.html`).
+- **In the app:** Settings → **PRIVACY & CREDITS** shows the policy in short,
+  a QR code of the full policy's address, the copyright and the credits
+  (Guideline 5.1.1 asks for the policy to be reachable inside the app).
 - **Support URL:** `https://aethrakairos.com/support` (`docs/support.html`,
   which sends questions to the repository's GitHub Issues).
 - **Marketing URL** (optional): `https://aethrakairos.com/`.
@@ -225,17 +228,31 @@ VoiceOver on tvOS can describe now-playing state:
   loved*) and a **Progress** value; the corner room-name whisper is a labeled
   accessibility element. See `UI/NowPlayingHUD.swift`.
 - **Reduce Flashing** is a first-class setting (SETTINGS shelf) that tightens the
-  luminance governor and opens every set in the calm PULSE room — worth naming if
-  a photosensitivity question comes up (the visualizer already enforces a WCAG
-  2.3.1 flash governor).
+  luminance governor and opens every set in the calm PULSE room. The welcome
+  screen carries a one-line photosensitivity notice pointing to it.
+- **What the flash governor does, stated exactly** (do not claim more): the
+  palette's luminance is rate-limited to 0.6 relative luminance per second
+  (saturated red to 0.4), which caps a full-field palette strobe at three
+  flashes a second — the WCAG 2.3.1 general-flash threshold — and beat pulses
+  are spaced at least 0.34 s apart. The web twin of the same arithmetic is
+  unit-tested against a sweep of strobe frequencies (`tests/player.test.mjs`,
+  "no strobe frequency…"). It governs the colour every room draws with, not
+  every pixel a room shades, so the honest wording is "designed to keep
+  flashing under WCAG's three-flashes-a-second limit", never "certified" or
+  "seizure-safe".
 
 ---
 
 ## 9. Submit
 
 1. Product page filled: name, subtitle, description, keywords, support URL,
-   privacy-policy URL, and screenshots (tvOS App Store needs 1920×1080 or
+   privacy-policy URL (`https://aethrakairos.com/privacy`), copyright
+   (`© 2026 ERRERlabs`, or the owner's legal name), and screenshots (tvOS App Store needs 1920×1080 or
    3840×2160 — `⌘S` in the tvOS simulator saves 1920×1080; see TESTFLIGHT.md §8).
+   End the description with the photosensitivity line, verbatim:
+   *"Photosensitivity: the light shows move and change brightness with the
+   music. If you or anyone watching is sensitive to flashing light, turn on
+   Reduce Flashing in Settings."*
 2. Sections 1–6 above answered in App Store Connect.
 3. Pick the processed build (uploaded per **TESTFLIGHT.md** Parts 3–5).
 4. **Content Rights**: "No, it does not contain, show, or access third-party
