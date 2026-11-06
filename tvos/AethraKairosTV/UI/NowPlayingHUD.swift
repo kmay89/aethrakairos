@@ -7,7 +7,7 @@ import Combine
 /// measured from the moment the card dissolved, not from the last press.
 ///
 /// The card is joined by the cinematic waveform BLOOM (DESIGN zen choreography):
-/// on wake and on every track change the waveform blooms FIRST — 2.4 s, then
+/// on wake and on every track change the waveform blooms FIRST — 5.2 s, then
 /// dissolves — with the card's controls arriving a good beat behind (the 0.64 s
 /// card fade). The bloom reads the playing track's env so the room is, once
 /// more, lit by the music and not merely themed by it.
@@ -23,7 +23,7 @@ struct NowPlayingHUD: View {
     @State private var deepWhisper = false
 
     // The bloom is a transient: a start stamp and a live gate. The gate is torn
-    // down by the vigil once the 2.4 s window (plus a little slack) has passed,
+    // down by the vigil once the bloom's window (plus a little slack) has passed,
     // so the animation loop never outlives the bloom it drives.
     @State private var bloomStartedAt: Date?
     @State private var bloomActive = false
@@ -78,7 +78,7 @@ struct NowPlayingHUD: View {
                 }
                 // Retire the bloom once its window has fully closed, so the
                 // TimelineView driving it stops ticking.
-                if bloomActive, let start = bloomStartedAt,
+                if bloomActive, let start = bloomStartedAt, !ZenWaveform.holdForCamera,
                    now.timeIntervalSince(start) > ZenWaveform.window + 0.25 {
                     bloomActive = false
                     bloomStartedAt = nil
@@ -94,17 +94,19 @@ struct NowPlayingHUD: View {
 
     // MARK: - the waveform bloom
 
-    /// The cinematic bloom, full-bleed and centered — a strip of band-coloured
-    /// bars around a still midline. Present only while blooming, so it costs
+    /// The cinematic bloom, full-bleed and centered — band-coloured ribbons
+    /// around a still midline. Present only while blooming, so it costs
     /// nothing when the room is at rest.
     @ViewBuilder private var waveformLayer: some View {
         if bloomActive, let track = player.current, let start = bloomStartedAt {
             ZenWaveform(
                 track: track,
                 position: player.position,
+                playing: player.isPlaying,
                 startedAt: start,
                 accent: accentColor(for: track)
             )
+            .id(start)                       // every bloom anchors afresh
             .frame(maxWidth: .infinity)
             .frame(height: 320)
             .frame(maxHeight: .infinity, alignment: .center)
@@ -216,173 +218,300 @@ struct NowPlayingHUD: View {
     }
 }
 
-/// The bloom itself. A SwiftUI Canvas: an 18 s window of the track's env laid
-/// out one bar per 2 pt, the playhead pinned at x = 42 % so a little more of
-/// what is coming shows than of what is gone. Warm lows in amber, key-coloured
-/// mids, ice highs; the played side lit 0.95, the road ahead 0.55. With no env
-/// the bars fall back to a single-colour figure hashed from the track key —
-/// band-less, but honest and still beautiful.
+/// The bloom itself: the track's sound as three mirrored ribbons about a still
+/// midline — warm lows in amber nearest the line, key-coloured mids, ice highs
+/// at the edge — gliding right to left under a fixed now-line at 42 %, the road
+/// ahead dimmer than what has played, both ends fading into the room. With no
+/// env the figure is one ribbon hashed from the track key — band-less, but
+/// honest and still beautiful.
 private struct ZenWaveform: View {
     let track: Track
     let position: Double
+    /// Paused music holds the figure still under the now-line.
+    let playing: Bool
     let startedAt: Date
     let accent: Color
 
-    // The bloom's whole life, in seconds.
-    static let window: Double = 2.4
-    private static let fadeIn: Double = 0.45
-    private static let fadeOut: Double = 0.85
+    // The bloom's whole life, in seconds: a slow rise, a hold, a long dissolve.
+    static let window: Double = 5.2
+    /// CI camera hook: `--bloom-hold` keeps the bloom at full strength once
+    /// risen, so a screenshot of it never races the dissolve.
+    static let holdForCamera = ProcessInfo.processInfo.arguments.contains("--bloom-hold")
+    private static let fadeIn: Double = 1.0
+    private static let fadeOut: Double = 1.9
+    /// How much music the strip shows across the screen. Wider is calmer:
+    /// the figure glides at (screen width / span) points a second.
+    private static let span: Double = 26
+    /// The now-line, as a fraction of the width.
+    private static let nowAt: CGFloat = 0.42
 
-    /* THE FIGURE IS BUILT AT THE PLAYHEAD'S PACE, NOT THE SCREEN'S. The bars
-       (a thousand of them, three bands, both sides) used to be rebuilt inside
-       the 60 fps timeline — every frame of every bloom, on the main thread,
-       which is also the thread the field draws on: the light show stuttered
-       for 2.4 s after every track change and every press of the remote. Now
-       the paths are built when the playhead moves (this body re-runs at the
-       position's 4 Hz) and each frame only fills them, faded and grown by a
-       transform. The picture is the same; the work is a fifteenth. */
+    /* ONE FIGURE PER BLOOM, GLIDING AT THE SCREEN'S PACE. The strip used to be
+       rebuilt from the playhead each time it published (4 Hz), so it jumped a
+       quarter-second of music at a time — the jitter at every song change —
+       and its 2.4 s life rushed in and out. Now the figure is drawn ONCE,
+       covering everything this bloom can show, and only slides: the playhead is
+       extrapolated from the moment the bloom anchored, so it moves every frame
+       at exactly the music's speed. The published position is only listened to
+       for a real jump (a new song, a seek), which re-anchors the figure. */
+    @State private var anchorPos: Double?
+    @State private var anchorAt = Date()
+    /// The detail painting (WaveArt) and the song second its left edge shows.
+    /// Until it lands (or for a song whose file never decoded) the env's
+    /// ribbons stand in.
+    @State private var art: (image: CGImage, from: Double)?
+    @Environment(\.displayScale) private var displayScale
+
     var body: some View {
         GeometryReader { geo in
-            let figure = buildFigure(size: geo.size)
+            let w = geo.size.width, h = geo.size.height
+            let ptPerSec = w / CGFloat(Self.span)
+            let before = Double(Self.nowAt) * Self.span + 0.5
+            // (the camera hook holds the bloom for a long while: it paints more road)
+            let after = (1 - Double(Self.nowAt)) * Self.span + Self.window + 0.5 + (Self.holdForCamera ? 60 : 0)
+            let anchor = anchorPos ?? position
             TimelineView(.animation) { timeline in
-                let t = timeline.date.timeIntervalSince(startedAt)
-                let op = envelope(t)
-                // The bloom grows into place: bars rise from a hush to full
-                // height across the fade-in, then hold — about the midline.
-                let grow = 0.55 + 0.45 * smooth(min(max(t, 0) / Self.fadeIn, 1))
-                Canvas { context, _ in
-                    guard op > 0.001 else { return }
-                    for layer in figure { context.fill(layer.path, with: .color(layer.color)) }
+                let now = timeline.date
+                let t = now.timeIntervalSince(startedAt)
+                let playhead = anchor + (playing ? max(0, now.timeIntervalSince(anchorAt)) : 0)
+                // where the figure's first second sits on screen
+                let x = w * Self.nowAt - CGFloat(playhead - (anchor - before)) * ptPerSec
+                Group {
+                    // the painting only while it is the painting of THIS anchor:
+                    // after a jump the ribbons stand in until the new one lands
+                    if let art, abs(art.from - (anchor - before)) < 0.001 {
+                        Image(decorative: art.image, scale: displayScale)
+                            .resizable()
+                            .frame(width: CGFloat(before + after) * ptPerSec, height: h)
+                            .offset(x: w * Self.nowAt - CGFloat(playhead - art.from) * ptPerSec)
+                    } else {
+                        WaveFigure(track: track, from: anchor - before, to: anchor + after,
+                                   ptPerSec: ptPerSec, height: h, accent: accent)
+                            .equatable()
+                            .frame(width: CGFloat(before + after) * ptPerSec, height: h, alignment: .leading)
+                            .offset(x: x)
+                    }
                 }
-                .scaleEffect(x: 1, y: CGFloat(grow), anchor: .center)
-                .opacity(op)
+                .frame(width: w, height: h, alignment: .leading)
+                // a soft band of night behind the strip, so the waveform reads
+                // over the brightest room as well as the darkest
+                .background(LinearGradient(stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: Color.black.opacity(0.55), location: 0.5),
+                    .init(color: .clear, location: 1),
+                ], startPoint: .top, endPoint: .bottom))
+                // fixed to the screen, not the figure: the edges fade into the
+                // room, and the road ahead of the now-line is dimmer
+                .mask(LinearGradient(stops: [
+                    .init(color: .white.opacity(0), location: 0),
+                    .init(color: .white.opacity(0.9), location: 0.16),
+                    .init(color: .white, location: Self.nowAt - 0.004),
+                    .init(color: .white.opacity(0.5), location: Self.nowAt + 0.004),
+                    .init(color: .white.opacity(0.42), location: 0.82),
+                    .init(color: .white.opacity(0), location: 1),
+                ], startPoint: .leading, endPoint: .trailing))
+                .overlay(alignment: .leading) { nowLine(height: h).offset(x: w * Self.nowAt - 1) }
+                .scaleEffect(x: 1, y: CGFloat(grow(t)), anchor: .center)
+                .opacity(envelope(t))
             }
+            .task(id: "\(track.id)|\(anchor)|\(Int(w))x\(Int(h))") {
+                // the song's detail, read when its deck loaded it: wait for a
+                // read still under way, then paint it once, off the main thread
+                guard w > 8, h > 8 else { return }
+                var detail: WaveDetail?
+                // through the bloom's rise and hold (a late painting still
+                // glides in before the dissolve); the camera hook waits longer
+                let tries = Self.holdForCamera ? 600 : 40
+                for _ in 0..<tries {
+                    detail = await WaveDetailStore.shared.detail(for: track.id)
+                    if detail != nil || Task.isCancelled { break }
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+                guard let detail, !Task.isCancelled else { return }
+                let from = anchor - before
+                let image = await WaveArt.render(
+                    detail: detail, track: track, from: from, to: anchor + after,
+                    width: Int((CGFloat(before + after) * ptPerSec * displayScale).rounded()),
+                    height: Int((h * displayScale).rounded()))
+                if let image, !Task.isCancelled { art = (image, from) }
+            }
+        }
+        .onAppear {
+            anchorPos = position
+            anchorAt = Date()
+        }
+        .onChange(of: position) { _, now in
+            // A drift under a second is the clock's own jitter and is ignored;
+            // a jump (the new song landing, a seek) re-anchors the figure.
+            guard let a = anchorPos else { return }
+            let expected = a + (playing ? Date().timeIntervalSince(anchorAt) : 0)
+            if abs(now - expected) > 1.0 {
+                anchorPos = now
+                anchorAt = Date()
+            }
+        }
+        .onChange(of: playing) { _, nowPlaying in
+            // a pause or a resume mid-bloom: carry on from where the figure is
+            // (it moved until a pause; it stood still until a resume)
+            if let a = anchorPos {
+                anchorPos = a + (nowPlaying ? 0 : max(0, Date().timeIntervalSince(anchorAt)))
+            }
+            anchorAt = Date()
         }
     }
 
-    /// One filled layer of the figure.
-    private struct Layer {
-        let path: Path
-        let color: Color
-    }
-
-    /// The bars at full height for the current playhead, as filled layers.
-    private func buildFigure(size: CGSize) -> [Layer] {
-        var layers: [Layer] = []
-        draw(into: &layers, size: size, grow: 1)
-        return layers
+    /// The now-line: a hairline of light the music slides under.
+    private func nowLine(height: CGFloat) -> some View {
+        LinearGradient(colors: [.clear, Color.akInk.opacity(0.7), .clear],
+                       startPoint: .top, endPoint: .bottom)
+            .frame(width: 2, height: height * 0.9)
+            .shadow(color: Color.akIce.opacity(0.8), radius: 8)
     }
 
     // MARK: bloom envelope
 
-    /// Rise, hold, dissolve — the 2.4 s life of the bloom as an opacity in
-    /// [0, 1]; zero outside the window so nothing lingers.
+    /// Rise, hold, dissolve — the life of the bloom as an opacity in [0, 1];
+    /// zero outside the window so nothing lingers.
     private func envelope(_ t: Double) -> Double {
+        if Self.holdForCamera { return t <= 0 ? 0 : smooth(t / Self.fadeIn) }
         if t <= 0 || t >= Self.window { return 0 }
         if t < Self.fadeIn { return smooth(t / Self.fadeIn) }
         if t > Self.window - Self.fadeOut { return smooth((Self.window - t) / Self.fadeOut) }
         return 1
     }
 
+    /// The figure breathes up from a hush to full height, easing out, and
+    /// sinks a little as it dissolves.
+    private func grow(_ t: Double) -> Double {
+        let rise = 1 - pow(1 - min(max(t / 1.4, 0), 1), 3)
+        let sink = Self.holdForCamera ? 0 : smooth(max(0, t - (Self.window - Self.fadeOut)) / Self.fadeOut)
+        return 0.25 + 0.75 * rise - 0.15 * sink
+    }
+
     private func smooth(_ x: Double) -> Double {
         let c = min(max(x, 0), 1)
         return c * c * (3 - 2 * c)
     }
+}
 
-    // MARK: drawing
+/// The drawn figure for one stretch of a track, from `from` to `to` seconds.
+/// Equatable on what it shows, so the glide (an offset per frame) never asks
+/// SwiftUI to draw it again.
+private struct WaveFigure: View, Equatable {
+    let track: Track
+    let from: Double
+    let to: Double
+    let ptPerSec: CGFloat
+    let height: CGFloat
+    let accent: Color
 
-    private func draw(into layers: inout [Layer], size: CGSize, grow: CGFloat) {
-        let w = size.width
-        let h = size.height
-        guard w > 8, h > 12 else { return }
-
-        let midY = h * 0.5
-        let step: CGFloat = 2                     // one bar per 2 pt
-        let barW: CGFloat = 1.6
-        let count = min(Int(w / step), 2048)      // bounded — never an open loop
-        guard count > 1 else { return }
-
-        let playheadX = w * 0.42                  // the now-line at 42 %
-        let secPerPt = 18.0 / Double(w)           // an 18 s window across the strip
-        let maxHalf = h * 0.5 * 0.9
-        let duration = track.duration ?? 0
-
-        if let env = track.env {
-            // Six figures: three bands × two sides, each filled once.
-            var amberPlayed = Path(), midPlayed = Path(), icePlayed = Path()
-            var amberAhead = Path(), midAhead = Path(), iceAhead = Path()
-
-            for i in 0..<count {
-                let x = (CGFloat(i) + 0.5) * step
-                let t = position + Double(x - playheadX) * secPerPt
-                if t < 0 { continue }
-                if duration > 0, t > duration { continue }
-
-                let s = env.sample(at: t)
-                var bassH = CGFloat(min(max(s.bass, 0), 1)) * maxHalf * 0.55
-                var midH = CGFloat(min(max(s.mid, 0), 1)) * maxHalf * 0.55
-                var trebH = CGFloat(min(max(s.treble, 0), 1)) * maxHalf * 0.55
-                // Keep the stack inside the strip — a loud bar saturates, it
-                // never overruns the frame (the luminance-governed reflex).
-                let total = bassH + midH + trebH
-                if total > maxHalf, total > 0 {
-                    let k = maxHalf / total
-                    bassH *= k; midH *= k; trebH *= k
-                }
-                bassH *= grow; midH *= grow; trebH *= grow
-
-                let x0 = x - barW / 2
-                let d1 = bassH
-                let d2 = bassH + midH
-                let d3 = bassH + midH + trebH
-                if t <= position {
-                    addBand(&amberPlayed, x0: x0, barW: barW, midY: midY, inner: 0, outer: d1)
-                    addBand(&midPlayed, x0: x0, barW: barW, midY: midY, inner: d1, outer: d2)
-                    addBand(&icePlayed, x0: x0, barW: barW, midY: midY, inner: d2, outer: d3)
-                } else {
-                    addBand(&amberAhead, x0: x0, barW: barW, midY: midY, inner: 0, outer: d1)
-                    addBand(&midAhead, x0: x0, barW: barW, midY: midY, inner: d1, outer: d2)
-                    addBand(&iceAhead, x0: x0, barW: barW, midY: midY, inner: d2, outer: d3)
-                }
-            }
-
-            layers.append(Layer(path: amberPlayed, color: Color.akAmber.opacity(0.95)))
-            layers.append(Layer(path: midPlayed, color: accent.opacity(0.95)))
-            layers.append(Layer(path: icePlayed, color: Color.akIce.opacity(0.95)))
-            layers.append(Layer(path: amberAhead, color: Color.akAmber.opacity(0.55)))
-            layers.append(Layer(path: midAhead, color: accent.opacity(0.55)))
-            layers.append(Layer(path: iceAhead, color: Color.akIce.opacity(0.55)))
-        } else {
-            // No env: a single-colour figure hashed from the track key.
-            let seed = Self.hashSeed(track.id)
-            var played = Path()
-            var ahead = Path()
-            for i in 0..<count {
-                let x = (CGFloat(i) + 0.5) * step
-                let t = position + Double(x - playheadX) * secPerPt
-                if t < 0 { continue }
-                if duration > 0, t > duration { continue }
-                let amp = CGFloat(Self.pseudoAmp(t, seed))
-                let height = amp * maxHalf * grow
-                let x0 = x - barW / 2
-                if t <= position {
-                    addBand(&played, x0: x0, barW: barW, midY: midY, inner: 0, outer: height)
-                } else {
-                    addBand(&ahead, x0: x0, barW: barW, midY: midY, inner: 0, outer: height)
-                }
-            }
-            layers.append(Layer(path: played, color: accent.opacity(0.95)))
-            layers.append(Layer(path: ahead, color: accent.opacity(0.55)))
-        }
+    static func == (a: WaveFigure, b: WaveFigure) -> Bool {
+        a.track.id == b.track.id && a.from == b.from && a.to == b.to
+            && a.ptPerSec == b.ptPerSec && a.height == b.height && a.accent == b.accent
     }
 
-    /// One band, mirrored above and below the midline: [inner, outer] are
-    /// distances from the centre.
-    private func addBand(_ p: inout Path, x0: CGFloat, barW: CGFloat, midY: CGFloat, inner: CGFloat, outer: CGFloat) {
-        let height = outer - inner
-        guard height > 0.2 else { return }
-        p.addRect(CGRect(x: x0, y: midY - outer, width: barW, height: height))
-        p.addRect(CGRect(x: x0, y: midY + inner, width: barW, height: height))
+    var body: some View {
+        Canvas { context, size in
+            let figure = layers(size: size)
+            // the glow first, drawn once with the figure (the glide only moves
+            // the finished picture, so no blur is ever paid per frame)
+            context.drawLayer { glow in
+                glow.addFilter(.blur(radius: 14))
+                glow.opacity = 0.7
+                for layer in figure { glow.fill(layer.path, with: .color(layer.color)) }
+            }
+            for layer in figure { context.fill(layer.path, with: .color(layer.color)) }
+        }
+        .frame(width: CGFloat(to - from) * ptPerSec, height: height)
+    }
+
+    private struct Layer {
+        let path: Path
+        let color: Color
+    }
+
+    /// One sample every 5 pt, joined by curves: the ribbons are smooth at any
+    /// distance from the screen.
+    private func layers(size: CGSize) -> [Layer] {
+        let w = size.width, h = size.height
+        guard w > 8, h > 12, ptPerSec > 0 else { return [] }
+        let step: CGFloat = 5
+        let count = min(Int(w / step) + 1, 2048)          // bounded — never an open loop
+        guard count > 2 else { return [] }
+        let midY = h * 0.5
+        let maxHalf = h * 0.5 * 0.86
+        let duration = track.duration ?? 0
+
+        var xs = [CGFloat](), lows = [CGFloat](), mids = [CGFloat](), highs = [CGFloat]()
+        xs.reserveCapacity(count); lows.reserveCapacity(count)
+        mids.reserveCapacity(count); highs.reserveCapacity(count)
+        let seed = Self.hashSeed(track.id)
+        for i in 0..<count {
+            let x = CGFloat(i) * step
+            let t = from + Double(x / ptPerSec)
+            var b = 0.0, m = 0.0, tr = 0.0
+            if t >= 0, duration <= 0 || t <= duration {
+                if let env = track.env {
+                    let s = env.sample(at: t)
+                    b = s.bass; m = s.mid; tr = s.treble
+                } else {
+                    let a = Self.pseudoAmp(t, seed)
+                    b = a * 0.5; m = a * 0.3; tr = a * 0.2
+                }
+            }
+            func clean(_ v: Double) -> CGFloat { v.isFinite ? CGFloat(min(max(v, 0), 1)) : 0 }
+            var lo = clean(b) * maxHalf * 0.5
+            var mi = clean(m) * maxHalf * 0.5
+            var hi = clean(tr) * maxHalf * 0.5
+            // a loud moment saturates inside the strip, never overruns it
+            let total = lo + mi + hi
+            if total > maxHalf, total > 0 {
+                let k = maxHalf / total
+                lo *= k; mi *= k; hi *= k
+            }
+            xs.append(x)
+            lows.append(lo)
+            mids.append(lo + mi)
+            highs.append(lo + mi + hi)
+        }
+        let zero = [CGFloat](repeating: 0, count: xs.count)
+        guard track.env != nil else {
+            // no bands measured: one ribbon in the key's colour
+            return [Layer(path: ribbon(xs, inner: zero, outer: highs, midY: midY),
+                          color: accent.opacity(0.92))]
+        }
+        return [
+            Layer(path: ribbon(xs, inner: mids, outer: highs, midY: midY), color: Color.akIce.opacity(0.85)),
+            Layer(path: ribbon(xs, inner: lows, outer: mids, midY: midY), color: accent.opacity(0.92)),
+            Layer(path: ribbon(xs, inner: zero, outer: lows, midY: midY), color: Color.akAmber.opacity(0.95)),
+        ]
+    }
+
+    /// A band between two curves, mirrored above and below the midline.
+    private func ribbon(_ xs: [CGFloat], inner: [CGFloat], outer: [CGFloat], midY: CGFloat) -> Path {
+        var p = Path()
+        for sign in [CGFloat(-1), CGFloat(1)] {
+            p.move(to: CGPoint(x: xs[0], y: midY + sign * outer[0]))
+            curve(&p, xs, outer, midY: midY, sign: sign, forward: true)
+            p.addLine(to: CGPoint(x: xs[xs.count - 1], y: midY + sign * inner[xs.count - 1]))
+            curve(&p, xs, inner, midY: midY, sign: sign, forward: false)
+            p.closeSubpath()
+        }
+        return p
+    }
+
+    /// Smooth through the samples: a quadratic to each midpoint, with the
+    /// sample itself as the control point.
+    private func curve(_ p: inout Path, _ xs: [CGFloat], _ ys: [CGFloat],
+                       midY: CGFloat, sign: CGFloat, forward: Bool) {
+        let n = xs.count
+        let idx = forward ? Array(0..<n) : Array((0..<n).reversed())
+        for k in 1..<n {
+            let a = idx[k - 1], b = idx[k]
+            let ctrl = CGPoint(x: xs[a], y: midY + sign * ys[a])
+            let mid = CGPoint(x: (xs[a] + xs[b]) / 2, y: midY + sign * (ys[a] + ys[b]) / 2)
+            p.addQuadCurve(to: mid, control: ctrl)
+        }
+        p.addLine(to: CGPoint(x: xs[idx[n - 1]], y: midY + sign * ys[idx[n - 1]]))
     }
 
     // MARK: env-less fallback

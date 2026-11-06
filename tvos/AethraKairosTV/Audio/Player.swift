@@ -778,6 +778,7 @@ enum MixStyle: String, CaseIterable {
                 await self.quiesce(deck: deck)
                 guard gen == self.generation, !Task.isCancelled else { return }
                 let dur = try self.engine.load(deck: deck, file: file)
+                WaveDetailStore.shared.prepare(id: track.id, url: url)   // the bloom's detail, read in the background
                 self.materializing = false
                 self.deckDuration[deck] = dur
                 self.restDeck(deck)
@@ -1231,6 +1232,7 @@ enum MixStyle: String, CaseIterable {
                 await self.quiesce(deck: other)
                 guard !Task.isCancelled, gen == self.generation, self.seamPlan != nil else { return }
                 let durB = try self.engine.load(deck: other, file: file)
+                WaveDetailStore.shared.prepare(id: b.id, url: url)       // ready long before the seam's bloom
                 self.deckDuration[other] = durB
                 // The catalog's in-point against the decoded file: a start at
                 // or past the real end would be a silent B, so it is held at
