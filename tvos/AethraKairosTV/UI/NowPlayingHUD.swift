@@ -78,7 +78,7 @@ struct NowPlayingHUD: View {
                 }
                 // Retire the bloom once its window has fully closed, so the
                 // TimelineView driving it stops ticking.
-                if bloomActive, let start = bloomStartedAt,
+                if bloomActive, let start = bloomStartedAt, !ZenWaveform.holdForCamera,
                    now.timeIntervalSince(start) > ZenWaveform.window + 0.25 {
                     bloomActive = false
                     bloomStartedAt = nil
@@ -234,6 +234,9 @@ private struct ZenWaveform: View {
 
     // The bloom's whole life, in seconds: a slow rise, a hold, a long dissolve.
     static let window: Double = 5.2
+    /// CI camera hook: `--bloom-hold` keeps the bloom at full strength once
+    /// risen, so a screenshot of it never races the dissolve.
+    static let holdForCamera = ProcessInfo.processInfo.arguments.contains("--bloom-hold")
     private static let fadeIn: Double = 1.0
     private static let fadeOut: Double = 1.9
     /// How much music the strip shows across the screen. Wider is calmer:
@@ -272,7 +275,9 @@ private struct ZenWaveform: View {
                 // where the figure's first second sits on screen
                 let x = w * Self.nowAt - CGFloat(playhead - (anchor - before)) * ptPerSec
                 Group {
-                    if let art {
+                    // the painting only while it is the painting of THIS anchor:
+                    // after a jump the ribbons stand in until the new one lands
+                    if let art, abs(art.from - (anchor - before)) < 0.001 {
                         Image(decorative: art.image, scale: displayScale)
                             .resizable()
                             .frame(width: CGFloat(before + after) * ptPerSec, height: h)
@@ -357,6 +362,7 @@ private struct ZenWaveform: View {
     /// Rise, hold, dissolve — the life of the bloom as an opacity in [0, 1];
     /// zero outside the window so nothing lingers.
     private func envelope(_ t: Double) -> Double {
+        if Self.holdForCamera { return t <= 0 ? 0 : smooth(t / Self.fadeIn) }
         if t <= 0 || t >= Self.window { return 0 }
         if t < Self.fadeIn { return smooth(t / Self.fadeIn) }
         if t > Self.window - Self.fadeOut { return smooth((Self.window - t) / Self.fadeOut) }
@@ -367,7 +373,7 @@ private struct ZenWaveform: View {
     /// sinks a little as it dissolves.
     private func grow(_ t: Double) -> Double {
         let rise = 1 - pow(1 - min(max(t / 1.4, 0), 1), 3)
-        let sink = smooth(max(0, t - (Self.window - Self.fadeOut)) / Self.fadeOut)
+        let sink = Self.holdForCamera ? 0 : smooth(max(0, t - (Self.window - Self.fadeOut)) / Self.fadeOut)
         return 0.25 + 0.75 * rise - 0.15 * sink
     }
 

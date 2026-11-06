@@ -249,7 +249,13 @@ actor WaveDetailStore {
 
     private func start(id: String, url: URL) {
         guard done[id] == nil, running[id] == nil else { return }
-        running[id] = Task.detached(priority: .utility) { WaveDetail.read(url: url) }
+        running[id] = Task.detached(priority: .utility) {
+            let t0 = Date()
+            let d = WaveDetail.read(url: url)
+            NSLog("AethraKairos: wave detail %@ — %d columns in %.0f ms",
+                  d == nil ? "FAILED" : "read", d?.n ?? 0, Date().timeIntervalSince(t0) * 1000)
+            return d
+        }
     }
 
     /// The song's read, waiting for one under way; nil when none was asked for
@@ -315,7 +321,10 @@ enum WaveArt {
     static func render(detail d: WaveDetail, track: Track, from: Double, to: Double,
                        width: Int, height: Int) async -> CGImage? {
         await Task.detached(priority: .userInitiated) {
-            WaveArt.paint(detail: d, track: track, from: from, to: to, width: width, height: height)
+            let t0 = Date()
+            let image = WaveArt.paint(detail: d, track: track, from: from, to: to, width: width, height: height)
+            NSLog("AethraKairos: bloom painted %dx%d in %.0f ms", width, height, Date().timeIntervalSince(t0) * 1000)
+            return image
         }.value
     }
 

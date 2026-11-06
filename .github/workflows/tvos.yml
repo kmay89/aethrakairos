@@ -783,22 +783,24 @@ jobs:
           xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES
           sleep 22
           xcrun simctl io "$UDID" screenshot ui/shelves.png
-          # the waveform bloom: the nonstop mix on the field, photographed
-          # mid-glide two seconds after the second song change
+          # the waveform bloom: the nonstop mix on the field, held at full
+          # strength by --bloom-hold, photographed six seconds after the second
+          # song change (past the soak's jump into the track and the repaint)
           xcrun simctl terminate "$UDID" com.aethrakairos.tv || true
           xcrun simctl spawn "$UDID" log stream --style compact \
-            --predicate 'eventMessage CONTAINS "soak: track"' > ui/tracks.log 2>&1 &
+            --predicate 'eventMessage CONTAINS "soak: track" OR eventMessage CONTAINS "wave detail" OR eventMessage CONTAINS "bloom painted"' > ui/tracks.log 2>&1 &
           LOGPID=$!
           sleep 2
-          xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --soak
+          xcrun simctl launch "$UDID" com.aethrakairos.tv -introSeen YES --field --soak --bloom-hold
           for i in $(seq 1 120); do
             sleep 1
             [ "$(grep -c 'soak: track' ui/tracks.log || true)" -ge 2 ] && break
           done
-          sleep 2
+          sleep 6
           xcrun simctl io "$UDID" screenshot ui/bloom.png || true
           kill "$LOGPID" 2>/dev/null || true
           echo "song changes seen before the bloom shot: $(grep -c 'soak: track' ui/tracks.log || true)"
+          grep -E 'wave detail|bloom painted' ui/tracks.log | sed 's/.*AethraKairos: //' | tail -12 || true
           pip3 install --quiet pillow 2>/dev/null || pip3 install --quiet --break-system-packages pillow 2>/dev/null || true
           python3 - << 'PY' || echo "pixel scan unavailable"
           from PIL import Image
