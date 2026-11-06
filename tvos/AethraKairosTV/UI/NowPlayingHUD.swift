@@ -292,6 +292,13 @@ private struct ZenWaveform: View {
                     }
                 }
                 .frame(width: w, height: h, alignment: .leading)
+                // a soft band of night behind the strip, so the waveform reads
+                // over the brightest room as well as the darkest
+                .background(LinearGradient(stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: Color.black.opacity(0.55), location: 0.5),
+                    .init(color: .clear, location: 1),
+                ], startPoint: .top, endPoint: .bottom))
                 // fixed to the screen, not the figure: the edges fade into the
                 // room, and the road ahead of the now-line is dimmer
                 .mask(LinearGradient(stops: [
