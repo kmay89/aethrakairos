@@ -39,7 +39,7 @@ tokio = { version = "1", features = ["time"] }
 # system dbus library, which a Linux checkout running `cargo test` on the pure
 # functions should not have to install for a surface only the Mac app has.
 [target.'cfg(target_os = "macos")'.dependencies]
-souvlaki = { version = "0.8.3", default-features = false }
+souvlaki = { version = "0.9.3", default-features = false }
 
 # a fast, predictable release binary — the point of going native. opt-level 3
 # rather than "s": the shell's hot paths are TLS and JSON at lamp-frame rate
