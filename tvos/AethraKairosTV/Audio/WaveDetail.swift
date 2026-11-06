@@ -1,3 +1,4 @@
+import Accelerate
 import AVFoundation
 import CoreGraphics
 import CoreImage
@@ -10,7 +11,7 @@ import CoreImage
    kick. So the song is read from its own file, off the main thread, the
    moment a deck loads it (the seam's preload is ~90 s before the change,
    so the read is ready long before the bloom asks): folded to mono,
-   decimated to ~16 kHz, split the way an ear splits it — below 200 Hz the
+   split the way an ear splits it — below 200 Hz the
    kick and the bass, 200 Hz to 2 kHz the body, above 2 kHz the hats and
    the air — through Linkwitz-Riley crossovers (24 dB an octave), and read
    at 150 columns a second: the whole signal's peak, each band's PEAK (the
@@ -66,39 +67,57 @@ struct WaveDetail {
     // MARK: the read
 
     /// Reads a whole file. Pure CPU work for a background queue; nil when the
-    /// file will not decode.
+    /// file will not decode. The filtering and the column reads are vDSP (the
+    /// crossovers as cascaded biquads with state carried chunk to chunk), so a
+    /// whole song is a fraction of a second in any build.
     static func read(url: URL) -> WaveDetail? {
         guard let file = try? AVAudioFile(forReading: url) else { return nil }
         let format = file.processingFormat
         let sr = format.sampleRate
         let channels = Int(format.channelCount)
+        let chunk = 65_536
         guard sr > 0, channels > 0, file.length > 0,
-              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 65_536) else { return nil }
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(chunk))
+        else { return nil }
 
-        let decim = max(1, Int((sr / 16_000).rounded()))
-        let sr2 = sr / Double(decim)
         let hz = columnsPerSecond
-        let total = Int(file.length) / decim
-        let n = max(1, Int((Double(total) * hz / sr2).rounded(.up)))
+        let total = Int(file.length)
+        let n = max(1, Int((Double(total) * hz / sr).rounded(.up)))
         guard n < 600_000 else { return nil }                    // ~66 min at 150 Hz: bounded
 
         var pk = [Float](repeating: 0, count: n)
         var bp = [[Float]](repeating: [Float](repeating: 0, count: n), count: 3)
         var bs = [[Float]](repeating: [Float](repeating: 0, count: n), count: 3)
 
-        // the crossovers: low LP·LP, mid HP·HP·LP·LP, high HP·HP
-        let lpLo = Biquad(lowpass: true, f: crossLo, sr: sr2), hpLo = Biquad(lowpass: false, f: crossLo, sr: sr2)
-        let lpHi = Biquad(lowpass: true, f: crossHi, sr: sr2), hpHi = Biquad(lowpass: false, f: crossHi, sr: sr2)
-        var low = [lpLo, lpLo], mid = [hpLo, hpLo, lpHi, lpHi], high = [hpHi, hpHi]
+        // the crossovers (Linkwitz-Riley, two Butterworth sections a side):
+        // low LP·LP, mid HP·HP·LP·LP, high HP·HP
+        let lpLo = section(lowpass: true, f: crossLo, sr: sr), hpLo = section(lowpass: false, f: crossLo, sr: sr)
+        let lpHi = section(lowpass: true, f: crossHi, sr: sr), hpHi = section(lowpass: false, f: crossHi, sr: sr)
+        let chains: [[Double]] = [lpLo + lpLo, hpLo + hpLo + lpHi + lpHi, hpHi + hpHi]
+        var setups: [vDSP_biquad_Setup] = []
+        for c in chains {
+            guard let st = vDSP_biquad_CreateSetup(c, vDSP_Length(c.count / 5)) else {
+                setups.forEach { vDSP_biquad_DestroySetup($0) }
+                return nil
+            }
+            setups.append(st)
+        }
+        defer { setups.forEach { vDSP_biquad_DestroySetup($0) } }
+        var delays = chains.map { [Float](repeating: 0, count: 2 * ($0.count / 5) + 2) }
 
+        var mono = [Float](repeating: 0, count: chunk)
+        var bands = [[Float]](repeating: [Float](repeating: 0, count: chunk), count: 3)
+        var abs0 = [Float](repeating: 0, count: chunk)
+
+        // the column in progress, carried across chunk boundaries
         var col = 0
-        var end = min(total, Int((sr2 / hz).rounded()))
-        var count = 0, sampleIndex = 0
-        var mx: Float = 0, p0: Float = 0, p1: Float = 0, p2: Float = 0
-        var s0: Float = 0, s1: Float = 0, s2: Float = 0
-        var acc: Float = 0, accN = 0
+        var colEnd = min(total, Int((sr / hz).rounded()))
+        var base = 0
+        var mx: Float = 0
+        var p = [Float](repeating: 0, count: 3), q = [Float](repeating: 0, count: 3)
+        var cnt = 0
 
-        reading: while true {
+        reading: while base < total {
             buffer.frameLength = 0
             var readError: Error?
             let ok = AKCatchException {
@@ -108,32 +127,61 @@ struct WaveDetail {
             let frames = Int(buffer.frameLength)
             if frames == 0 { break }
             guard let data = buffer.floatChannelData else { break }
-            let l = data[0], r = channels > 1 ? data[1] : data[0]
-            for f in 0..<frames {
-                var x = (l[f] + r[f]) * 0.5
-                if !x.isFinite { x = 0 }
-                acc += x; accN += 1
-                if accN < decim { continue }
-                let s = acc / Float(accN)
-                acc = 0; accN = 0
-                let a = run(&low, s), b = run(&mid, s), c = run(&high, s)
-                mx = max(mx, abs(s))
-                p0 = max(p0, abs(a)); p1 = max(p1, abs(b)); p2 = max(p2, abs(c))
-                s0 += a * a; s1 += b * b; s2 += c * c
-                count += 1; sampleIndex += 1
-                if sampleIndex >= end {
+
+            // fold to mono, silence anything that is not a number
+            if channels > 1 {
+                var half: Float = 0.5
+                mono.withUnsafeMutableBufferPointer { m in
+                    let out = m.baseAddress!
+                    vDSP_vadd(data[0], 1, data[1], 1, out, 1, vDSP_Length(frames))
+                    vDSP_vsmul(out, 1, &half, out, 1, vDSP_Length(frames))
+                }
+            } else {
+                mono.withUnsafeMutableBufferPointer { m in
+                    m.baseAddress!.update(from: data[0], count: frames)
+                }
+            }
+            for i in 0..<frames where !mono[i].isFinite { mono[i] = 0 }
+            for b in 0..<3 {
+                vDSP_biquad(setups[b], &delays[b], mono, 1, &bands[b], 1, vDSP_Length(frames))
+            }
+            vDSP_vabs(mono, 1, &abs0, 1, vDSP_Length(frames))
+
+            // every column this chunk touches: peaks by max, power by sum of squares
+            var i = 0
+            while i < frames {
+                let stop = min(frames, colEnd - base)
+                let len = stop - i
+                if len > 0 {
+                    var m: Float = 0
+                    abs0.withUnsafeBufferPointer { vDSP_maxv($0.baseAddress! + i, 1, &m, vDSP_Length(len)) }
+                    mx = max(mx, m)
+                    for b in 0..<3 {
+                        var bm: Float = 0, sq: Float = 0
+                        bands[b].withUnsafeBufferPointer { bb in
+                            vDSP_maxmgv(bb.baseAddress! + i, 1, &bm, vDSP_Length(len))
+                            vDSP_svesq(bb.baseAddress! + i, 1, &sq, vDSP_Length(len))
+                        }
+                        p[b] = max(p[b], bm.isFinite ? bm : 0)
+                        q[b] += sq.isFinite ? sq : 0
+                    }
+                    cnt += len
+                }
+                i = max(stop, i + 1)
+                if base + i >= colEnd {
                     if col < n {
                         pk[col] = mx
-                        bp[0][col] = p0; bp[1][col] = p1; bp[2][col] = p2
-                        let k = Float(max(count, 1))
-                        bs[0][col] = s0 / k; bs[1][col] = s1 / k; bs[2][col] = s2 / k
+                        let k = Float(max(cnt, 1))
+                        for b in 0..<3 { bp[b][col] = p[b]; bs[b][col] = q[b] / k }
                     }
                     col += 1
                     if col >= n { break reading }
-                    end = min(total, Int((Double(col + 1) * sr2 / hz).rounded()))
-                    count = 0; mx = 0; p0 = 0; p1 = 0; p2 = 0; s0 = 0; s1 = 0; s2 = 0
+                    colEnd = min(total, Int((Double(col + 1) * sr / hz).rounded()))
+                    mx = 0; cnt = 0
+                    for b in 0..<3 { p[b] = 0; q[b] = 0 }
                 }
             }
+            base += frames
         }
         guard col > 0 else { return nil }
 
@@ -159,7 +207,7 @@ struct WaveDetail {
             let s = lo[i] + mi[i] + hi[i]
             tilt[i] = s > 1e-6 ? (2 * hi[i] + mi[i]) / s * 0.5 : 0.5
         }
-        return WaveDetail(hz: hz, n: n, dur: Double(total) / sr2,
+        return WaveDetail(hz: hz, n: n, dur: Double(total) / sr,
                           pk: norm(pk, refPk, 1),
                           loPk: norm(bp[0], refC / bandTilt[0], 0.8),
                           miPk: norm(bp[1], refC / bandTilt[1], 0.8),
@@ -167,30 +215,13 @@ struct WaveDetail {
                           lo: lo, mi: mi, hi: hi, tilt: tilt)
     }
 
-    /// A second-order Butterworth section (RBJ), with its own state.
-    private struct Biquad {
-        var b0: Float, b1: Float, b2: Float, a1: Float, a2: Float
-        var x1: Float = 0, x2: Float = 0, y1: Float = 0, y2: Float = 0
-
-        init(lowpass: Bool, f: Double, sr: Double) {
-            let w = 2 * Double.pi * f / sr, c = cos(w), al = sin(w) / 2.0.squareRoot(), a0 = 1 + al
-            let b0d = (lowpass ? (1 - c) / 2 : (1 + c) / 2) / a0
-            b0 = Float(b0d); b2 = Float(b0d)
-            b1 = Float((lowpass ? 1 - c : -(1 + c)) / a0)
-            a1 = Float(-2 * c / a0); a2 = Float((1 - al) / a0)
-        }
-
-        mutating func step(_ x: Float) -> Float {
-            let y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
-            x2 = x1; x1 = x; y2 = y1; y1 = y.isFinite ? y : 0
-            return y1
-        }
-    }
-
-    private static func run(_ chain: inout [Biquad], _ x: Float) -> Float {
-        var y = x
-        for k in chain.indices { y = chain[k].step(y) }
-        return y
+    /// A second-order Butterworth section (RBJ) as vDSP takes it:
+    /// [b0, b1, b2, a1, a2], with y = b0·x + b1·x1 + b2·x2 − a1·y1 − a2·y2.
+    private static func section(lowpass: Bool, f: Double, sr: Double) -> [Double] {
+        let w = 2 * Double.pi * f / sr, c = cos(w), al = sin(w) / 2.0.squareRoot(), a0 = 1 + al
+        let b0 = (lowpass ? (1 - c) / 2 : (1 + c) / 2) / a0
+        let b1 = (lowpass ? 1 - c : -(1 + c)) / a0
+        return [b0, b1, b0, -2 * c / a0, (1 - al) / a0]
     }
 
     private static func trailMean(_ v: inout [Float], win: Int) {
@@ -249,6 +280,7 @@ actor WaveDetailStore {
 
     private func start(id: String, url: URL) {
         guard done[id] == nil, running[id] == nil else { return }
+        NSLog("AethraKairos: wave detail reading %@", url.lastPathComponent)
         running[id] = Task.detached(priority: .utility) {
             let t0 = Date()
             let d = WaveDetail.read(url: url)
