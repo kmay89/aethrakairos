@@ -306,12 +306,14 @@ private struct ZenWaveform: View {
                 .opacity(envelope(t))
             }
             .task(id: "\(track.id)|\(anchor)|\(Int(w))x\(Int(h))") {
-                // the song's detail, read when its deck loaded it: wait a beat
-                // for a read still under way, then paint it once, off the main
-                // thread
+                // the song's detail, read when its deck loaded it: wait for a
+                // read still under way, then paint it once, off the main thread
                 guard w > 8, h > 8 else { return }
                 var detail: WaveDetail?
-                for _ in 0..<20 {
+                // through the bloom's rise and hold (a late painting still
+                // glides in before the dissolve); the camera hook waits longer
+                let tries = Self.holdForCamera ? 600 : 40
+                for _ in 0..<tries {
                     detail = await WaveDetailStore.shared.detail(for: track.id)
                     if detail != nil || Task.isCancelled { break }
                     try? await Task.sleep(nanoseconds: 100_000_000)

@@ -141,7 +141,11 @@ struct WaveDetail {
                     m.baseAddress!.update(from: data[0], count: frames)
                 }
             }
-            for i in 0..<frames where !mono[i].isFinite { mono[i] = 0 }
+            // one NaN would poison the filters' state for the rest of the song:
+            // a chunk whose sum is not finite is cleaned sample by sample
+            var sum: Float = 0
+            vDSP_sve(mono, 1, &sum, vDSP_Length(frames))
+            if !sum.isFinite { for i in 0..<frames where !mono[i].isFinite { mono[i] = 0 } }
             for b in 0..<3 {
                 vDSP_biquad(setups[b], &delays[b], mono, 1, &bands[b], 1, vDSP_Length(frames))
             }
