@@ -27493,7 +27493,13 @@ async function verifyShell(source){
   if (verifying || updateRequested) return;
   verifying = true;
   try {
-    const r = await fetch('index.html?mb8probe=1&_v=' + Date.now(), { cache: 'no-store' });
+    /* `no-cache`, and one constant URL: the origin is still asked every time
+       (the worker passes mb8probe straight to the network, and no-cache
+       revalidates past the HTTP cache), but an unchanged shell now answers
+       304 with no body instead of re-sending all of index.html — a
+       cache-busted no-store probe could never be a 304, and it ran on every
+       deploy for every returning listener. */
+    const r = await fetch('index.html?mb8probe=1', { cache: 'no-cache' });
     if (!r || !r.ok) return;
     const m = (await r.text()).match(/const MB8_BUILD = '([^']*)'/);
     const build = m ? m[1] : '';
@@ -74420,6 +74426,7 @@ const WIRE = {
   PUBLIC: 'https://kmay89.com/api/room',
   GAME: 'stage',
   base: null,
+  sameStatic: false,         // this origin answered as a plain static host: no mailbox here, stop asking
   code: null, key: null,     // booth: the four letters, and the secret that reclaims them
   linked: false,             // screen: the booth is on the other end
   peers: new Map(),          // booth: id → { pc, feed, ctl, at, born }
@@ -74442,7 +74449,13 @@ const WIRE = {
         /* a plain static host answers 404 HTML here — the content type, not
            the status, is what says whether a mailbox exists at all */
         const ct = r.headers.get('content-type') || '';
-        if (ct.indexOf('application/json') < 0) return null;
+        if (ct.indexOf('application/json') < 0){
+          // a static host ANSWERED — this origin has no mailbox, and asking
+          // again every 2.5 s is only a stream of 404s (a network failure is
+          // not an answer, and is never remembered)
+          if (url === this.SAME) this.sameStatic = true;
+          return null;
+        }
         return await r.json().catch(() => ({}));
       } catch (e){ return null; }
     };
@@ -74452,8 +74465,10 @@ const WIRE = {
       if (this.base === this.PUBLIC) return null;
       this.base = null;                       // it moved out from under us; re-find it
     }
-    const j = await once(this.SAME);
-    if (j){ this.base = this.SAME; return j; }
+    if (!this.sameStatic){
+      const j = await once(this.SAME);
+      if (j){ this.base = this.SAME; return j; }
+    }
     const k = await once(this.PUBLIC);
     if (k){ this.base = this.PUBLIC; return k; }
     return null;
