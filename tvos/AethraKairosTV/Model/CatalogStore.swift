@@ -22,7 +22,7 @@ import Combine
     private var loading = false
 
     init() {
-        statusLine = "catalog · not yet loaded"
+        statusLine = "Tuning the library…"
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         cacheFileURL = caches.appendingPathComponent("catalog.json")
@@ -56,22 +56,35 @@ import Combine
             }.value
             if let cached {
                 catalog = cached
-                statusLine = "\(cached.tracks.count) tracks (cached) — refreshing…"
+                statusLine = "\(cached.tracks.count) songs — checking for new music…"
             } else {
-                statusLine = "loading catalog…"
+                statusLine = "Tuning the library…"
             }
         }
 
-        // 2) revalidate — bypass every intermediate cache, same as the web's
-        //    fetch(url, { cache: 'no-cache' })
+        // 2) revalidate — conditionally, as the web's fetch(url, { cache:
+        //    'no-cache' }) does: the cached copy's ETag rides along, and an
+        //    unchanged catalog comes back as a 304 with no body instead of the
+        //    whole ~5 MB on every launch. The ETag is only sent while a cached
+        //    copy actually parsed (it describes that file).
+        let etagKey = "catalog.etag"
         do {
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalCacheData
             request.timeoutInterval = 30
+            if catalog != nil, let etag = UserDefaults.standard.string(forKey: etagKey) {
+                request.setValue(etag, forHTTPHeaderField: "If-None-Match")
+            }
             let (data, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse, http.statusCode == 304, let current = catalog {
+                let label = current.label.isEmpty ? "catalog" : current.label
+                statusLine = "\(current.tracks.count) songs · up to date with \(label)"
+                return
+            }
             if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                 throw CatalogError.malformed("HTTP \(http.statusCode)")
             }
+            let freshETag = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "ETag")
             let fresh: Catalog = try await Task.detached(priority: .userInitiated) { () throws -> Catalog in
                 let parsed = try CatalogParser.parse(data, catalogURL: url)
                 // only a catalog that PARSED may touch the cache — a bad deploy
@@ -80,18 +93,22 @@ import Combine
                 return parsed
             }.value
             catalog = fresh
+            if let freshETag { UserDefaults.standard.set(freshETag, forKey: etagKey) }
+            else { UserDefaults.standard.removeObject(forKey: etagKey) }
             let label = fresh.label.isEmpty ? "catalog" : fresh.label
             statusLine = fresh.albums.count == 1
                 ? "Loaded \(fresh.tracks.count) tracks · 1 album from \(label)"
                 : "Loaded \(fresh.tracks.count) tracks · \(fresh.albums.count) albums from \(label)"
         } catch {
+            // the technical reason is for the log; the room gets plain words
             let message = (error as? CatalogError)?.errorDescription
                 ?? (error as NSError).localizedDescription
-            if catalog != nil {
+            NSLog("AethraKairos: catalog refresh failed — %@", message)
+            if let current = catalog {
                 // the iron rule: stale beats blank
-                statusLine = "refresh failed: \(message) — keeping the cached catalog"
+                statusLine = "\(current.tracks.count) songs — couldn't check for new music right now"
             } else {
-                statusLine = "Catalog failed: \(message)"
+                statusLine = "Couldn't reach the music library. Check the Apple TV's internet connection and try again."
             }
         }
     }

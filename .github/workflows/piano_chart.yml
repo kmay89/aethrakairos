@@ -64,16 +64,25 @@ jobs:
       - name: Verify the transcriber
         run: python3 tools/piano_chart.py --selftest
       - name: Separate and transcribe
+        # inputs reach the shell as environment, never spliced into the script,
+        # and the tag must be a plain name (it becomes a path under docs/charts)
+        env:
+          TAG: ${{ github.event.inputs.tag }}
+          MODEL: ${{ github.event.inputs.model }}
         run: |
-          cp "docs/charts/${{ github.event.inputs.tag }}.json" "$RUNNER_TEMP/previous.json" 2>/dev/null || true
-          python3 tools/piano_chart.py "${{ github.event.inputs.tag }}" --model "${{ github.event.inputs.model }}" --keep "$RUNNER_TEMP/stems" --compare "$RUNNER_TEMP/previous.json"
+          [[ "$TAG" =~ ^[A-Za-z0-9._-]+$ && "$TAG" != *..* ]] || { echo "::error::tag must be a plain name"; exit 1; }
+          [[ "$MODEL" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "::error::model must be a plain name"; exit 1; }
+          cp "docs/charts/$TAG.json" "$RUNNER_TEMP/previous.json" 2>/dev/null || true
+          python3 tools/piano_chart.py "$TAG" --model "$MODEL" --keep "$RUNNER_TEMP/stems" --compare "$RUNNER_TEMP/previous.json"
       - name: Pack the stems for inspection (FLAC, mono)
+        env:
+          TAG: ${{ github.event.inputs.tag }}
         run: |
           mkdir -p "$RUNNER_TEMP/pack"
           for f in "$RUNNER_TEMP"/stems/*.wav; do
             ffmpeg -loglevel error -y -i "$f" -ac 1 -ar 44100 "$RUNNER_TEMP/pack/$(basename "${f%.wav}").flac"
           done
-          cp "docs/charts/${{ github.event.inputs.tag }}.json" "$RUNNER_TEMP/pack/"
+          cp "docs/charts/$TAG.json" "$RUNNER_TEMP/pack/"
       - name: Upload the stems and the chart
         uses: actions/upload-artifact@v7
         with:
@@ -82,10 +91,12 @@ jobs:
           retention-days: 7
       - name: Commit the chart
         if: ${{ github.event.inputs.commit != 'false' }}
+        env:
+          TAG: ${{ github.event.inputs.tag }}
         run: |
           if [[ -z "$(git status --porcelain docs/charts)" ]]; then echo "chart unchanged"; exit 0; fi
           git config user.name  "aethra-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/charts
-          git commit -m "chore: chart the piano part of ${{ github.event.inputs.tag }} (auto) [skip ci]"
+          git commit -m "chore: chart the piano part of $TAG (auto) [skip ci]"
           git push

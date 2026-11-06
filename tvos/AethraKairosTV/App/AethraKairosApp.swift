@@ -68,3 +68,19 @@ struct AethraKairosApp: App {
         return catalog.albums.first { $0.tag == track.albumTag }
     }
 }
+
+/// CI's camera hooks (`--soak`, `--field`, `--start-room`, `--rolls`, …): the
+/// launch arguments the simulator jobs pass to photograph and soak the app.
+/// They exist only in Debug builds; an App Store / TestFlight build (Release)
+/// sees no arguments at all, so no hook can ever reach a listener.
+enum CameraHooks {
+    static let args: [String] = {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments
+        #else
+        return []
+        #endif
+    }()
+
+    static func has(_ flag: String) -> Bool { args.contains(flag) }
+}

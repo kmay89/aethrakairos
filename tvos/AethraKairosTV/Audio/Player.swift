@@ -196,14 +196,6 @@ enum MixStyle: String, CaseIterable {
         Self.speedSteps[min(max(speedIndex, 0), Self.speedSteps.count - 1)]
     }
 
-    func cycleSpeed() {
-        speedIndex = (speedIndex + 1) % Self.speedSteps.count
-    }
-
-    func setSpeed(index: Int) {
-        speedIndex = min(max(index, 0), Self.speedSteps.count - 1)
-    }
-
     let analyzer = Analyzer()
 
     /// Catalog context for key lookups and cover metadata (internal — the
@@ -483,7 +475,7 @@ enum MixStyle: String, CaseIterable {
             // Nothing that needs a deck reads it mid-download (deckReady is
             // false), and the landing sets it from the intent either way.
             if !wantsPlayback { isPlaying = false }
-            statusLine = wantsPlayback ? "materializing…" : "paused"
+            statusLine = wantsPlayback ? "loading…" : "paused"
             return
         }
         if isPlaying { pause() } else { play() }
@@ -499,7 +491,7 @@ enum MixStyle: String, CaseIterable {
         }
         if materializing {
             // The download is already on its way; the intent above is enough.
-            statusLine = "materializing…"
+            statusLine = "loading…"
             return
         }
         if !deckReady {
@@ -748,6 +740,9 @@ enum MixStyle: String, CaseIterable {
 
     private func materialize(index: Int, startAt offset: Double, autoplay: Bool) {
         guard queue.indices.contains(index) else { return }
+        // a hard change of track: warms for tracks no longer next stop here
+        // (the one for this track is kept — it is half this load already)
+        loader.cancelPrefetches(keeping: queue[index])
         generation += 1
         let gen = generation
         let deck = activeDeck
@@ -760,7 +755,7 @@ enum MixStyle: String, CaseIterable {
         wantsPlayback = autoplay
         materializing = true
         let track = queue[index]
-        statusLine = "materializing…"
+        statusLine = "loading…"
         loadTask?.cancel()
         loadTask = Task { [weak self] in
             guard let self else { return }
@@ -1280,7 +1275,8 @@ enum MixStyle: String, CaseIterable {
             seamTasks.append(t)
 
         case .fade(let trackSeconds, let why):
-            statusLine = "fade — \(why)"
+            // the seam's reasoning is for the log, not the living room
+            NSLog("AethraKairos: seam fade — %@", String(describing: why))
             let seconds = trackSeconds / spd
             engine.play(deck: inDeck, atOffset: 0, in: delta)
             let t = Task { [weak self] in
@@ -1299,7 +1295,7 @@ enum MixStyle: String, CaseIterable {
             seamTasks.append(t)
 
         case .beatmix(let beats, _, let startB, let bpmA, let bpmB, let fold, let trackSeconds):
-            statusLine = "beatmix — \(Int(beats)) beats"
+            NSLog("AethraKairos: seam beatmix — %d beats", Int(beats))
             let seconds = trackSeconds / spd
             // B enters tempo-matched to A and bass-ducked: one bassline at a time.
             applyDeckRate(deck: inDeck, rate: fold)
@@ -1423,7 +1419,7 @@ enum MixStyle: String, CaseIterable {
     /// track it jumps to 28 s before the end (every fourth track it skips
     /// instead), so a seam or a hard switch fires every ~30 s and an hour of
     /// track changes fits in a CI job. Never on for a listener.
-    static let soak = ProcessInfo.processInfo.arguments.contains("--soak")
+    static let soak = CameraHooks.has("--soak")
     private var soakStarted = false
     private var soakTracks = 0
     private var soakKey: String?

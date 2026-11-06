@@ -125,7 +125,7 @@ struct NowPlayingHUD: View {
 
     private var card: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Transient status — "materializing…", seam notices — in the
+            // Transient status — "loading…", "audio output unavailable" — in the
             // technical voice, tinted amber.
             if !player.statusLine.isEmpty {
                 Text(player.statusLine)
@@ -236,7 +236,7 @@ private struct ZenWaveform: View {
     static let window: Double = 5.2
     /// CI camera hook: `--bloom-hold` keeps the bloom at full strength once
     /// risen, so a screenshot of it never races the dissolve.
-    static let holdForCamera = ProcessInfo.processInfo.arguments.contains("--bloom-hold")
+    static let holdForCamera = CameraHooks.has("--bloom-hold")
     private static let fadeIn: Double = 1.0
     private static let fadeOut: Double = 1.9
     /// How much music the strip shows across the screen. Wider is calmer:

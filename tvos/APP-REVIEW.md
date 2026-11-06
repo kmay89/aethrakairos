@@ -12,8 +12,8 @@ The whole review posture rests on one true fact, so it is worth stating once:
 > sign-in, no analytics, no advertising, no third-party SDKs. Hearts, history,
 > resume position and the two mixing preferences live only on the device. The
 > only bytes that leave are HTTPS requests for the published catalog and its
-> audio, and — solely when the listener opens the STAGE screen — a read-only
-> WebSocket to a booth relay. Answer every questionnaire from that fact and the
+> audio (the STAGE screen, which would add a read-only WebSocket, is hidden
+> until its relay exists). Answer every questionnaire from that fact and the
 > answers below fall out consistently.
 
 Cross-check the in-repo sources of truth as you go: `PrivacyInfo.xcprivacy`
@@ -79,9 +79,9 @@ declares:
 
   | Category | Reason | Why it is used |
   | --- | --- | --- |
-  | `NSPrivacyAccessedAPICategoryUserDefaults` | **CA92.1** | `Player.swift` stores the auto-mix style and key-lock flag for the app's own use. |
+  | `NSPrivacyAccessedAPICategoryUserDefaults` | **CA92.1** | The app's own preferences (`Player.swift`, `Rooms.swift`, `@AppStorage`) and the catalog's ETag (`CatalogStore.swift`). |
   | `NSPrivacyAccessedAPICategoryFileTimestamp` | **C617.1** | `TrackLoader.swift` reads/sets modification dates on files in the app's own audio cache to run an LRU eviction. |
-  | `NSPrivacyAccessedAPICategorySystemBootTime` | **35F9.1** | `AudioEngine.swift` uses `ProcessInfo.systemUptime` to time gain fades/crossfades; the audio graph schedules with `mach_absolute_time()` host time. |
+  | `NSPrivacyAccessedAPICategorySystemBootTime` | **35F9.1** | `ProcessInfo.systemUptime` / `mach_absolute_time()` time fades, throttles and the analyser's clock (`AudioEngine`, `Player`, `Library`, `NowPlayingCenter`, `Analyzer`) — on-device timing only. |
 
   `NSPrivacyAccessedAPICategoryDiskSpace` and `…ActiveKeyboards` are **not**
   declared — the app calls neither. If a future change adds a free-space check
@@ -98,7 +98,7 @@ declares:
 
 - `Info.plist` ships **`ITSAppUsesNonExemptEncryption` = `false`**.
 - The app uses only standard HTTPS (TLS) for the catalog and audio and standard
-  WSS (TLS) for the optional stage relay. That is exempt encryption under the
+  WSS (TLS) for the stage relay (hidden for now). That is exempt encryption under the
   U.S. export rules, and the Info.plist key means **App Store Connect never asks
   the export-compliance questions** — builds move straight to "Ready to Submit"
   / "Ready to Test."
@@ -166,20 +166,21 @@ third-party content."*
   creates or enters an account, an email, or a password. There is no login
   screen to demo because there is no login.
 - **No personal data, ever.** Hearts, play history (capped, oldest dropped),
-  resume position, saved journeys, and the two mixing preferences are written to
-  on-device storage (Application Support JSON and UserDefaults) and mirrored
-  nowhere. Deleting the app removes all of it.
+  resume position and the app's preferences are written to on-device storage
+  (small JSON files in the first folder proved writable — Application Support,
+  else Caches — and UserDefaults) and mirrored nowhere. Deleting the app
+  removes all of it.
 - **No analytics, ads, or trackers.** No third-party SDKs are linked; there is
   no SPM/CocoaPods dependency. Only first-party Apple frameworks are used.
-- **Network, in full:** (1) HTTPS GET of the published catalog and its audio;
-  (2) only when the listener opens **STAGE** and types a booth code, a read-only
-  WSS connection to the relay that carries a booth's ~40-float feature packet so
-  the TV can render that booth's field locally (it receives numbers, not audio,
-  and sends none of the listener's data). Nothing else touches the network.
-- **Privacy Policy URL** (App Store Connect requires one even for "no data"):
-  point it at the project's privacy statement (e.g. `https://aethrakairos.com/privacy`).
-  The page need only state: the app collects no personal data, has no accounts,
-  uses no analytics or tracking, and stores preferences on-device only.
+- **Network, in full:** HTTPS GET of the published catalog (conditional — an
+  unchanged catalog is a 304) and its audio. Nothing else touches the network.
+  (The STAGE client is compiled in but its shelf is hidden —
+  `StageClient.available = false` — until the relay it needs is deployed; see
+  STAGE.md. Re-enable it, and restore its line here and in §7, only then.)
+- **Privacy Policy URL:** `https://aethrakairos.com/privacy` (`docs/privacy.html`).
+- **Support URL:** `https://aethrakairos.com/support` (`docs/support.html`,
+  which sends questions to the repository's GitHub Issues).
+- **Marketing URL** (optional): `https://aethrakairos.com/`.
 
 ---
 
@@ -193,10 +194,12 @@ Aethra Kairos is a music player and Metal audio-visualizer for Apple TV.
 
 • No account or sign-in — the app opens directly into playback. Leave the
   demo-account fields blank.
-• To review: open the app, press Menu to reveal the shelves, choose any Album
-  or Ritual to start playback. Swipe up/down on the Siri Remote to change the
-  visualizer room; the on-screen HUD melts away during playback (by design) —
-  press any button to bring it back.
+• To review: open the app and click PARTY, CHILL or SHUFFLE on the welcome
+  screen — music starts at once, blended nonstop. Swipe up/down on the Siri
+  Remote to change the light show, left/right for the previous/next song;
+  press Menu to browse albums, rituals and Settings (Menu again goes to the
+  Home Screen). The on-screen card melts away during playback by design — press
+  any button to bring it back.
 • Data: none collected. See our privacy manifest (PrivacyInfo.xcprivacy) and
   App Privacy answer ("Data Not Collected").
 • Music rights: all recordings are owned by the developer and streamed from our
@@ -204,10 +207,8 @@ Aethra Kairos is a music player and Metal audio-visualizer for Apple TV.
 • Encryption: HTTPS/TLS only; ITSAppUsesNonExemptEncryption = NO.
 • Background audio: declared (UIBackgroundModes = audio) so playback continues
   when backgrounded, as expected of a music app.
-• The optional STAGE screen joins a live "booth" over a read-only WebSocket and
-  renders its visual field locally; it plays no audio and needs no login. If no
-  booth is broadcasting, the screen simply shows its idle/held state — this is
-  expected and not a defect.
+• Privacy policy: https://aethrakairos.com/privacy · Support:
+  https://aethrakairos.com/support
 ```
 
 ---

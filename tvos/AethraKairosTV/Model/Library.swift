@@ -37,7 +37,8 @@ struct SavedJourney: Codable, Equatable, Identifiable {
 
 /// Everything durable is keyed by trackKey (sha256-first, url-fallback) so a
 /// republished file keeps its history. tvOS persistent quota is tiny, so state
-/// stays compact: JSON files in Application Support, mirrored nowhere else.
+/// stays compact: JSON files in the first folder proved writable
+/// (storageDirectory: Application Support, else Caches), mirrored nowhere else.
 /// History capped at 400 events (oldest dropped).
 @MainActor final class Library: ObservableObject {
     @Published private(set) var hearts: Set<String> = []
@@ -68,10 +69,7 @@ struct SavedJourney: Codable, Equatable, Identifiable {
     }()
 
     init() {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        dirURL = base.appendingPathComponent("AethraKairos", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true)
+        dirURL = Self.storageDirectory()
         // a missing or corrupt file is an empty file — the library never
         // refuses to boot over its own bookkeeping
         hearts = Self.read(Set<String>.self, from: heartsURL) ?? []
@@ -199,7 +197,37 @@ struct SavedJourney: Codable, Equatable, Identifiable {
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .secondsSince1970
             guard let data = try? encoder.encode(value) else { return }
-            try? data.write(to: url, options: .atomic)
+            do {
+                try data.write(to: url, options: .atomic)
+            } catch {
+                NSLog("AethraKairos: could not save %@ — %@", url.lastPathComponent, String(describing: error))
+            }
         }
+    }
+
+    /// WHERE THE LIBRARY LIVES. tvOS guarantees an app far less persistent
+    /// local storage than iOS, and which folders accept a write is not the
+    /// same on every Apple TV (the simulator is no guide). So the folder is
+    /// PROVED writable before it is chosen: Application Support first (it
+    /// survives storage pressure), then Caches (writable everywhere, though
+    /// the system may clear it when space runs short), then tmp. A heart
+    /// saved into a folder that silently refuses it is a heart lost.
+    private static func storageDirectory() -> URL {
+        let fm = FileManager.default
+        var bases: [URL] = []
+        if let s = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first { bases.append(s) }
+        if let c = fm.urls(for: .cachesDirectory, in: .userDomainMask).first { bases.append(c) }
+        bases.append(fm.temporaryDirectory)
+        for base in bases {
+            let dir = base.appendingPathComponent("AethraKairos", isDirectory: true)
+            try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            let probe = dir.appendingPathComponent(".write-probe")
+            if (try? Data("ok".utf8).write(to: probe, options: .atomic)) != nil {
+                try? fm.removeItem(at: probe)
+                return dir
+            }
+            NSLog("AethraKairos: library storage refused at %@ — trying the next folder", dir.path)
+        }
+        return fm.temporaryDirectory
     }
 }

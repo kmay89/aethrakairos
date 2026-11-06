@@ -14,6 +14,10 @@ on:
   push:
     branches: [main]
 
+# read-only: the gate checks code, it never writes to the repository
+permissions:
+  contents: read
+
 concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
