@@ -275,7 +275,7 @@ struct DanceBus {
     /// only — the pure core never sees a flag, it sees inputs that stay at
     /// their defaults while the flag is off.
     static let v2: Bool = {
-        let args = ProcessInfo.processInfo.arguments
+        let args = CameraHooks.args
         if let i = args.firstIndex(of: "--dance-v2"), i + 1 < args.count {
             let v = args[i + 1].lowercased()
             return !(v == "0" || v == "false" || v == "off" || v == "no")

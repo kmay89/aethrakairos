@@ -43,6 +43,32 @@
   # on exactly as before.
   command = "(python3 tools/stamp_version.py || echo 'stamp skipped - deploying as committed') && rm -rf docs/audio && echo '/audio/* https://media.aethrakairos.com/audio/:splat 302!' > docs/_redirects"
 
+# The App Store's privacy-policy and support URLs (tvos/APP-REVIEW.md §6):
+# clean paths onto the two static pages.
+[[redirects]]
+  from = "/privacy"
+  to = "/privacy.html"
+  status = 200
+
+[[redirects]]
+  from = "/support"
+  to = "/support.html"
+  status = 200
+
+# The baseline every page gets. HSTS keeps every visit on https (no
+# includeSubDomains: other hosts under the name are not this site's to bind);
+# nosniff stops a file being run as a type it isn't; the referrer stops at the
+# origin. Framing is deliberately left open (a sister site may embed the
+# player); X-Frame-Options / frame-ancestors and a Content-Security-Policy are
+# the next steps, the CSP after a report-only trial (the player is
+# inline-heavy).
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Strict-Transport-Security = "max-age=31536000"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
 # the service worker must never be served stale, or updates stall
 [[headers]]
   for = "/sw.js"

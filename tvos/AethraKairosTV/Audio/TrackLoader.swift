@@ -88,20 +88,25 @@ final class TrackLoader {
         lock.unlock()
     }
 
-    /// Cancels every warm that no foreground caller is waiting on. A download
-    /// a listener actually needs is never killed by housekeeping.
-    func cancelPrefetches() {
+    /// Cancels every warm that no foreground caller is waiting on, except the
+    /// one for `keeping` (the track about to play: its warm is half the work
+    /// already done). A download a listener actually needs is never killed by
+    /// housekeeping. Called on every hard change of track, so a run of skips
+    /// does not leave a trail of abandoned downloads still pulling bytes.
+    func cancelPrefetches(keeping track: Track? = nil) {
+        let keep = track.map { Self.cacheKey(for: $0) }
         lock.lock()
-        let wrappers = prefetchTasks
-        prefetchTasks.removeAll()
-        for (key, _) in wrappers {
+        var wrappers: [Task<Void, Never>] = []
+        for (key, w) in prefetchTasks where key != keep {
+            wrappers.append(w)
+            prefetchTasks[key] = nil
             if let e = inflight[key], e.foreground == 0 {
                 e.task.cancel()
                 inflight[key] = nil
             }
         }
         lock.unlock()
-        for (_, w) in wrappers { w.cancel() }
+        for w in wrappers { w.cancel() }
     }
 
     // MARK: - Coalescing
@@ -203,9 +208,13 @@ final class TrackLoader {
         try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
     }
 
+    /// The cache filename. The catalog's sha256 is only trusted as a NAME when
+    /// it is exactly 64 hex digits: anything else (a typo, or `../` from a
+    /// tampered catalog) would put a path outside the cache folder.
     private static func cacheKey(for track: Track) -> String {
-        if let sha = track.sha256, !sha.isEmpty {
-            return sha.lowercased()
+        if let sha = track.sha256?.lowercased(), sha.count == 64,
+           sha.allSatisfy({ ("0"..."9").contains($0) || ("a"..."f").contains($0) }) {
+            return sha
         }
         return hex(SHA256.hash(data: Data(track.url.absoluteString.utf8)))
     }

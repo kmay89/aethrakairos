@@ -37,6 +37,11 @@ final class StageClient: ObservableObject {
     /// four-letter code. Documented (with the URL shape and JSON schema) in
     /// tvos/STAGE.md; the booth must run the small relay bridge described there.
     static let relayHost = "stage.aethrakairos.com"
+    /// The relay and the booth's sender are not deployed yet (tvos/STAGE.md:
+    /// "neither exists in this repository"), so the STAGE shelf stays hidden —
+    /// a door that opens onto nothing is an App Review rejection (2.1) and a
+    /// dead end for a listener. Flip this the day the relay answers.
+    static let available = false
 
     /// Seconds of silence before the field is declared held. The design's law:
     /// a screen degrades to a spoken "held" state, never to a frozen picture.

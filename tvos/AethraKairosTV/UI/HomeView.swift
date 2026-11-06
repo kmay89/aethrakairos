@@ -33,6 +33,10 @@ struct HomeView: View {
     // The Stage screen, reached from the shelves' STAGE entry — the TV joins a
     // booth's wire and renders the field from its packet, playing no audio.
     @State private var showStage = false
+    /// The welcome was reopened from SETTINGS (so it sits over the app, and
+    /// Menu closes it). On a first launch it is the app's root, and Menu at a
+    /// root belongs to tvOS: it goes to the Home Screen (App Review checks).
+    @State private var introReplay = false
     @State private var roomStep = 0
     @State private var roomName = ""
     @State private var activity = 0
@@ -60,7 +64,7 @@ struct HomeView: View {
     // the renderer. Never set by the app itself.
     init(player: Player) {
         self.player = player
-        _shelvesShown = State(initialValue: !ProcessInfo.processInfo.arguments.contains("--field"))
+        _shelvesShown = State(initialValue: !CameraHooks.has("--field"))
     }
 
     var body: some View {
@@ -146,13 +150,13 @@ struct HomeView: View {
                     albumsShelf(catalog)
                     heartsShelf(catalog)
                     recentShelf(catalog)
-                    stageShelf
+                    if StageClient.available { stageShelf }
                     settingsShelf
                 } else if bootGraceOver {
                     // the library never came — it can be asked for again
                     // without leaving the app, and the room can still be tuned
                     retryShelf
-                    stageShelf
+                    if StageClient.available { stageShelf }
                     settingsShelf
                 } else {
                     loadingRow
@@ -222,8 +226,9 @@ struct HomeView: View {
     /// are the first controls — PARTY, CHILL, SHUFFLE — and focus lands on the
     /// first: one click and that mood starts as a nonstop mix, straight onto
     /// the field (the remote's play/pause key is SHUFFLE). BROWSE opens the
-    /// shelves. Menu skips to the shelves, SETTINGS can replay it, and it
-    /// never interrupts twice.
+    /// shelves. On a first launch the welcome is the app's root, so Menu goes
+    /// to the Home Screen; replayed from SETTINGS, Menu closes it. It never
+    /// interrupts twice.
     private var introOverlay: some View {
         ZStack(alignment: .leading) {
             // light on the open side before a note has played
@@ -311,7 +316,7 @@ struct HomeView: View {
                     introFact("✦", "125 LIGHT SHOWS",
                               "Oceans, lightning, galaxies — every one dances to the beat.")
                     introFact("◈", "A MIX FOR EVERY MOOD",
-                              "Party, chill or shuffle — and rituals for every hour in BROWSE.")
+                              "Party, chill or shuffle — and rituals for your day in BROWSE.")
                     introFact("♥", "FREE FOR EVERYONE",
                               "No account, no ads, no cost. Nothing is tracked or shared.")
                 }
@@ -331,7 +336,17 @@ struct HomeView: View {
         .onAppear { entered = true }
         // the remote's play/pause key plays here too: the whole library
         .onPlayPauseCommand { startFromWelcome(.shuffle) }
-        .onExitCommand { withAnimation { introSeen = true } }
+        .onExitCommand(perform: welcomeExit)
+    }
+
+    /// Menu on the welcome: closes a replay, and is left to tvOS (the Home
+    /// Screen) when the welcome is the first-run root.
+    private var welcomeExit: (() -> Void)? {
+        guard introReplay else { return nil }
+        return {
+            withAnimation { introSeen = true }
+            introReplay = false
+        }
     }
 
     private func introFact(_ glyph: String, _ title: String, _ line: String) -> some View {
@@ -447,6 +462,7 @@ struct HomeView: View {
             }
             .frame(maxWidth: 860)
             Button {
+                introReplay = true
                 withAnimation { introSeen = false }
             } label: {
                 settingLabel("WELCOME", "See the intro again.")

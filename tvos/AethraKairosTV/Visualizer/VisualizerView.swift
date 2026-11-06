@@ -412,7 +412,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     // CI's synthetic drive: `--drive-demo` replaces the ears with a pumping
     // 126 BPM signal so the simulator can photograph rooms UNDER music
     // without playing any. Never on for a listener.
-    private static let driveDemo = ProcessInfo.processInfo.arguments.contains("--drive-demo")
+    private static let driveDemo = CameraHooks.has("--drive-demo")
 
     /// The drive demo's KEYED track: the sim shots should photograph the
     /// colour engine's work (an 8B plan, vivid and keyed), not the boot ice.
@@ -443,10 +443,10 @@ final class VizRenderer: NSObject, MTKViewDelegate {
             director = Director(startAt: Rooms.pulseIndex)
         }
         // CI's camera: `--start-room <key>` opens on a named room, so the
-        // simulator smoke job can photograph any of the 42 without a remote
+        // simulator smoke job can photograph any room without a remote
         // in hand. It wins over every other opening choice, on purpose —
         // the camera must see the room it asked for.
-        let args = ProcessInfo.processInfo.arguments
+        let args = CameraHooks.args
         if let flag = args.firstIndex(of: "--start-room"), flag + 1 < args.count,
            let idx = Rooms.all.firstIndex(where: { $0.key == args[flag + 1] }) {
             director = Director(startAt: idx)
@@ -586,7 +586,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// CI's camera passes `--fixed-rolls` so every room is photographed on
     /// its first face with mid dice — frame review stays comparable run to
     /// run instead of chasing whichever face the boot happened to deal.
-    private static let fixedRolls = ProcessInfo.processInfo.arguments.contains("--fixed-rolls")
+    private static let fixedRolls = CameraHooks.has("--fixed-rolls")
 
     /// CI's camera can also pin ANY face: `--rolls a,b,c` deals exactly those
     /// three dice (each clamped into 0..<1), so the sim-shots job can walk a
@@ -594,7 +594,7 @@ final class VizRenderer: NSObject, MTKViewDelegate {
     /// forms, one launch each. It wins over `--fixed-rolls`; a malformed
     /// value is ignored and the usual deal stands. Never on for a listener.
     private static let pinnedRolls: SIMD3<Float>? = {
-        let args = ProcessInfo.processInfo.arguments
+        let args = CameraHooks.args
         guard let flag = args.firstIndex(of: "--rolls"), flag + 1 < args.count else { return nil }
         let parts = args[flag + 1].split(separator: ",").compactMap {
             Float(String($0).trimmingCharacters(in: .whitespaces))

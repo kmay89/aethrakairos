@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Privacy — Aethra Kairos</title>
+<meta name="description" content="Aethra Kairos collects no personal data: no accounts, no ads, no analytics, no tracking. What stays on your device, and what a web server sees.">
+<style>
+  :root{
+    --bg:#05060c; --panel:#0b0e18; --line:rgba(255,255,255,.08);
+    --ink:#eaf2ff; --dim:#9fb0cc; --faint:#5c6a86; --accent:#6ee7ff;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    line-height:1.65;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:760px;margin:0 auto;padding:0 22px}
+  header{padding:64px 0 34px;background:radial-gradient(120% 90% at 50% -10%, rgba(110,231,255,.10), transparent 60%)}
+  h1{font-size:30px;margin:0 0 8px;font-weight:650;letter-spacing:.3px}
+  .tagline{color:var(--dim);font-size:15px;margin:0}
+  section{padding:26px 0;border-top:1px solid var(--line)}
+  h2{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--faint);font-weight:600;margin:0 0 14px}
+  p,li{color:var(--dim);font-size:15px}
+  b{color:var(--ink);font-weight:600}
+  ul{padding-left:20px}
+  .short{padding:18px 20px;border-radius:12px;background:var(--panel);border:1px solid var(--line);color:var(--ink)}
+  footer{padding:30px 0 60px;border-top:1px solid var(--line);color:var(--faint);font-size:13px}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>Privacy</h1>
+  <p class="tagline">Aethra Kairos — the website, the Mac app and the Apple TV app. Last updated November 6, 2026.</p>
+</div></header>
+
+<main class="wrap">
+  <section>
+    <h2>The short version</h2>
+    <p class="short">Aethra Kairos does not collect personal data. There are no accounts, no ads, no analytics,
+      no tracking and no third-party SDKs, and nothing you do is sold or shared.</p>
+  </section>
+
+  <section>
+    <h2>What stays on your device</h2>
+    <p>To remember things for you, the apps keep a little data <b>on your own device only</b>:
+      the songs you heart, what you played recently, where you left off, and your settings
+      (for example Reduce Flashing or Auto Rooms). In a browser this lives in the site's local storage;
+      on Apple TV and Mac it lives in the app's own storage. It is never sent to us. Deleting the app,
+      or clearing the site's data in your browser, removes it.</p>
+    <p>Music you play is downloaded and cached on the device so it can play smoothly and does not have
+      to be fetched twice.</p>
+  </section>
+
+  <section>
+    <h2>What a server sees</h2>
+    <p>To play anything, your device has to ask for it. The website and the music catalog are served
+      from <b>aethrakairos.com</b> (hosted by Netlify) and the songs from <b>media.aethrakairos.com</b>
+      (Cloudflare R2). Like every web server, these providers handle standard request information — your
+      IP address, the time, the file asked for and your browser or app version — to deliver the files and
+      to keep the service secure. We do not use it to identify you, build a profile, or follow you
+      anywhere, and we do not combine it with anything.</p>
+  </section>
+
+  <section>
+    <h2>Optional features</h2>
+    <ul>
+      <li><b>Stage (website).</b> When you pair screens to a booth, a four-letter room code and the
+        connection details your browsers need to find each other pass through a small mailbox service
+        at kmay89.com. The picture then travels directly between your devices. Nothing about you is
+        stored.</li>
+      <li><b>Smart lights (Mac app).</b> If you connect Philips Hue lights, the app talks to your Hue
+        bridge on your own local network. Nothing leaves your home for this.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Apple TV</h2>
+    <p>The Apple TV app has no account and no sign-in, uses no advertising identifier, and contains no
+      analytics or tracking code. Its App Store privacy label is <b>Data Not Collected</b>.</p>
+  </section>
+
+  <section>
+    <h2>Children</h2>
+    <p>Aethra Kairos is made for everyone, and because it collects no personal data, it collects none
+      from children either.</p>
+  </section>
+
+  <section>
+    <h2>Questions</h2>
+    <p>Ask anything on the <a href="support.html">support page</a>. If this policy ever changes, the
+      new version will be posted here with its date.</p>
+  </section>
+</main>
+
+<footer><div class="wrap"><a href="./">Aethra Kairos</a> · <a href="support.html">Support</a></div></footer>
+</body>
+</html>

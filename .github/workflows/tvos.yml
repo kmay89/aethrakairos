@@ -66,9 +66,12 @@ jobs:
       - name: Build (generic tvOS device, signing off)
         run: |
           set -o pipefail
+          # Release, as the archive builds it: the camera hooks compile out
+          # here (CameraHooks), and this proves the shipping configuration builds
           xcodebuild build \
             -project tvos/AethraKairos.xcodeproj \
             -scheme AethraKairosTV \
+            -configuration Release \
             -destination 'generic/platform=tvOS' \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             2>&1 | tee build.log | grep -E 'error|warning|BUILD' || true
@@ -104,6 +107,7 @@ jobs:
           xcodebuild build \
             -project tvos/AethraKairos.xcodeproj \
             -scheme AethraKairosTV \
+            -configuration Debug \
             -destination 'generic/platform=tvOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/dd" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
@@ -751,6 +755,7 @@ jobs:
           xcodebuild build \
             -project tvos/AethraKairos.xcodeproj \
             -scheme AethraKairosTV \
+            -configuration Debug \
             -destination 'generic/platform=tvOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/dd" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
@@ -878,6 +883,7 @@ jobs:
           xcodebuild build \
             -project tvos/AethraKairos.xcodeproj \
             -scheme AethraKairosTV \
+            -configuration Debug \
             -destination 'generic/platform=tvOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/dd" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
